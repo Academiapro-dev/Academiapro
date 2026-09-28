@@ -1,5 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { Resend } from "resend";
+import crypto from "crypto";
+import { sessionCourante } from "../../../../lib/session";
+import {
+  verifier, dossiersAutorises, carteBlanche, profilPaie, peutGererEquipe,
+} from "../../../../lib/droits";
+import type { Droit } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -204,36 +211,58 @@ function controlerBic(brut: string): { ok: boolean; message?: string; propre?: s
   return { ok: true, propre: s };
 }
 
-export async function POST(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret")
-    || req.headers.get("authorization")?.replace("Bearer ", "");
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ erreur: "non autorise" }, { status: 401 });
-  }
-
-  let c: any = {};
-  try { c = await req.json(); } catch { c = {}; }
-  const action = String(c.action || "").trim();
-
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 28/09 — CE QUI ETAIT LE POST EST DEVENU `traiter`. La porte (session,
+// organisme, droits, journal) est dans le POST, en fin de fichier : quand
+// on arrive ici, tout a deja ete verifie.
+// ═══════════════════════════════════════════════════════════════════════
+async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Promise<NextResponse> {
   try {
+    // 🆕 28/09 — relais, validation, pieces, recapitulatif, mesure.
+    const nouvelle = await actionsDuControle(req, c, action, ctx);
+    if (nouvelle) return nouvelle;
+
     // ---- LISTER LES CONTRATS ----
+    // 🆕🚨 28/09 — BORNEE A L ORGANISME ET AUX DOSSIERS CONFIES. Jusqu ici
+    // elle rendait les contrats et les societes de TOUTE LA BASE : avec la
+    // cle, c etait Jacques seul ; avec la connexion, un cabinet aurait vu les
+    // salaries de tous les autres. Elle rend aussi le PROFIL de la session
+    // (ce qu elle peut faire, dossier par dossier) pour que l ecran ne
+    // montre que les boutons utilisables — la route reverifie chaque geste.
     if (action === "contrats") {
-      const { data, error } = await supabase
+      const ids = ctx.cleServeur ? null : await dossiersAutorises();
+      if (ids && ids.length === 0) {
+        return NextResponse.json({
+          success: true, contrats: [], societes: [],
+          profil: await profilPaie([]),
+          avertissement: "Aucun dossier de paie n'est rattaché à votre compte.",
+        });
+      }
+
+      let qContrats = supabase
         .from("paie_contrats")
         .select("*, paie_salaries(nom, prenom, taux_pas, taux_pas_date_effet, taux_pas_identifiant_crm)")
         .eq("statut", "actif")
         .order("date_debut", { ascending: false })
-        .limit(200);
+        .limit(500);
+      if (ids) qContrats = qContrats.in("societe_id", ids);
+      const { data, error } = await qContrats;
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
 
       // Les societes, pour le choix a la creation.
-      const { data: societes } = await supabase
+      let qSocietes = supabase
         .from("compta_societes")
-        .select("id, tenant_id, raison_sociale, effectif, siret")
+        .select("id, tenant_id, raison_sociale, effectif, siret, contact_email, email_contact")
         .order("raison_sociale");
+      if (ids) qSocietes = qSocietes.in("id", ids);
+      const { data: societes } = await qSocietes;
 
-      return NextResponse.json({ success: true, contrats: data || [], societes: societes || [] });
+      const profil = ctx.cleServeur
+        ? { email: "cle-serveur", role: "administrateur", admin: true, gerer_equipe: false, dossiers: {} }
+        : await profilPaie((societes || []).map(function (s: any) { return String(s.id); }));
+
+      return NextResponse.json({ success: true, contrats: data || [], societes: societes || [], profil: profil });
     }
 
     // ---- CREER UN SALARIE ET SON CONTRAT ----
@@ -838,6 +867,7 @@ export async function POST(req: NextRequest) {
         libelle: propre(c.libelle) || "Element",
         quantite: q, taux: t, montant: montant,
         soumis_cotisations: c.soumis_cotisations === false ? false : true,
+        saisi_par: ctx.email,
       });
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
@@ -883,7 +913,9 @@ export async function POST(req: NextRequest) {
       const { data, error } = await supabase
         .from("paie_bulletins")
         .select("id, numero, periode, brut, net_a_payer, cout_employeur, statut, "
-          + "chemin_pdf, emis_le, type_bulletin, rectifie_id, annule_le")
+          + "chemin_pdf, emis_le, type_bulletin, rectifie_id, annule_le, "
+          + "validation, prepare_par, soumis_par, soumis_le, valide_par, renvoi_motif, "
+          + "justification, levee_motif")
         .eq("contrat_id", propre(c.contrat_id))
         .order("periode", { ascending: false })
         .order("numero", { ascending: false });
@@ -955,6 +987,20 @@ export async function POST(req: NextRequest) {
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 28/09 — LA CARTE BLANCHE. Le droit d emettre ne suffit pas :
+      // sans la carte blanche sur ce dossier, le bulletin se SOUMET, et
+      // c est un associe (ou une personne qui l a) qui l emet. Decision de
+      // Jacques : on passe d abord par sa verification.
+      // ═══════════════════════════════════════════════════════════════
+      if (!ctx.cleServeur && !(await carteBlanche(String(b.societe_id)))) {
+        return NextResponse.json({
+          erreur: "vous n'avez pas la carte blanche sur ce dossier : soumettez le bulletin "
+            + "à validation, il sera émis par un associé ou par une personne qui l'a. "
+            + "⛔ Rien n'a été émis.",
+        }, { status: 403 });
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // 🆕🚨 20/09 — ON RECALCULE AVANT D EMETTRE. TOUJOURS.
       //
       // DEFAUT MESURE CE MATIN, ET IL EST GRAVE : l ecran affichait un
@@ -1020,6 +1066,18 @@ export async function POST(req: NextRequest) {
         apresCout = Number(recalcul.cout_employeur || 0);
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 28/09 — LE VERROU : controle de vraisemblance ET recapitulatif
+      // confirme par le client, sur les montants QUI VIENNENT D ETRE
+      // RECALCULES. Un point rouge non leve, un point orange sans
+      // justification, un recapitulatif absent, conteste ou perime :
+      // on n emet pas.
+      // ═══════════════════════════════════════════════════════════════
+      if (!ctx.cleServeur) {
+        const verrou = await verrouEmission(b, propre(c.justification), ctx);
+        if (verrou) return verrou;
+      }
+
       // ---- 1. ANNULER LE BULLETIN RECTIFIE ----
       let annule: string | null = null;
       if (b.type_bulletin === "rectificatif" && b.rectifie_id) {
@@ -1058,6 +1116,11 @@ export async function POST(req: NextRequest) {
           erreur: "l'émission n'a rien modifié : le bulletin n'était plus en brouillon.",
         }, { status: 409 });
       }
+
+      // 🆕 28/09 — qui a emis, et quand : c est la validation.
+      await supabase.from("paie_bulletins").update({
+        validation: "valide", valide_par: ctx.email, valide_le: new Date().toISOString(),
+      }).eq("id", b.id);
 
       // ═══════════════════════════════════════════════════════════════
       // 🚨 L ACQUISITION DES CONGES SE POSE ICI, A L EMISSION — PAS AU
@@ -2342,4 +2405,1058 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     return NextResponse.json({ erreur: String(e) }, { status: 500 });
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 28/09 — LA PORTE UNIQUE : CONNEXION, ORGANISME, DROITS, JOURNAL
+//
+// Jusqu au 28/09, cette route ne connaissait qu une chose : la cle
+// d administration, tapee dans l ecran et gardee dans l onglet. Celui qui
+// la tenait voyait TOUTE LA BASE — tous les salaries de tous les cabinets.
+// C etait supportable tant que Jacques etait seul a s en servir ; c est
+// impossible des qu un cabinet, un collaborateur ou un sous-traitant
+// prepare la paie.
+//
+// DESORMAIS, TOUT PASSE PAR ICI, DANS CET ORDRE :
+//   1. QUI : la session signee (lib/session). La cle reste acceptee pour
+//      les appels de serveur a serveur et les scripts — elle ne s affiche
+//      plus jamais dans un ecran.
+//   2. QUEL DOSSIER : chaque action designe un contrat, un element, un
+//      bulletin, un evenement ou une societe ; on remonte a la societe, et
+//      lib/droits verifie qu elle appartient a l organisme de la session et
+//      qu elle est confiee a ce collaborateur. Un identifiant d un autre
+//      cabinet colle a la main rend « introuvable ».
+//   3. QUEL GESTE : chaque action exige son droit (REGLES ci-dessous).
+//   4. LE JOURNAL : toute ecriture reussie est inscrite dans compta_audit,
+//      avec qui, quand, sur quoi et les parametres donnes.
+//
+// 🚨 LE RELAIS : l ecran ne parle plus qu a cette route. Le calcul, le
+// bulletin PDF, la fin de contrat et le signalement DSN restent dans leurs
+// routes, protegees par la cle ; celle-ci les appelle de serveur a serveur
+// APRES avoir verifie les droits. Une seule porte, donc un seul endroit ou
+// un controle peut manquer.
+// ═══════════════════════════════════════════════════════════════════════
+
+type Ctx = {
+  cleServeur: boolean;
+  email: string;
+  ip: string | null;
+  hote: string;
+};
+
+type Regle = { droit: Droit | null; cible: string; ecrit: boolean };
+
+// cible : « type » ou « type:champ ». Types : contrat (contrat_id par
+// defaut), element, bulletin, evenement, conges (id par defaut), societe
+// (societe_id), aucune.
+const REGLES: Record<string, Regle> = {
+  contrats: { droit: null, cible: "aucune", ecrit: false },
+  motifs_rupture: { droit: null, cible: "aucune", ecrit: false },
+  nouveau: { droit: "paie_contrats", cible: "societe", ecrit: true },
+  modifier_contrat: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  repartition: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  taux_pas: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  elements: { droit: null, cible: "contrat", ecrit: false },
+  ajouter_element: { droit: "paie_preparer", cible: "contrat", ecrit: true },
+  supprimer_element: { droit: "paie_preparer", cible: "element", ecrit: true },
+  bulletins: { droit: null, cible: "contrat", ecrit: false },
+  voir_bulletin: { droit: null, cible: "bulletin", ecrit: false },
+  emettre: { droit: "paie_emettre", cible: "bulletin", ecrit: true },
+  conges: { droit: null, cible: "contrat", ecrit: false },
+  poser_conges: { droit: "paie_preparer", cible: "contrat", ecrit: true },
+  supprimer_conges: { droit: "paie_preparer", cible: "conges", ecrit: true },
+  prime_vacances: { droit: null, cible: "societe", ecrit: false },
+  arret_ald: { droit: "paie_preparer", cible: "evenement:evenement_id", ecrit: true },
+  evenements: { droit: null, cible: "contrat", ecrit: false },
+  deposer_evenement: { droit: "dsn_deposer", cible: "evenement", ecrit: true },
+  ajouter_evenement: { droit: "paie_preparer", cible: "contrat", ecrit: true },
+  supprimer_evenement: { droit: "paie_preparer", cible: "evenement", ecrit: true },
+  // ---- 28/09 : le relais ----
+  calculer: { droit: null, cible: "contrat", ecrit: false },
+  sortir_bulletin: { droit: "paie_preparer", cible: "contrat", ecrit: true },
+  signalement: { droit: "paie_preparer", cible: "evenement:evenement_id", ecrit: true },
+  fin_contrat: { droit: "paie_emettre", cible: "contrat", ecrit: true },
+  // ---- 28/09 : la validation ----
+  tableau_mois: { droit: null, cible: "societe", ecrit: false },
+  controler: { droit: null, cible: "contrat", ecrit: false },
+  soumettre: { droit: "paie_preparer", cible: "contrat", ecrit: false },
+  justifier: { droit: "paie_preparer", cible: "bulletin", ecrit: true },
+  renvoyer: { droit: "paie_emettre", cible: "bulletin", ecrit: false },
+  lever: { droit: "paie_emettre", cible: "bulletin", ecrit: false },
+  joindre_preuve: { droit: "paie_preparer", cible: "element", ecrit: true },
+  voir_preuve: { droit: null, cible: "element", ecrit: false },
+  envoyer_recap: { droit: "paie_preparer", cible: "societe", ecrit: true },
+  lever_recap: { droit: "paie_emettre", cible: "societe", ecrit: true },
+  mesure: { droit: null, cible: "aucune", ecrit: false },
+};
+
+async function cibleDe(spec: string, c: any): Promise<{ societeId: string | null; reference: string | null }> {
+  const morceaux = spec.split(":");
+  const type = morceaux[0];
+  if (type === "aucune") return { societeId: null, reference: null };
+
+  const champ = morceaux[1]
+    || (type === "contrat" ? "contrat_id" : type === "societe" ? "societe_id" : "id");
+  const id = propre(c[champ]);
+  if (!id) return { societeId: null, reference: null };
+
+  if (type === "societe") {
+    const { data } = await supabase.from("compta_societes").select("id").eq("id", id).maybeSingle();
+    return { societeId: data ? String((data as any).id) : null, reference: id };
+  }
+  if (type === "contrat") {
+    const { data } = await supabase.from("paie_contrats").select("societe_id").eq("id", id).maybeSingle();
+    return { societeId: data ? String((data as any).societe_id) : null, reference: id };
+  }
+  if (type === "element") {
+    const { data } = await supabase.from("paie_elements").select("societe_id").eq("id", id).maybeSingle();
+    return { societeId: data ? String((data as any).societe_id) : null, reference: id };
+  }
+  if (type === "bulletin") {
+    const { data } = await supabase.from("paie_bulletins").select("societe_id").eq("id", id).maybeSingle();
+    return { societeId: data ? String((data as any).societe_id) : null, reference: id };
+  }
+  if (type === "evenement") {
+    const { data } = await supabase.from("paie_evenements").select("societe_id").eq("id", id).maybeSingle();
+    return { societeId: data ? String((data as any).societe_id) : null, reference: id };
+  }
+  if (type === "conges") {
+    const { data } = await supabase.from("paie_conges").select("contrat_id").eq("id", id).maybeSingle();
+    if (!data) return { societeId: null, reference: id };
+    const { data: ct } = await supabase.from("paie_contrats").select("societe_id")
+      .eq("id", (data as any).contrat_id).maybeSingle();
+    return { societeId: ct ? String((ct as any).societe_id) : null, reference: id };
+  }
+  return { societeId: null, reference: id };
+}
+
+// Le journal. Il ne bloque jamais le geste : un journal en panne se lit
+// dans les journaux Vercel, mais la paie du client ne s arrete pas pour lui.
+async function journal(
+  societeId: string | null, ctx: Ctx, action: string, cible: string,
+  reference: string | null, apres: any, avant?: any
+): Promise<void> {
+  const { error } = await supabase.from("compta_audit").insert({
+    societe_id: societeId,
+    email: ctx.email,
+    action: action,
+    cible: cible,
+    reference: reference,
+    avant: avant === undefined ? null : avant,
+    apres: apres === undefined ? null : apres,
+    adresse_ip: ctx.ip,
+  });
+  if (error) console.error("[paie/dossier] journal :", error.message);
+}
+
+// Les parametres d une demande, sans ce qui n a rien a faire au journal :
+// le contenu d une piece jointe (plusieurs megaoctets) et toute cle.
+function pourJournal(c: any): any {
+  const copie: any = {};
+  for (const k of Object.keys(c || {})) {
+    if (k === "contenu" || k === "cle" || k === "secret") continue;
+    copie[k] = c[k];
+  }
+  return copie;
+}
+
+// L appel d une route voisine, de serveur a serveur, avec la cle.
+async function relais(ctx: Ctx, chemin: string, init: any): Promise<{ status: number; texte: string; json: any }> {
+  try {
+    const r = await fetch("https://" + ctx.hote + chemin, { ...init, cache: "no-store" });
+    const texte = await r.text();
+    let json: any = null;
+    try { json = JSON.parse(texte); } catch (e) { json = null; }
+    return { status: r.status, texte: texte, json: json };
+  } catch (e: any) {
+    const texte = JSON.stringify({ erreur: "appel interne impossible : " + String(e && e.message ? e.message : e) });
+    return { status: 502, texte: texte, json: JSON.parse(texte) };
+  }
+}
+
+function reponseDuRelais(r: { status: number; texte: string }): NextResponse {
+  return new NextResponse(r.texte || "{}", {
+    status: r.status,
+    headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
+  });
+}
+
+function cleEncodee(): string {
+  return encodeURIComponent(process.env.CRON_SECRET || "");
+}
+
+function moisDe(p: any): string | null {
+  const s = String(p || "").slice(0, 10);
+  if (!/^\d{4}-\d{2}(-\d{2})?$/.test(s)) return null;
+  return s.slice(0, 7) + "-01";
+}
+
+function moisDecale(periode: string, n: number): string {
+  const d = new Date(periode.slice(0, 7) + "-01T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 7) + "-01";
+}
+
+function dernierJour(periode: string): string {
+  const d = new Date(periode.slice(0, 7) + "-01T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+function euros(n: any): string {
+  const v = Number(n || 0);
+  return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+function r2(n: any): number {
+  return Math.round(Number(n || 0) * 100) / 100;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 28/09 — LE CONTROLE DE VRAISEMBLANCE
+//
+// Chaque bulletin est compare au mois precedent et au contrat, avec les
+// seuils de `paie_seuils` (reglables en base, jamais ecrits ici).
+//   ROUGE  bloque l emission tant que ce n est pas corrige, ou leve avec un
+//          motif par quelqu un qui a la carte blanche ;
+//   ORANGE demande une justification ecrite avant l emission ;
+//   INFO   se lit, ne bloque rien.
+// ⚠️ CE QU AUCUN CONTROLE N ATTRAPE : une erreur plausible (une prime de
+// 200 € saisie 250 €). C est le role du recapitulatif confirme par le
+// client — lui seul sait la verite.
+// ⚠️ LES NATURES DONT LE MONTANT N EST PAS DE L ARGENT VERSE (avantages au
+// bareme, titres-restaurant) et les retenues d absence ne passent pas les
+// controles de montant.
+// ═══════════════════════════════════════════════════════════════════════
+const HORS_CONTROLE_MONTANT = [
+  "avantage_repas", "avantage_logement", "titres_restaurant",
+  "absence_maladie", "absence_injustifiee",
+];
+
+async function seuils(): Promise<any> {
+  const { data } = await supabase.from("paie_seuils").select("code, valeur, niveau");
+  const s: any = {
+    ECART_NET_ORANGE: 25, ECART_NET_ROUGE: 80, ELEMENT_HABITUDE_FOIS: 3,
+    ELEMENT_SALAIRE_ORANGE: 50, ELEMENT_SALAIRE_ROUGE: 300,
+    HEURES_SUP_ORANGE: 20, HEURES_SUP_ROUGE: 60, PREUVE_MONTANT: 300,
+  };
+  for (const l of (data || [])) s[String((l as any).code)] = Number((l as any).valeur);
+  return s;
+}
+
+function controler(
+  b: any, contrat: any, elements: any[], precedent: any | null, historique: any[], s: any
+): { couleur: string; alertes: any[] } {
+  const alertes: any[] = [];
+  const net = Number(b.net_a_payer || 0);
+  const d: any = b.detail || {};
+
+  // La reference : le salaire du contrat, a defaut le brut du mois.
+  const hebdo = Number(contrat && contrat.duree_hebdo) > 0 ? Number(contrat.duree_hebdo) : 35;
+  let ref = Number(contrat && contrat.salaire_mensuel) || 0;
+  if (!ref && Number(contrat && contrat.salaire_horaire) > 0) {
+    ref = Number(contrat.salaire_horaire) * hebdo * 52 / 12;
+  }
+  if (!ref) ref = Number(b.brut || 0);
+
+  if (net < 0) {
+    alertes.push({ code: "NET_NEGATIF", niveau: "rouge",
+      texte: "Le net à payer est négatif (" + euros(net) + ")." });
+  }
+
+  const explique = elements.length > 0
+    || (Array.isArray(d.absences) && d.absences.length > 0)
+    || Number(d.retenue_absences || 0) !== 0;
+
+  if (!precedent) {
+    alertes.push({ code: "PREMIER_BULLETIN", niveau: "info",
+      texte: "Premier bulletin de ce contrat : aucune comparaison possible avec un mois précédent." });
+  } else {
+    const netAvant = Number(precedent.net_a_payer || 0);
+    if (netAvant > 0) {
+      const ecart = Math.abs(net - netAvant) / netAvant * 100;
+      const texte = "Le net à payer passe de " + euros(netAvant) + " à " + euros(net)
+        + " (" + (net >= netAvant ? "+" : "−") + Math.round(ecart) + " %) par rapport au bulletin "
+        + String(precedent.numero || "précédent") + ".";
+      if (ecart >= s.ECART_NET_ROUGE && !explique) {
+        alertes.push({ code: "ECART_NET", niveau: "rouge",
+          texte: texte + " Aucun élément du mois ni aucune absence ne l'explique." });
+      } else if (ecart >= s.ECART_NET_ORANGE) {
+        alertes.push({ code: "ECART_NET", niveau: "orange",
+          texte: texte + (explique ? " Les éléments ou absences du mois l'expliquent peut-être : à vérifier." : "") });
+      }
+    }
+
+    const tauxAvant = precedent.detail && precedent.detail.prelevement
+      ? Number(precedent.detail.prelevement.taux) : NaN;
+    const tauxMaintenant = d.prelevement ? Number(d.prelevement.taux) : NaN;
+    if (isFinite(tauxAvant) && isFinite(tauxMaintenant) && Math.abs(tauxAvant - tauxMaintenant) > 0.001) {
+      alertes.push({ code: "TAUX_PAS", niveau: "orange",
+        texte: "Le taux de prélèvement à la source change : " + tauxAvant.toLocaleString("fr-FR")
+          + " % le mois précédent, " + tauxMaintenant.toLocaleString("fr-FR") + " % ce mois-ci." });
+    }
+  }
+
+  // ---- Heures supplementaires et complementaires ----
+  let heures = 0;
+  for (const e of elements) {
+    if (String(e.type_element || "").indexOf("heures_") === 0) heures += Number(e.quantite || 0);
+  }
+  if (heures >= s.HEURES_SUP_ROUGE) {
+    alertes.push({ code: "HEURES", niveau: "rouge",
+      texte: heures.toLocaleString("fr-FR") + " heures supplémentaires ou complémentaires dans le mois : "
+        + "au-delà de " + s.HEURES_SUP_ROUGE + " h, une erreur de saisie est probable." });
+  } else if (heures >= s.HEURES_SUP_ORANGE) {
+    alertes.push({ code: "HEURES", niveau: "orange",
+      texte: heures.toLocaleString("fr-FR") + " heures supplémentaires ou complémentaires dans le mois." });
+  }
+
+  // ---- Les elements, un par un ----
+  const vus: any = {};
+  for (const e of elements) {
+    const type = String(e.type_element || "");
+    const libelle = String(e.libelle || type);
+    const m = Math.abs(Number(e.montant || 0));
+
+    const cle = type + "|" + libelle.toLowerCase().trim() + "|" + r2(e.montant) + "|" + r2(e.quantite);
+    if (vus[cle]) {
+      if (vus[cle] === 1) {
+        alertes.push({ code: "DOUBLON", niveau: "orange",
+          texte: "« " + libelle + " » est saisi plusieurs fois avec le même montant : doublon ?" });
+      }
+      vus[cle]++;
+    } else vus[cle] = 1;
+
+    if (HORS_CONTROLE_MONTANT.indexOf(type) >= 0 || m === 0) continue;
+
+    if (ref > 0 && m >= ref * s.ELEMENT_SALAIRE_ROUGE / 100) {
+      alertes.push({ code: "MONTANT_ANORMAL", niveau: "rouge", element_id: e.id,
+        texte: "« " + libelle + " » vaut " + euros(m) + ", soit plus de " + s.ELEMENT_SALAIRE_ROUGE
+          + " % du salaire de référence (" + euros(ref) + ") : virgule oubliée ?" });
+    } else if (ref > 0 && m >= ref * s.ELEMENT_SALAIRE_ORANGE / 100) {
+      alertes.push({ code: "MONTANT_ELEVE", niveau: "orange", element_id: e.id,
+        texte: "« " + libelle + " » vaut " + euros(m) + ", soit plus de " + s.ELEMENT_SALAIRE_ORANGE
+          + " % du salaire de référence (" + euros(ref) + ")." });
+    }
+
+    // L habitude : la moyenne des mois precedents ou cette nature existe.
+    const parMois: any = {};
+    for (const h of historique) {
+      if (String(h.type_element) !== type) continue;
+      const k = String(h.periode).slice(0, 7);
+      parMois[k] = (parMois[k] || 0) + Math.abs(Number(h.montant || 0));
+    }
+    const moisVus = Object.keys(parMois);
+    if (moisVus.length > 0) {
+      let somme = 0;
+      for (const k of moisVus) somme += parMois[k];
+      const moyenne = somme / moisVus.length;
+      if (moyenne > 0 && m > moyenne * s.ELEMENT_HABITUDE_FOIS) {
+        alertes.push({ code: "HORS_HABITUDE", niveau: "orange", element_id: e.id,
+          texte: "« " + libelle + " » (" + euros(m) + ") dépasse " + s.ELEMENT_HABITUDE_FOIS
+            + " fois sa moyenne des mois précédents (" + euros(moyenne) + ")." });
+      }
+    }
+
+    if (m >= s.PREUVE_MONTANT && !e.preuve_chemin) {
+      alertes.push({ code: "PREUVE_MANQUANTE", niveau: "rouge", element_id: e.id,
+        texte: "« " + libelle + " » (" + euros(m) + ") exige une pièce justificative à partir de "
+          + euros(s.PREUVE_MONTANT) + " : joignez-la depuis la liste des éléments." });
+    }
+  }
+
+  const rouge = alertes.some(function (a) { return a.niveau === "rouge"; });
+  const orange = alertes.some(function (a) { return a.niveau === "orange"; });
+  return { couleur: rouge ? "rouge" : orange ? "orange" : "vert", alertes: alertes };
+}
+
+// Tout ce qu il faut pour controler le bulletin d un contrat sur un mois.
+async function controleDuMois(contratId: string, periode: string, s?: any): Promise<any> {
+  const bornes = { debut: periode, fin: dernierJour(periode) };
+  const [bRes, ctRes, elRes, precRes, histRes] = await Promise.all([
+    supabase.from("paie_bulletins")
+      .select("id, numero, statut, brut, net_a_payer, cout_employeur, detail, validation, prepare_par, "
+        + "soumis_par, soumis_le, valide_par, valide_le, renvoi_motif, justification, levee_motif, levee_par, "
+        + "levee_le, type_bulletin, rectifie_id")
+      .eq("contrat_id", contratId).gte("periode", bornes.debut).lte("periode", bornes.fin)
+      .in("statut", ["brouillon", "emis"]),
+    supabase.from("paie_contrats").select("id, salaire_mensuel, salaire_horaire, duree_hebdo, type_contrat")
+      .eq("id", contratId).maybeSingle(),
+    supabase.from("paie_elements").select("*")
+      .eq("contrat_id", contratId).gte("periode", bornes.debut).lte("periode", bornes.fin),
+    supabase.from("paie_bulletins").select("numero, net_a_payer, detail, periode")
+      .eq("contrat_id", contratId).eq("statut", "emis").lt("periode", bornes.debut)
+      .order("periode", { ascending: false }).limit(1),
+    supabase.from("paie_elements").select("type_element, montant, periode")
+      .eq("contrat_id", contratId).gte("periode", moisDecale(periode, -3)).lt("periode", bornes.debut),
+  ]);
+
+  const liste = (bRes.data || []) as any[];
+  const bulletin = liste.filter(function (x) { return x.statut === "brouillon"; })[0]
+    || liste.filter(function (x) { return x.statut === "emis"; })[0] || null;
+  if (!bulletin) return { bulletin: null, controle: null };
+
+  const precedent = ((precRes.data || []) as any[])[0] || null;
+  const controle = controler(bulletin, ctRes.data || {}, (elRes.data || []) as any[],
+    precedent, (histRes.data || []) as any[], s || await seuils());
+  return { bulletin: bulletin, controle: controle, elements: elRes.data || [] };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 28/09 — LE RECAPITULATIF CONFIRME PAR LE CLIENT
+//
+// Avant d emettre, l employeur recoit la liste de ses salaries, de leurs
+// elements du mois et de leurs nets, et confirme par un lien. Sans
+// confirmation, pas d emission — sauf levee motivee par quelqu un qui a la
+// carte blanche, inscrite au journal.
+// 🚨 L EMPREINTE : ce que le client a confirme est photographie. Si un
+// montant change ensuite (element ajoute, recalcul), l empreinte ne
+// correspond plus et il faut renvoyer le recapitulatif. Sans cela, le
+// client confirmerait une paie et on en emettrait une autre.
+// ═══════════════════════════════════════════════════════════════════════
+async function contenuRecap(societeId: string, periode: string): Promise<any> {
+  const fin = dernierJour(periode);
+  const [socRes, bRes, elRes, ctRes] = await Promise.all([
+    supabase.from("compta_societes").select("id, tenant_id, raison_sociale, contact_email, email_contact")
+      .eq("id", societeId).maybeSingle(),
+    supabase.from("paie_bulletins")
+      .select("id, numero, statut, brut, net_a_payer, contrat_id, "
+        + "paie_contrats(intitule_poste, paie_salaries(nom, prenom))")
+      .eq("societe_id", societeId).gte("periode", periode).lte("periode", fin)
+      .in("statut", ["brouillon", "emis"]),
+    supabase.from("paie_elements").select("contrat_id, libelle, type_element, quantite, montant")
+      .eq("societe_id", societeId).gte("periode", periode).lte("periode", fin),
+    supabase.from("paie_contrats")
+      .select("id, date_debut, date_fin, rompu_le, intitule_poste, paie_salaries(nom, prenom)")
+      .eq("societe_id", societeId).eq("statut", "actif"),
+  ]);
+
+  const soc: any = socRes.data || {};
+  const parContrat: any = {};
+  for (const b of ((bRes.data || []) as any[])) {
+    const deja = parContrat[b.contrat_id];
+    if (!deja || (deja.statut === "emis" && b.statut === "brouillon")) parContrat[b.contrat_id] = b;
+  }
+
+  const nomDe = function (ct: any): string {
+    const s = ct && ct.paie_salaries ? ct.paie_salaries : {};
+    return (String(s.prenom || "") + " " + String(s.nom || "").toUpperCase()).trim() || "Salarié";
+  };
+
+  const lignes: any[] = [];
+  for (const id of Object.keys(parContrat)) {
+    const b = parContrat[id];
+    const ct: any = b.paie_contrats || {};
+    lignes.push({
+      contrat_id: id,
+      salarie: nomDe(ct),
+      poste: String(ct.intitule_poste || ""),
+      bulletin: String(b.numero || ""),
+      brut: r2(b.brut),
+      net: r2(b.net_a_payer),
+      elements: ((elRes.data || []) as any[])
+        .filter(function (e) { return e.contrat_id === id; })
+        .map(function (e) {
+          return { libelle: String(e.libelle || e.type_element), quantite: e.quantite === null ? null : Number(e.quantite), montant: r2(e.montant) };
+        }),
+    });
+  }
+  lignes.sort(function (a, b) { return a.salarie.localeCompare(b.salarie, "fr"); });
+
+  // Les salaries en poste ce mois-ci qui n ont pas encore de bulletin.
+  const manquants: string[] = [];
+  for (const ct of ((ctRes.data || []) as any[])) {
+    if (parContrat[ct.id]) continue;
+    const debut = String(ct.date_debut || "").slice(0, 10);
+    const finCt = String(ct.rompu_le || ct.date_fin || "").slice(0, 10);
+    if (debut && debut > fin) continue;
+    if (finCt && finCt < periode) continue;
+    manquants.push(nomDe(ct));
+  }
+
+  const totaux = {
+    brut: r2(lignes.reduce(function (a, l) { return a + l.brut; }, 0)),
+    net: r2(lignes.reduce(function (a, l) { return a + l.net; }, 0)),
+  };
+
+  const empreinte = crypto.createHash("sha256").update(JSON.stringify(lignes.map(function (l) {
+    return [l.contrat_id, l.brut, l.net, l.elements.map(function (e: any) { return [e.libelle, e.quantite, e.montant]; })];
+  }))).digest("hex");
+
+  return {
+    societe: { id: societeId, tenant_id: soc.tenant_id || null, nom: String(soc.raison_sociale || ""),
+      email: soc.contact_email || soc.email_contact || null },
+    contenu: { societe: String(soc.raison_sociale || ""), periode: periode, lignes: lignes, totaux: totaux },
+    empreinte: empreinte,
+    manquants: manquants,
+  };
+}
+
+async function etatRecap(societeId: string, periode: string, empreinteActuelle: string | null): Promise<any> {
+  const { data } = await supabase.from("paie_recaps")
+    .select("id, statut, destinataire, envoye_par, remarque, repondu_le, cree_le, empreinte")
+    .eq("societe_id", societeId).eq("periode", periode)
+    .order("cree_le", { ascending: false }).limit(1);
+  const r: any = ((data || []) as any[])[0];
+  if (!r) return null;
+  return {
+    statut: r.statut, destinataire: r.destinataire, envoye_par: r.envoye_par,
+    remarque: r.remarque, repondu_le: r.repondu_le, envoye_le: r.cree_le,
+    a_jour: empreinteActuelle ? r.empreinte === empreinteActuelle : null,
+  };
+}
+
+const MARQUES_COURRIEL: Record<string, { site: string; nom: string; expediteur: string }> = {
+  "mrcomptable.fr": { site: "https://mrcomptable.fr", nom: "Mr. Comptable", expediteur: "Mr. Comptable <contact@mrcomptable.fr>" },
+  "www.mrcomptable.fr": { site: "https://mrcomptable.fr", nom: "Mr. Comptable", expediteur: "Mr. Comptable <contact@mrcomptable.fr>" },
+  "academiapro.fr": { site: "https://academiapro.fr", nom: "AcadéMIA Pro", expediteur: "AcadéMIA Pro <contact@academiapro.fr>" },
+};
+
+function marqueDuCourriel(hote: string) {
+  const h = String(hote || "").split(":")[0].toLowerCase();
+  return MARQUES_COURRIEL[h] || MARQUES_COURRIEL["academiapro.fr"];
+}
+
+function html(t: any): string {
+  return String(t === null || t === undefined ? "" : t)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function moisEnClair(periode: string): string {
+  const noms = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+    "septembre", "octobre", "novembre", "décembre"];
+  return noms[Number(periode.slice(5, 7)) - 1] + " " + periode.slice(0, 4);
+}
+
+// Le verrou de l emission, pose APRES le recalcul (les montants sont frais).
+async function verrouEmission(b: any, justification: string | null, ctx: Ctx): Promise<NextResponse | null> {
+  const periode = moisDe(b.periode) || String(b.periode).slice(0, 10);
+  if (justification) {
+    await supabase.from("paie_bulletins").update({ justification: justification }).eq("id", b.id);
+  }
+  const r = await controleDuMois(String(b.contrat_id), periode);
+  if (!r.bulletin || !r.controle) {
+    return NextResponse.json({ erreur: "bulletin introuvable après recalcul. ⛔ Rien n'a été émis." }, { status: 404 });
+  }
+  const ctl = r.controle;
+  await supabase.from("paie_bulletins").update({ controle: ctl }).eq("id", b.id);
+
+  const rouges = ctl.alertes.filter(function (a: any) { return a.niveau === "rouge"; });
+  if (rouges.length > 0 && !r.bulletin.levee_motif) {
+    return NextResponse.json({
+      erreur: "⛔ Émission bloquée — point rouge : "
+        + rouges.map(function (a: any) { return a.texte; }).join(" · ")
+        + " Corrigez, ou levez le point avec un motif (réservé à qui a la carte blanche). Rien n'a été émis.",
+      controle: ctl,
+    }, { status: 409 });
+  }
+  const oranges = ctl.alertes.filter(function (a: any) { return a.niveau === "orange"; });
+  if (oranges.length > 0 && !(r.bulletin.justification || justification)) {
+    return NextResponse.json({
+      erreur: "Une justification est demandée avant d'émettre : "
+        + oranges.map(function (a: any) { return a.texte; }).join(" · ")
+        + " Écrivez-la dans le champ prévu. Rien n'a été émis.",
+      controle: ctl,
+    }, { status: 409 });
+  }
+
+  const rec = await contenuRecap(String(b.societe_id), periode);
+  const etat = await etatRecap(String(b.societe_id), periode, rec.empreinte);
+  if (!etat) {
+    return NextResponse.json({ erreur: "Le récapitulatif de " + moisEnClair(periode)
+      + " n'a pas été envoyé au client. Envoyez-le depuis « Validation du mois » : sans sa "
+      + "confirmation, pas d'émission. Rien n'a été émis." }, { status: 409 });
+  }
+  if (etat.statut === "leve") return null;
+  if (etat.statut === "envoye") {
+    return NextResponse.json({ erreur: "Le client n'a pas encore confirmé le récapitulatif envoyé à "
+      + String(etat.destinataire || "") + ". Rien n'a été émis." }, { status: 409 });
+  }
+  if (etat.statut === "conteste") {
+    return NextResponse.json({ erreur: "Le client a signalé une erreur dans le récapitulatif : « "
+      + String(etat.remarque || "sans précision") + " ». Corrigez, puis renvoyez-le. Rien n'a été émis." }, { status: 409 });
+  }
+  if (etat.statut === "confirme" && !etat.a_jour) {
+    return NextResponse.json({ erreur: "La paie a changé depuis la confirmation du client (un montant ou un "
+      + "élément a bougé) : renvoyez-lui le récapitulatif. Rien n'a été émis." }, { status: 409 });
+  }
+  if (etat.statut !== "confirme") {
+    return NextResponse.json({ erreur: "Le récapitulatif du mois n'est pas confirmé. Rien n'a été émis." }, { status: 409 });
+  }
+  return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// LES ACTIONS DU 28/09 : relais, validation, pieces, recapitulatif, mesure.
+// Elles rendent null quand l action n est pas la leur.
+// ═══════════════════════════════════════════════════════════════════════
+async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: Ctx): Promise<NextResponse | null> {
+
+  // ---- LE CALCUL (relais) ----
+  if (action === "calculer") {
+    const r = await relais(ctx, "/api/paie/calculer?contrat=" + encodeURIComponent(String(c.contrat_id || ""))
+      + "&periode=" + encodeURIComponent(String(c.periode || "")) + "&secret=" + cleEncodee(), { method: "GET" });
+    return reponseDuRelais(r);
+  }
+
+  // ---- LE BULLETIN EN BROUILLON (relais) ----
+  // 🚨 UN BROUILLON RESSORTI REPART DE ZERO : s il avait ete soumis, justifie
+  // ou leve, tout cela portait sur les anciens montants. Il faudra le
+  // resoumettre — c est voulu.
+  if (action === "sortir_bulletin") {
+    const contratId = String(c.contrat_id || "");
+    const periode = moisDe(c.periode);
+    if (!periode) return NextResponse.json({ erreur: "période illisible" }, { status: 400 });
+    const r = await relais(ctx, "/api/paie/bulletin?secret=" + cleEncodee(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contrat_id: contratId, periode: String(c.periode || "").slice(0, 10) }),
+    });
+    if (r.status < 400 && r.json && r.json.success) {
+      await supabase.from("paie_bulletins").update({
+        prepare_par: ctx.email, validation: null, soumis_par: null, soumis_le: null,
+        valide_par: null, valide_le: null, renvoi_motif: null, controle: null,
+        justification: null, levee_motif: null, levee_par: null, levee_le: null,
+      }).eq("contrat_id", contratId).gte("periode", periode).lte("periode", dernierJour(periode))
+        .eq("statut", "brouillon");
+    }
+    return reponseDuRelais(r);
+  }
+
+  // ---- LE SIGNALEMENT DSN (relais) ----
+  if (action === "signalement") {
+    const r = await relais(ctx, "/api/dsn/evenement", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ cle: process.env.CRON_SECRET || "", evenement_id: c.evenement_id, reprise: c.reprise === true }),
+    });
+    return reponseDuRelais(r);
+  }
+
+  // ---- LES DOCUMENTS DE FIN DE CONTRAT (relais) ----
+  if (action === "fin_contrat") {
+    const r = await relais(ctx, "/api/paie/fin-contrat?secret=" + cleEncodee(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contrat_id: c.contrat_id }),
+    });
+    return reponseDuRelais(r);
+  }
+
+  // ---- LE CONTROLE D UN CONTRAT ----
+  if (action === "controler") {
+    const periode = moisDe(c.periode);
+    if (!periode) return NextResponse.json({ erreur: "période illisible" }, { status: 400 });
+    const r = await controleDuMois(String(c.contrat_id), periode);
+    return NextResponse.json({ success: true, bulletin: r.bulletin ? {
+      id: r.bulletin.id, numero: r.bulletin.numero, statut: r.bulletin.statut,
+      validation: r.bulletin.validation, justification: r.bulletin.justification,
+      levee_motif: r.bulletin.levee_motif, renvoi_motif: r.bulletin.renvoi_motif,
+    } : null, controle: r.controle });
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ---- LA VALIDATION DU MOIS : tous les salaries d une societe ----
+  // ═════════════════════════════════════════════════════════════════════
+  if (action === "tableau_mois") {
+    const societeId = String(c.societe_id || "");
+    const periode = moisDe(c.periode);
+    if (!periode) return NextResponse.json({ erreur: "période illisible" }, { status: 400 });
+    const fin = dernierJour(periode);
+
+    const { data: contrats } = await supabase.from("paie_contrats")
+      .select("id, statut, date_debut, date_fin, rompu_le, intitule_poste, paie_salaries(nom, prenom)")
+      .eq("societe_id", societeId);
+
+    const enPoste = ((contrats || []) as any[]).filter(function (ct) {
+      const debut = String(ct.date_debut || "").slice(0, 10);
+      const finCt = String(ct.rompu_le || ct.date_fin || "").slice(0, 10);
+      if (debut && debut > fin) return false;
+      if (finCt && finCt < periode) return false;
+      return true;
+    });
+
+    const s = await seuils();
+    const lignes = await Promise.all(enPoste.map(async function (ct: any) {
+      const r = await controleDuMois(String(ct.id), periode, s);
+      const sal = ct.paie_salaries || {};
+      return {
+        contrat_id: ct.id,
+        salarie: (String(sal.prenom || "") + " " + String(sal.nom || "").toUpperCase()).trim(),
+        poste: String(ct.intitule_poste || ""),
+        bulletin: r.bulletin ? {
+          id: r.bulletin.id, numero: r.bulletin.numero, statut: r.bulletin.statut,
+          brut: r.bulletin.brut, net_a_payer: r.bulletin.net_a_payer,
+          validation: r.bulletin.validation, prepare_par: r.bulletin.prepare_par,
+          soumis_par: r.bulletin.soumis_par, soumis_le: r.bulletin.soumis_le,
+          valide_par: r.bulletin.valide_par, renvoi_motif: r.bulletin.renvoi_motif,
+          justification: r.bulletin.justification, levee_motif: r.bulletin.levee_motif,
+          levee_par: r.bulletin.levee_par, type_bulletin: r.bulletin.type_bulletin,
+        } : null,
+        controle: r.controle,
+      };
+    }));
+    lignes.sort(function (a: any, b: any) { return a.salarie.localeCompare(b.salarie, "fr"); });
+
+    const rec = await contenuRecap(societeId, periode);
+    const recap = await etatRecap(societeId, periode, rec.empreinte);
+    const profil = ctx.cleServeur ? null : await profilPaie([societeId]);
+
+    return NextResponse.json({
+      success: true, periode: periode, lignes: lignes,
+      recap: recap, recap_manquants: rec.manquants,
+      destinataire_propose: rec.societe.email,
+      droits: profil ? profil.dossiers[societeId] : { voir: true, contrats: true, preparer: true, emettre: true, deposer: true, carte_blanche: true },
+    });
+  }
+
+  // ---- SOUMETTRE A VALIDATION ----
+  // Le bulletin est recalcule (brouillon et PDF a jour), controle, puis mis
+  // en attente de validation. La personne qui a la carte blanche l emettra
+  // ou le renverra avec un motif.
+  if (action === "soumettre") {
+    const contratId = String(c.contrat_id || "");
+    const periode = moisDe(c.periode);
+    if (!periode) return NextResponse.json({ erreur: "période illisible" }, { status: 400 });
+
+    const r0 = await relais(ctx, "/api/paie/bulletin?secret=" + cleEncodee(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contrat_id: contratId, periode: String(c.periode || "").slice(0, 10) }),
+    });
+    if (r0.status >= 400 || !r0.json || !r0.json.success) {
+      return NextResponse.json({ erreur: "le bulletin n'a pas pu être recalculé : "
+        + ((r0.json && r0.json.erreur) || "erreur inconnue") + ". Rien n'a été soumis." }, { status: 400 });
+    }
+
+    const r = await controleDuMois(contratId, periode);
+    if (!r.bulletin || r.bulletin.statut !== "brouillon") {
+      return NextResponse.json({ erreur: "aucun brouillon à soumettre pour ce mois." }, { status: 404 });
+    }
+    const just = propre(c.justification);
+    const oranges = r.controle.alertes.filter(function (a: any) { return a.niveau === "orange"; });
+    if (oranges.length > 0 && !just && !r.bulletin.justification) {
+      return NextResponse.json({ erreur: "Une justification est demandée pour les points orange : "
+        + oranges.map(function (a: any) { return a.texte; }).join(" · ") + " Rien n'a été soumis.",
+        controle: r.controle }, { status: 409 });
+    }
+
+    const { error } = await supabase.from("paie_bulletins").update({
+      validation: "a_valider", soumis_par: ctx.email, soumis_le: new Date().toISOString(),
+      prepare_par: r.bulletin.prepare_par || ctx.email, renvoi_motif: null,
+      controle: r.controle, justification: just || r.bulletin.justification || null,
+    }).eq("id", r.bulletin.id).eq("statut", "brouillon");
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+    const { data: ct } = await supabase.from("paie_contrats").select("societe_id").eq("id", contratId).maybeSingle();
+    await journal(ct ? String((ct as any).societe_id) : null, ctx, "paie.soumettre", "bulletin",
+      String(r.bulletin.id), { numero: r.bulletin.numero, couleur: r.controle.couleur, justification: just });
+
+    return NextResponse.json({ success: true, controle: r.controle,
+      message: "Bulletin " + r.bulletin.numero + " soumis à validation"
+        + (r.controle.couleur === "rouge" ? " — avec un point rouge : il ne pourra être émis qu'une fois corrigé ou levé." : ".") });
+  }
+
+  // ---- JUSTIFIER LES POINTS ORANGE ----
+  if (action === "justifier") {
+    const texte = propre(c.texte);
+    if (!texte || texte.length < 5) {
+      return NextResponse.json({ erreur: "écrivez une justification d'au moins quelques mots." }, { status: 400 });
+    }
+    const { data: b } = await supabase.from("paie_bulletins").select("statut").eq("id", String(c.id)).maybeSingle();
+    if (!b || (b as any).statut !== "brouillon") {
+      return NextResponse.json({ erreur: "seul un bulletin en brouillon se justifie." }, { status: 400 });
+    }
+    const { error } = await supabase.from("paie_bulletins").update({ justification: texte.slice(0, 1000) }).eq("id", String(c.id));
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, message: "Justification enregistrée." });
+  }
+
+  // ---- RENVOYER UN BULLETIN A CELUI QUI L A PREPARE ----
+  if (action === "renvoyer" || action === "lever") {
+    const motif = propre(c.motif);
+    if (!motif || motif.length < 10) {
+      return NextResponse.json({ erreur: action === "renvoyer"
+        ? "dites en une phrase ce qui doit être corrigé (au moins 10 caractères)."
+        : "une levée se motive : au moins 10 caractères, ils sont inscrits au journal." }, { status: 400 });
+    }
+    const { data: b } = await supabase.from("paie_bulletins")
+      .select("id, numero, statut, societe_id, prepare_par, soumis_par, controle").eq("id", String(c.id)).maybeSingle();
+    if (!b || (b as any).statut !== "brouillon") {
+      return NextResponse.json({ erreur: "seul un bulletin en brouillon peut être " + (action === "renvoyer" ? "renvoyé." : "levé.") }, { status: 400 });
+    }
+    const bb: any = b;
+    if (!ctx.cleServeur && !(await carteBlanche(String(bb.societe_id)))) {
+      return NextResponse.json({ erreur: "réservé à qui a la carte blanche sur ce dossier." }, { status: 403 });
+    }
+    const maj: any = action === "renvoyer"
+      ? { validation: "renvoye", renvoi_motif: motif.slice(0, 1000) }
+      : { levee_motif: motif.slice(0, 1000), levee_par: ctx.email, levee_le: new Date().toISOString() };
+    const { error } = await supabase.from("paie_bulletins").update(maj).eq("id", bb.id).eq("statut", "brouillon");
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+    await journal(String(bb.societe_id), ctx, action === "renvoyer" ? "paie.renvoi" : "paie.levee", "bulletin",
+      String(bb.id), { numero: bb.numero, motif: motif, prepare_par: bb.prepare_par || bb.soumis_par || null,
+        controle: bb.controle || null });
+
+    return NextResponse.json({ success: true, message: action === "renvoyer"
+      ? "Bulletin " + bb.numero + " renvoyé avec votre motif."
+      : "Points rouges du bulletin " + bb.numero + " levés. Le motif est inscrit au journal." });
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ---- LA PIECE JUSTIFICATIVE D UN ELEMENT ----
+  // Au coffre (documents-signes, prive), sous paie-preuves/. ⚠️ 3 Mo au
+  // plus : la requete entiere est limitee a 4,5 Mo chez Vercel, et le
+  // base 64 grossit d un tiers. L ecran reduit les photos avant l envoi.
+  // ═════════════════════════════════════════════════════════════════════
+  if (action === "joindre_preuve") {
+    const { data: el } = await supabase.from("paie_elements")
+      .select("id, tenant_id, societe_id, contrat_id, periode").eq("id", String(c.id)).maybeSingle();
+    if (!el) return NextResponse.json({ erreur: "élément introuvable" }, { status: 404 });
+    const e: any = el;
+
+    const { data: emis } = await supabase.from("paie_bulletins").select("numero")
+      .eq("contrat_id", e.contrat_id).eq("periode", e.periode).eq("statut", "emis").maybeSingle();
+    if (emis) {
+      return NextResponse.json({ erreur: "le bulletin " + (emis as any).numero + " de ce mois est émis : "
+        + "la pièce se joint au bulletin rectificatif." }, { status: 400 });
+    }
+
+    const type = String(c.type || "").toLowerCase();
+    const TYPES: any = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png" };
+    if (!TYPES[type]) {
+      return NextResponse.json({ erreur: "format non accepté : un PDF, une photo JPEG ou PNG." }, { status: 400 });
+    }
+    const brut = String(c.contenu || "").replace(/^data:[^,]*,/, "");
+    const octets = Buffer.from(brut, "base64");
+    if (octets.length === 0) return NextResponse.json({ erreur: "fichier vide." }, { status: 400 });
+    if (octets.length > 3 * 1024 * 1024) {
+      return NextResponse.json({ erreur: "fichier trop lourd (" + (Math.round(octets.length / 104857.6) / 10)
+        + " Mo) : 3 Mo au plus. Photographiez la pièce plutôt que de la scanner en haute définition." }, { status: 400 });
+    }
+    const nom = String(c.nom || "piece").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "piece";
+    const chemin = "paie-preuves/" + e.tenant_id + "/" + e.societe_id + "/" + e.id + "/"
+      + Date.now() + "-" + nom + (nom.toLowerCase().endsWith("." + TYPES[type]) ? "" : "." + TYPES[type]);
+
+    const { error: eUp } = await supabase.storage.from("documents-signes")
+      .upload(chemin, octets, { contentType: type, upsert: false });
+    if (eUp) return NextResponse.json({ erreur: "dépôt impossible : " + eUp.message }, { status: 500 });
+
+    const { error } = await supabase.from("paie_elements").update({
+      preuve_chemin: chemin, preuve_nom: String(c.nom || nom).slice(0, 120),
+      preuve_par: ctx.email, preuve_le: new Date().toISOString(),
+    }).eq("id", e.id);
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, message: "Pièce jointe à l'élément." });
+  }
+
+  if (action === "voir_preuve") {
+    const { data: el } = await supabase.from("paie_elements").select("preuve_chemin").eq("id", String(c.id)).maybeSingle();
+    const ch = el ? (el as any).preuve_chemin : null;
+    if (!ch) return NextResponse.json({ erreur: "aucune pièce pour cet élément" }, { status: 404 });
+    const { data: signe } = await supabase.storage.from("documents-signes").createSignedUrl(ch, 3600);
+    if (!signe) return NextResponse.json({ erreur: "lien impossible" }, { status: 500 });
+    return NextResponse.json({ success: true, url: signe.signedUrl });
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ---- ENVOYER LE RECAPITULATIF AU CLIENT ----
+  // ═════════════════════════════════════════════════════════════════════
+  if (action === "envoyer_recap") {
+    const societeId = String(c.societe_id || "");
+    const periode = moisDe(c.periode);
+    if (!periode) return NextResponse.json({ erreur: "période illisible" }, { status: 400 });
+
+    const rec = await contenuRecap(societeId, periode);
+    if (rec.manquants.length > 0) {
+      return NextResponse.json({ erreur: rec.manquants.length + " salarié(s) n'ont pas encore de bulletin ce mois-ci : "
+        + rec.manquants.join(", ") + ". Sortez leur bulletin avant d'envoyer le récapitulatif." }, { status: 409 });
+    }
+    if (rec.contenu.lignes.length === 0) {
+      return NextResponse.json({ erreur: "aucun bulletin ce mois-ci : rien à récapituler." }, { status: 409 });
+    }
+
+    const dest = String(propre(c.destinataire) || rec.societe.email || "").toLowerCase().trim();
+    if (!dest || dest.indexOf("@") < 1 || dest.indexOf(".") < 0) {
+      return NextResponse.json({ erreur: "indiquez l'adresse du client qui doit confirmer la paie." }, { status: 400 });
+    }
+    const cleResend = process.env.RESEND_API_KEY || "";
+    if (!cleResend) return NextResponse.json({ erreur: "envoi de courriel indisponible pour le moment." }, { status: 500 });
+
+    const jeton = crypto.randomBytes(24).toString("base64url");
+    const { data: cree, error: eIns } = await supabase.from("paie_recaps").insert({
+      tenant_id: rec.societe.tenant_id, societe_id: societeId, periode: periode, jeton: jeton,
+      contenu: rec.contenu, empreinte: rec.empreinte, destinataire: dest, envoye_par: ctx.email,
+      statut: "envoye",
+    }).select("id").maybeSingle();
+    if (eIns || !cree) return NextResponse.json({ erreur: "enregistrement impossible : " + (eIns ? eIns.message : "") }, { status: 500 });
+
+    const marque = marqueDuCourriel(ctx.hote);
+    const lien = marque.site + "/compliance/recap-paie/" + jeton;
+    const lignesHtml = rec.contenu.lignes.map(function (l: any) {
+      const el = l.elements.length === 0 ? "—" : l.elements.map(function (e: any) {
+        return html(e.libelle) + (e.quantite !== null && e.quantite !== undefined ? " (" + html(e.quantite) + ")" : "")
+          + (e.montant ? " : " + html(euros(e.montant)) : "");
+      }).join("<br>");
+      return '<tr><td style="padding:8px;border-bottom:1px solid #ddd">' + html(l.salarie) + "</td>"
+        + '<td style="padding:8px;border-bottom:1px solid #ddd;font-size:13px">' + el + "</td>"
+        + '<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">' + html(euros(l.brut)) + "</td>"
+        + '<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right"><b>' + html(euros(l.net)) + "</b></td></tr>";
+    }).join("");
+
+    const resend = new Resend(cleResend);
+    const envoi: any = await resend.emails.send({
+      from: marque.expediteur,
+      to: dest,
+      reply_to: ctx.cleServeur ? undefined : ctx.email,
+      subject: "Paie de " + moisEnClair(periode) + " — " + rec.contenu.societe + " : à vérifier et confirmer",
+      html: '<div style="font-family:Georgia,serif;color:#222;max-width:640px;margin:0 auto;padding:20px">'
+        + "<h2>Paie de " + html(moisEnClair(periode)) + " — " + html(rec.contenu.societe) + "</h2>"
+        + "<p>Voici la paie préparée pour vos salariés. Vérifiez chaque ligne : les éléments du mois "
+        + "(heures, primes, absences) et le net à payer. Si tout est juste, confirmez ; sinon, signalez "
+        + "ce qui ne va pas. Aucun bulletin n'est émis avant votre confirmation.</p>"
+        + '<table style="width:100%;border-collapse:collapse;font-size:14px"><tr style="background:#f3efe6">'
+        + '<th style="padding:8px;text-align:left">Salarié</th><th style="padding:8px;text-align:left">Éléments du mois</th>'
+        + '<th style="padding:8px;text-align:right">Brut</th><th style="padding:8px;text-align:right">Net à payer</th></tr>'
+        + lignesHtml + "</table>"
+        + '<p style="text-align:center;margin:28px 0"><a href="' + lien + '" style="background:#c8a96e;color:#050508;'
+        + 'padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold">Vérifier et confirmer</a></p>'
+        + '<p style="font-size:12px;color:#777">Ce lien vous est personnel. Vous pouvez répondre à ce courriel '
+        + "pour toute question.</p></div>",
+    } as any);
+
+    if (envoi && envoi.error) {
+      await supabase.from("paie_recaps").delete().eq("id", (cree as any).id);
+      return NextResponse.json({ erreur: "le courriel n'est pas parti : "
+        + String(envoi.error.message || envoi.error) + ". Rien n'a été enregistré." }, { status: 500 });
+    }
+
+    await supabase.from("paie_recaps").update({ statut: "remplace" })
+      .eq("societe_id", societeId).eq("periode", periode)
+      .in("statut", ["envoye", "confirme", "conteste"]).neq("id", (cree as any).id);
+
+    return NextResponse.json({ success: true, message: "Récapitulatif de " + moisEnClair(periode)
+      + " envoyé à " + dest + " (" + rec.contenu.lignes.length + " salarié(s)). L'émission attend sa confirmation." });
+  }
+
+  // ---- LEVER L ATTENTE DU CLIENT (motif obligatoire) ----
+  if (action === "lever_recap") {
+    const societeId = String(c.societe_id || "");
+    const periode = moisDe(c.periode);
+    const motif = propre(c.motif);
+    if (!periode) return NextResponse.json({ erreur: "période illisible" }, { status: 400 });
+    if (!motif || motif.length < 10) {
+      return NextResponse.json({ erreur: "une levée se motive : au moins 10 caractères, ils sont inscrits au journal." }, { status: 400 });
+    }
+    if (!ctx.cleServeur && !(await carteBlanche(societeId))) {
+      return NextResponse.json({ erreur: "réservé à qui a la carte blanche sur ce dossier." }, { status: 403 });
+    }
+    const rec = await contenuRecap(societeId, periode);
+    const { error } = await supabase.from("paie_recaps").insert({
+      tenant_id: rec.societe.tenant_id, societe_id: societeId, periode: periode,
+      jeton: crypto.randomBytes(24).toString("base64url"), contenu: rec.contenu, empreinte: rec.empreinte,
+      destinataire: null, envoye_par: ctx.email, statut: "leve", remarque: motif.slice(0, 1000),
+      repondu_le: new Date().toISOString(),
+    });
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+    await supabase.from("paie_recaps").update({ statut: "remplace" })
+      .eq("societe_id", societeId).eq("periode", periode).in("statut", ["envoye", "confirme", "conteste"]);
+    return NextResponse.json({ success: true, message: "Attente du client levée pour " + moisEnClair(periode)
+      + ". Le motif est inscrit au journal." });
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // ---- LA MESURE DES CORRECTIONS (six derniers mois) ----
+  // C est le chiffre qui dit quand donner la carte blanche : combien de
+  // bulletins chacun a soumis, combien lui ont ete renvoyes, combien ont du
+  // etre leves.
+  // ═════════════════════════════════════════════════════════════════════
+  if (action === "mesure") {
+    if (!ctx.cleServeur && !(await peutGererEquipe())) {
+      return NextResponse.json({ erreur: "réservé à l'administrateur et aux associés." }, { status: 403 });
+    }
+    const ids = ctx.cleServeur ? null : await dossiersAutorises();
+    const depuis = new Date(Date.now() - 183 * 24 * 3600 * 1000).toISOString();
+    let q = supabase.from("compta_audit").select("email, action, apres, created_at")
+      .in("action", ["paie.soumettre", "paie.renvoi", "paie.levee", "paie.emettre"])
+      .gte("created_at", depuis).limit(5000);
+    if (ids) {
+      if (ids.length === 0) return NextResponse.json({ success: true, personnes: [] });
+      q = q.in("societe_id", ids);
+    }
+    const { data, error } = await q;
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+    const p: any = {};
+    const de = function (email: string) {
+      const k = String(email || "inconnu").toLowerCase();
+      if (!p[k]) p[k] = { email: k, soumis: 0, renvoyes: 0, leves: 0, emis: 0 };
+      return p[k];
+    };
+    for (const l of ((data || []) as any[])) {
+      if (l.action === "paie.soumettre") de(l.email).soumis++;
+      if (l.action === "paie.emettre") de(l.email).emis++;
+      if (l.action === "paie.renvoi" && l.apres && l.apres.prepare_par) de(l.apres.prepare_par).renvoyes++;
+      if (l.action === "paie.levee" && l.apres && l.apres.prepare_par) de(l.apres.prepare_par).leves++;
+    }
+    const personnes = Object.keys(p).map(function (k) {
+      const x = p[k];
+      x.taux_corrections = x.soumis > 0 ? Math.round((x.renvoyes + x.leves) / x.soumis * 1000) / 10 : null;
+      return x;
+    }).sort(function (a: any, b: any) { return b.soumis - a.soumis; });
+    return NextResponse.json({ success: true, depuis: depuis.slice(0, 10), personnes: personnes });
+  }
+
+  return null;
+}
+
+export async function POST(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get("secret")
+    || req.headers.get("authorization")?.replace("Bearer ", "");
+  const cleServeur = !!process.env.CRON_SECRET && secret === process.env.CRON_SECRET;
+  const session = cleServeur ? null : sessionCourante();
+
+  if (!cleServeur && !session) {
+    return NextResponse.json({
+      erreur: "Connectez-vous pour ouvrir la paie : votre session est absente ou a expiré.",
+      connexion: true,
+    }, { status: 401 });
+  }
+
+  let c: any = {};
+  try { c = await req.json(); } catch { c = {}; }
+  const action = String(c.action || "").trim();
+
+  const ctx: Ctx = {
+    cleServeur: cleServeur,
+    email: cleServeur ? "cle-serveur" : String(session ? session.email : ""),
+    ip: (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null,
+    hote: req.headers.get("host") || "",
+  };
+
+  const regle = REGLES[action];
+  if (!regle) return NextResponse.json({ erreur: "action inconnue : " + action }, { status: 400 });
+
+  let cible: { societeId: string | null; reference: string | null } = { societeId: null, reference: null };
+  try {
+    cible = await cibleDe(regle.cible, c);
+  } catch (e: any) {
+    return NextResponse.json({ erreur: String(e) }, { status: 500 });
+  }
+
+  if (regle.cible !== "aucune" && !cible.societeId) {
+    return NextResponse.json({ erreur: "introuvable : l'élément demandé n'existe pas ou n'est pas accessible." }, { status: 404 });
+  }
+
+  if (!cleServeur && regle.cible !== "aucune") {
+    const v = await verifier(regle.droit, cible.societeId);
+    if (!v.autorise) {
+      return NextResponse.json({ erreur: v.motif || "Accès refusé." }, { status: v.email ? 403 : 401 });
+    }
+  }
+
+  const res = await traiter(req, c, action, ctx);
+
+  if (regle.ecrit && res.status < 400) {
+    await journal(cible.societeId, ctx, "paie." + action, regle.cible.split(":")[0], cible.reference, pourJournal(c));
+  }
+  return res;
 }
