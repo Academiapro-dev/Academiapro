@@ -83,6 +83,35 @@ export default function PageTableauDeBord() {
   const [d, setD] = useState<any>(null);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState("");
+  // 🆕 28/09 — PASSER D UN CABINET A L AUTRE. Le selecteur ne s affiche que
+  // pour qui appartient a plusieurs cabinets (collaborateur partage,
+  // production de paie en sous-traitance).
+  const [cabinets, setCabinets] = useState<any>(null);
+  const [changement, setChangement] = useState(false);
+
+  useEffect(function () {
+    fetch("/api/auth/cabinet", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (x) { if (x && x.ok) setCabinets(x); })
+      .catch(function () {});
+  }, []);
+
+  async function changerDeCabinet(tenantId: string) {
+    if (!tenantId || !cabinets || tenantId === cabinets.courant) return;
+    setChangement(true); setErreur("");
+    try {
+      const r = await fetch("/api/auth/cabinet", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenant_id: tenantId }),
+      });
+      const x = await r.json();
+      if (x && x.ok) { window.location.reload(); return; }
+      setErreur((x && x.erreur) || "Changement impossible.");
+    } catch (e: any) {
+      setErreur("Changement impossible : " + String(e));
+    }
+    setChangement(false);
+  }
 
   useEffect(function () {
     (async function () {
@@ -156,6 +185,26 @@ export default function PageTableauDeBord() {
         <a href="/admin/compliance/societes" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
           ← Les dossiers
         </a>
+
+        {/* 🆕 28/09 — le cabinet ouvert, et le passage a un autre. */}
+        {cabinets && cabinets.cabinets && cabinets.cabinets.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap",
+            margin: "18px 0 0", padding: "10px 14px", borderRadius: "10px",
+            border: "1px solid rgba(200,169,110,0.35)", background: "rgba(200,169,110,0.06)" }}>
+            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px" }}>Cabinet :</span>
+            <select value={cabinets.courant || ""} disabled={changement}
+              onChange={(e) => changerDeCabinet(e.target.value)}
+              style={{ padding: "8px 10px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.4)",
+                background: "#050508", color: "#fff", fontSize: "14px", fontFamily: "Georgia, serif" }}>
+              {cabinets.cabinets.map(function (c: any) {
+                return <option key={c.tenant_id} value={c.tenant_id}>{c.nom}</option>;
+              })}
+            </select>
+            <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px" }}>
+              {changement ? "ouverture…" : "choisissez un autre cabinet pour y travailler"}
+            </span>
+          </div>
+        )}
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
           COMPTABILITÉ
