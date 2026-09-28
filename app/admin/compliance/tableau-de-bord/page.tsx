@@ -25,8 +25,8 @@ import Guide from "../../../../components/Guide";
 // (/admin/compliance/paie, dans « Le cabinet ») passe l ECRITURE COMPTABLE
 // d une paie deja faite. Elle s appelle desormais « Écriture de paie » et
 // rejoint la famille Paie, a cote des bulletins.
-// ⚠️ LA DSN N A PAS ENCORE DE PORTE ICI : son ecran demande toujours la cle
-// d administration. Elle viendra avec son passage a la connexion.
+// 🆕 28/09 (lot 2) — LA DSN A SA PORTE : son ecran s ouvre desormais avec la
+// connexion du cabinet, a /admin/compliance/dsn.
 const OUTILS = [
   { titre: "Tenue", liens: [
     { nom: "Saisie", href: "/admin/compliance/saisie" },
@@ -39,6 +39,7 @@ const OUTILS = [
   ]},
   { titre: "Paie", liens: [
     { nom: "Bulletins de paie", href: "/admin/compliance/bulletins-paie" },
+    { nom: "DSN", href: "/admin/compliance/dsn" },
     { nom: "Écriture de paie", href: "/admin/compliance/paie" },
   ]},
   { titre: "Banque et TVA", liens: [
