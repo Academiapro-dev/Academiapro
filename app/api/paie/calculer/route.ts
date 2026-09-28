@@ -855,6 +855,25 @@ async function calculer(contratId: string, periode: string,
   // cotise pourtant sur la moitie de son salaire.
   // ═══════════════════════════════════════════════════════════════════
   const estApprenti = String(contrat.type_contrat || "") === "apprentissage";
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — L APPRENTI DU SECTEUR PUBLIC NON INDUSTRIEL ET COMMERCIAL
+  // (`paie_contrats.apprenti_public`) — Ircantec, net-entreprises (fiche
+  // « Declarer les apprentis »), lus le 28/09 :
+  //   · retraite complementaire a l IRCANTEC (tranche A 2,84 % / 4,27 %,
+  //     tranche B 7,06 % / 12,75 % en 2026, arrete du 19/12/2025), PAS
+  //     l Agirc-Arrco (ni CEG, CET, APEC) ;
+  //   · l EMPLOYEUR est exonere de TOUTE la part patronale d assurances
+  //     sociales (maladie, vieillesse), d allocations familiales, de la
+  //     contribution au dialogue social, du chomage et de l Ircantec —
+  //     prise en charge par l Etat ; les autres cotisations patronales
+  //     (accidents du travail, FNAL, CSA, versement mobilite) restent dues ;
+  //   · l APPRENTI est exonere de sa part salariale dans la limite de 50 % du
+  //     SMIC (79 % pour un contrat conclu avant le 01/03/2025) — le meme
+  //     mecanisme que dans le prive ;
+  //   · ni AGS ni reduction generale.
+  // En DSN : dispositif 81, CTP 803 — a faire (point DSN).
+  // ═══════════════════════════════════════════════════════════════════
+  const estApprentiPublic = estApprenti && (contrat as any).apprenti_public === true;
   let appr: any = null;
   const notesApprenti: string[] = [];
 
@@ -1275,6 +1294,10 @@ async function calculer(contratId: string, periode: string,
   for (const e of (elements || [])) {
     const t = String(e.type_element || "");
 
+    // 🆕 28/09 — LES JOURS DE REPOS DU FORFAIT PRIS CE MOIS : un compteur,
+    // pas une somme (lu plus bas).
+    if (t === "jours_repos_forfait") continue;
+
     // 🆕 28/09 — CAS RARES : L ASSURANCE DU LOGEMENT prise en charge par
     // l employeur (elle s ajoute au forfait du logement), LE LOGEMENT AU
     // REEL (valeur locative + avantages accessoires, au choix de
@@ -1674,8 +1697,8 @@ async function calculer(contratId: string, periode: string,
       + (pro.age !== null && pro.age >= 26 ? " À 26 ans et plus, le minimum est aussi 85 % du salaire minimum "
         + "conventionnel s'il est supérieur au SMIC : contrôlé quand le contrat porte un coefficient." : "")
       + " Cotisations de droit commun, réduction générale comprise ; en CDD, pas d'indemnité de fin de contrat "
-      + "(article L1243-10). ⚠️ L'exonération patronale propre aux demandeurs d'emploi de 45 ans et plus n'est "
-      + "pas appliquée. ⛔ La DSN du contrat de professionnalisation n'est pas encore adaptée (dispositif de "
+      + "(article L1243-10). L'exonération patronale propre aux demandeurs d'emploi de 45 ans et plus a été "
+      + "supprimée au 1er janvier 2019 : seule la réduction générale s'applique (urssaf.fr). ⛔ La DSN du contrat de professionnalisation n'est pas encore adaptée (dispositif de "
       + "politique publique) : ne pas déposer de DSN réelle avant ce point.");
     pro.salaire_contrat = cts(payeP);
   }
@@ -1737,6 +1760,70 @@ async function calculer(contratId: string, periode: string,
       + "saisit pour que la franchise suive.");
     stage = { gratification: gratif, heures: heuresStage, franchise: franchise,
       soumise: cts(brutSoumis), minimum: minimum, plus_de_deux_mois: plusDeDeuxMois };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — CAS RARE : LE COMPTEUR DES JOURS DE REPOS DU FORFAIT
+  //
+  // Un forfait en jours laisse des jours de repos : jours ouvres de l annee
+  // civile, moins les jours feries tombant un jour ouvre, moins 25 jours de
+  // conges payes, moins le forfait. Le moteur les compte et lit les jours
+  // pris (element « jours_repos_forfait », quantite = jours pris dans le
+  // mois) sur l annee. Un forfait depasse se regularise en jours de repos,
+  // jamais en argent : le compteur le signale, il ne paie rien.
+  // Feries : 1er janvier, lundi de Paques, 1er et 8 mai, Ascension, lundi
+  // de Pentecote, 14 juillet, 15 aout, 1er et 11 novembre, 25 decembre.
+  // ═══════════════════════════════════════════════════════════════════
+  let reposForfait: any = null;
+  const notesRepos: string[] = [];
+  if (auForfaitJours) {
+    const an = Number(String(periode).slice(0, 4));
+    const paques = (function (y: number): Date {
+      const a = y % 19, b = Math.floor(y / 100), c0 = y % 100, d = Math.floor(b / 4), e0 = b % 4;
+      const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3);
+      const h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c0 / 4), k = c0 % 4;
+      const l = (32 + 2 * e0 + 2 * i - h - k) % 7, m0 = Math.floor((a + 11 * h + 22 * l) / 451);
+      const mois = Math.floor((h + l - 7 * m0 + 114) / 31), jour = ((h + l - 7 * m0 + 114) % 31) + 1;
+      return new Date(Date.UTC(y, mois - 1, jour));
+    })(an);
+    const plus = function (d: Date, n: number): string { const x = new Date(d.getTime()); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+    const feries = [an + "-01-01", plus(paques, 1), an + "-05-01", an + "-05-08", plus(paques, 39), plus(paques, 50),
+      an + "-07-14", an + "-08-15", an + "-11-01", an + "-11-11", an + "-12-25"];
+    let ouvres = 0, feriesOuvres = 0;
+    const dj = new Date(Date.UTC(an, 0, 1));
+    while (dj.getUTCFullYear() === an) {
+      const wd = dj.getUTCDay();
+      if (wd >= 1 && wd <= 5) {
+        ouvres += 1;
+        if (feries.indexOf(dj.toISOString().slice(0, 10)) >= 0) feriesOuvres += 1;
+      }
+      dj.setUTCDate(dj.getUTCDate() + 1);
+    }
+    const droitPlein = Math.max(0, ouvres - feriesOuvres - 25 - forfaitJoursAn);
+    // Une annee incomplete (entree ou sortie) : au prorata des jours.
+    const debAn = an + "-01-01", finAn = an + "-12-31";
+    const dC = String(contrat.date_debut || "").slice(0, 10);
+    const fC = [String(contrat.date_fin || "").slice(0, 10), String((contrat as any).rompu_le || "").slice(0, 10)]
+      .filter(function (x: string) { return /^\d{4}-\d{2}-\d{2}$/.test(x); }).sort()[0] || "";
+    const d0 = dC > debAn ? dC : debAn;
+    const f0 = fC && fC < finAn ? fC : finAn;
+    const jAn = (Date.parse(finAn + "T00:00:00Z") - Date.parse(debAn + "T00:00:00Z")) / 86400000 + 1;
+    const jPres = f0 >= d0 ? (Date.parse(f0 + "T00:00:00Z") - Date.parse(d0 + "T00:00:00Z")) / 86400000 + 1 : 0;
+    const droit = Math.round(droitPlein * jPres / jAn * 2) / 2;
+    const { data: reposPris } = await supabase
+      .from("paie_elements").select("quantite, periode")
+      .eq("contrat_id", contratId).eq("type_element", "jours_repos_forfait")
+      .gte("periode", an + "-01-01").lte("periode", periode);
+    let pris = 0;
+    for (const x of (reposPris || [])) pris += Number((x as any).quantite || 0);
+    const reste = Math.round((droit - pris) * 10) / 10;
+    reposForfait = { annee: an, jours_ouvres: ouvres, feries_ouvres: feriesOuvres, forfait: forfaitJoursAn,
+      droit: droit, pris: pris, reste: reste };
+    notesRepos.push((reste < 0 ? "🚨 " : "") + "Jours de repos du forfait en " + an + " : " + ouvres
+      + " jours ouvrés − " + feriesOuvres + " fériés − 25 jours de congés − forfait de " + forfaitJoursAn
+      + (jPres < jAn ? " (au prorata de la présence dans l'année)" : "") + " = " + droit + " jour(s) ; "
+      + "pris depuis janvier : " + pris + " ; reste : " + reste + "."
+      + (reste < 0 ? " Le forfait est DÉPASSÉ : il se régularise en jours de repos, jamais en argent." : ""));
   }
 
   const notesHc: string[] = [];
@@ -3186,6 +3273,11 @@ async function calculer(contratId: string, periode: string,
     // reclamerait la difference.
     // 🆕 28/09 — NI CHOMAGE NI AGS pour un mandataire social.
     if (horsSalariat && (String(c.code) === "CHOMAGE" || String(c.code) === "AGS")) continue;
+    // 🆕 28/09 — L IRCANTEC ne vaut que pour l apprenti du secteur public ;
+    // lui ne cotise ni a l Agirc-Arrco (CEG, CET, APEC), ni au chomage, ni
+    // a l AGS.
+    if (/^IRCANTEC/.test(String(c.code)) && !estApprentiPublic) continue;
+    if (estApprentiPublic && /^(RETRAITE_C|CEG|CET|APEC|CHOMAGE|AGS)/.test(String(c.code))) continue;
     // 🆕 28/09 — le stagiaire : ni retraite complementaire, ni CET, ni APEC,
     // ni contribution au dialogue social, ni garanties complementaires.
     if (estStage && (/^(RETRAITE_C|CEG|CET|APEC|DIALOGUE)/.test(String(c.code))
@@ -3339,7 +3431,12 @@ async function calculer(contratId: string, periode: string,
     }
 
     const partSal = cts((baseSal + ajoutCsgGaranties) * Number(c.taux_salarial) / 100);
-    const partPat = cts(base * tPat / 100);
+    // 🆕 28/09 — l apprenti du secteur public : part patronale d assurances
+    // sociales, d allocations familiales, de dialogue social et d Ircantec
+    // exoneree (prise en charge par l Etat).
+    const exoPublic = estApprentiPublic
+      && /^(MALADIE|VIEILLESSE|ALLOC_FAM|IRCANTEC|DIALOGUE)/.test(String(c.code));
+    const partPat = exoPublic ? 0 : cts(base * tPat / 100);
 
     // 🆕 16/09 — UNE LIGNE A ZERO DES DEUX COTES DISPARAIT, SAUF CELLES QUI
     // DOIVENT SE VOIR MEME VIDES. Voir TOUJOURS_VISIBLES en tete de
@@ -3607,7 +3704,11 @@ async function calculer(contratId: string, periode: string,
     };
   }
 
-  if (!horsSalariat && tmin !== null && tdelta !== null && expo !== null
+  if (estApprentiPublic) {
+    rgduDetail = { coefficient: 0,
+      motif: "apprenti du secteur public : pas de réduction générale (exonération patronale propre)" };
+  }
+  if (!horsSalariat && !estApprentiPublic && tmin !== null && tdelta !== null && expo !== null
       && seuil !== null && smicRef !== null && dureeMensuelle) {
 
     // 🚨 LE SMIC DE REFERENCE SUIT LA DUREE DU CONTRAT (BOSS, allegements
@@ -4288,6 +4389,8 @@ async function calculer(contratId: string, periode: string,
     stage: stage,
     // 🆕 28/09 — l avantage en nature vehicule du mois.
     vehicule: vehiculeDetail,
+    // 🆕 28/09 — le compteur des jours de repos du forfait.
+    repos_forfait: reposForfait,
     // 🆕 28/09 — le contrat de professionnalisation (age, taux, minimum).
     professionnalisation: pro,
     net_a_payer: netAPayer,
@@ -4359,9 +4462,8 @@ async function calculer(contratId: string, periode: string,
                 + "le même rapport avec le consentement du salarié (BOSS, assiette générale, "
                 + "§830) — à cocher dans « modifier le contrat »."));
         }
-        r.push("⚠️ LES JOURS DE REPOS (RTT) du forfait ne sont pas décomptés : "
-          + "le contrat ne porte pas de compteur. Un forfait dépassé se "
-          + "régularise par des jours de repos, jamais par un paiement.");
+        // 🆕 28/09 — le compteur remplace l ancienne reserve.
+        for (const n of notesRepos) r.push(n);
       }
 
       // 🆕 22/09 — CE QUE L APPRENTISSAGE APPORTE, ET CE QU IL NE FAIT PAS.
@@ -4438,6 +4540,14 @@ async function calculer(contratId: string, periode: string,
       if (contrat.type_contrat === "cdi") {
         r.unshift("CDI : aucune indemnité de précarité, c'est normal — "
           + "les congés se prennent au lieu d'être compensés.");
+      }
+      // 🆕 28/09 — L APPRENTI DU SECTEUR PUBLIC, DIT EN TETE.
+      if (estApprentiPublic) {
+        r.unshift("Apprenti du secteur public : retraite complémentaire à l'Ircantec (pas l'Agirc-Arrco) ; "
+          + "part patronale d'assurances sociales, d'allocations familiales, de dialogue social et "
+          + "d'Ircantec exonérée, prise en charge par l'État ; ni chômage, ni AGS, ni réduction "
+          + "générale (Ircantec, net-entreprises). ⛔ Sa DSN n'est pas encore adaptée (dispositif 81, "
+          + "CTP 803) : ne pas déposer de DSN réelle avant ce point.");
       }
       // 🆕 28/09 — LE STAGE, DIT EN TETE.
       if (estStage) {
