@@ -197,13 +197,25 @@ function quand(v: any): string {
 }
 
 export default function PageDsn() {
-  const [secret, setSecret] = useState("");
+  // 🆕🚨 28/09 — PLUS DE CLE : l ecran s ouvre avec la connexion, et la
+  // route borne tout a l organisme et aux droits (meme principe que la paie).
+  const [pret, setPret] = useState(false);
+  const [connexionRequise, setConnexionRequise] = useState(false);
+  const [profil, setProfil] = useState<any>(null);
   const [mois, setMois] = useState<any[]>([]);
   const [societes, setSocietes] = useState<any[]>([]);
   const [contenu, setContenu] = useState<any>(null);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [occupe, setOccupe] = useState("");
+  // 🆕 28/09 — un seul message a la fois, le succes s efface seul.
+  useEffect(function () { if (msg) setErr(""); }, [msg]);
+  useEffect(function () { if (err) setMsg(""); }, [err]);
+  useEffect(function () {
+    if (!msg) return;
+    const t = setTimeout(function () { setMsg(""); }, 10000);
+    return function () { clearTimeout(t); };
+  }, [msg]);
   const [detail, setDetail] = useState<any>(null);
   // 🆕 CE QUE LA ROUTE A REELLEMENT LU.
   const [diag, setDiag] = useState<any>(null);
@@ -235,8 +247,7 @@ export default function PageDsn() {
   const [garFin, setGarFin] = useState<any>({ id: "", date: "" });
 
   useEffect(function () {
-    const s = sessionStorage.getItem("paie_secret") || "";
-    if (s) { setSecret(s); charger(s); }
+    charger();
   }, []);
 
   // 🆕🚨 18/09, CORRIGE APRES ESSAI — D OU VIENT LE SIRET.
@@ -265,30 +276,52 @@ export default function PageDsn() {
     return liste;
   }
 
-  async function appeler(corps: any, s?: string): Promise<any> {
-    const cle = s || secret;
-    const r = await fetch("/api/dsn/dossier?secret=" + encodeURIComponent(cle), {
-      method: "POST",
-      // ⚠️ `no-store` COTE NAVIGATEUR AUSSI : la route porte deja ses
-      // en-tetes, mais rien n empeche Safari de garder sa propre copie.
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(corps),
-    });
-    return await r.json();
+  // 🆕 28/09 — une seule porte, la route dossier, avec la session. Le statut
+  // HTTP est rendu dans `statut_http` : le depot en a besoin pour
+  // distinguer un refus a confirmer d une panne.
+  async function appeler(corps: any): Promise<any> {
+    try {
+      const r = await fetch("/api/dsn/dossier", {
+        method: "POST",
+        // ⚠️ `no-store` COTE NAVIGATEUR AUSSI : la route porte deja ses
+        // en-tetes, mais rien n empeche Safari de garder sa propre copie.
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(corps),
+      });
+      const texte = await r.text();
+      let d: any = {};
+      try { d = JSON.parse(texte); } catch (e) { d = { erreur: "réponse illisible (" + r.status + ")" }; }
+      d.statut_http = r.status;
+      return d;
+    } catch (e: any) {
+      return { erreur: "appel impossible : " + String(e && e.message ? e.message : e), statut_http: 0 };
+    }
   }
 
-  async function charger(s?: string) {
+  // Ce que la session peut faire sur un dossier. L ecran ne montre que les
+  // boutons utilisables ; la route reverifie chaque geste.
+  function dr(societeId: string): any {
+    if (profil && profil.dossiers && profil.dossiers[societeId]) return profil.dossiers[societeId];
+    if (profil && profil.admin) return { voir: true, contrats: true, preparer: true, emettre: true, deposer: true };
+    return {};
+  }
+  function cache(ok: any): any { return ok ? {} : { display: "none" }; }
+
+  async function charger() {
     setErr(""); setOccupe("charger");
-    const d = await appeler({ action: "etat" }, s);
+    const d = await appeler({ action: "etat" });
+    setPret(true);
+    if (d.connexion) { setConnexionRequise(true); setOccupe(""); return; }
     if (d.success) {
       setMois(d.mois); setSocietes(d.societes);
+      setProfil(d.profil || null);
+      if (d.avertissement) setMsg(d.avertissement);
       setDiag(d.diagnostic || null);
       // 🆕 LES 36 URSSAF, POUR LA LISTE DEROULANTE. Vide si la table n a
       // pas ete importee : le bloc le dira au lieu de proposer un choix
       // impossible.
       setOrganismes(d.organismes || []);
-      if (s) sessionStorage.setItem("paie_secret", s);
       // 🆕 L etat des acces suit le chargement, pour toutes les societes
       // d un coup : sinon il faudrait un clic par societe pour savoir si
       // le depot en ligne est possible.
@@ -301,7 +334,7 @@ export default function PageDsn() {
         vues[m.societe_id] = true;
         pourAcces.push({ id: m.societe_id, nom: m.societe, siret: m.siret });
       }
-      chargerAcces(pourAcces, s);
+      chargerAcces(pourAcces);
     } else {
       setErr((d.erreur || "chargement impossible")
         + (d.ou ? " (table : " + d.ou + ")" : ""));
@@ -312,16 +345,14 @@ export default function PageDsn() {
   // 🆕 18/09 — CE QUI EST ENREGISTRE, SANS RIEN REVELER.
   // La route ne rend jamais le mot de passe : seulement le SIRET, le nom du
   // declarant, et la date de la derniere verification reussie.
-  async function chargerAcces(liste: any[], s?: string) {
-    const cle = s || secret;
+  async function chargerAcces(liste: any[]) {
     const suite: any = {};
     for (let i = 0; i < liste.length; i++) {
       const soc = liste[i];
       try {
-        const r = await fetch("/api/dsn/deposer?action=etat&v=" + Date.now()
-          + "&societe=" + encodeURIComponent(soc.id)
-          + "&secret=" + encodeURIComponent(cle), { cache: "no-store" });
-        suite[soc.id] = await r.json();
+        const d = await appeler({ action: "acces_etat", societe_id: soc.id });
+        if (d.statut_http >= 400) throw new Error(d.erreur || "refusé");
+        suite[soc.id] = d;
       } catch {
         // ⚠️ UN ECHEC DE LECTURE N EMPECHE PAS L ECRAN DE S AFFICHER : la
         // DSN se genere et se telecharge meme sans acces enregistres.
@@ -337,20 +368,14 @@ export default function PageDsn() {
     const f = saisie[soc.id] || {};
     setErr(""); setMsg(""); setOccupe("acces" + soc.id);
 
-    const r = await fetch("/api/dsn/deposer?secret=" + encodeURIComponent(secret), {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "enregistrer",
-        societe_id: soc.id,
-        siret_declarant: (f.siret || soc.siret || "").replace(/\s/g, ""),
-        nom_declarant: f.nom || "",
-        prenom_declarant: f.prenom || "",
-        mot_de_passe: f.motdepasse || "",
-      }),
+    const d = await appeler({
+      action: "acces_enregistrer",
+      societe_id: soc.id,
+      siret_declarant: (f.siret || soc.siret || "").replace(/\s/g, ""),
+      nom_declarant: f.nom || "",
+      prenom_declarant: f.prenom || "",
+      mot_de_passe: f.motdepasse || "",
     });
-    const d = await r.json();
 
     if (d.success) {
       setMsg(d.message);
@@ -370,10 +395,7 @@ export default function PageDsn() {
     if (!silencieux) { setErr(""); setMsg(""); }
     setOccupe("tester" + soc.id);
 
-    const r = await fetch("/api/dsn/deposer?action=tester&v=" + Date.now()
-      + "&societe=" + encodeURIComponent(soc.id)
-      + "&secret=" + encodeURIComponent(secret), { cache: "no-store" });
-    const d = await r.json();
+    const d = await appeler({ action: "acces_tester", societe_id: soc.id });
 
     if (d.success) setMsg("Accès vérifiés : net-entreprises a accepté la connexion.");
     else setErr(d.erreur || d.lecture || "vérification impossible");
@@ -511,19 +533,31 @@ export default function PageDsn() {
   async function deposer(m: any, d: any) {
     setErr(""); setMsg(""); setOccupe("deposer" + d.id);
 
+    // 🆕 28/09 — PAR LA PORTE DE LA ROUTE DOSSIER : droit de deposer, puis
+    // les garde-fous (dsn-val, brouillons, salaries absents, brut perime :
+    // bloquants ; masse salariale et effectif : a confirmer).
+    let ecartsAcceptes = false;
     async function envoyer(confirmer: boolean) {
-      const r = await fetch("/api/dsn/deposer?action=deposer&v=" + Date.now()
-        + "&declaration=" + encodeURIComponent(d.id)
-        + (confirmer ? "&confirmer=reel" : "")
-        + "&secret=" + encodeURIComponent(secret), { cache: "no-store" });
-      const j = await r.json();
-      // ⚠️ LE STATUT COMPTE AUTANT QUE LE CORPS : c est lui qui distingue un
-      // refus d une panne.
-      j.statut_http = r.status;
-      return j;
+      return await appeler({ action: "deposer", id: d.id, confirmer_reel: confirmer,
+        confirmer_ecarts: ecartsAcceptes });
     }
 
     let rep = await envoyer(false);
+
+    // 🆕 28/09 — LES ECARTS AVEC LE MOIS PRECEDENT se confirment, un par un
+    // lus, avant d aller plus loin.
+    if (!rep.success && rep.statut_http === 409
+      && String(rep.erreur || "").indexOf("confirmer_ecarts") >= 0) {
+      const ok = confirm("ÉCART AVEC LE MOIS PRÉCÉDENT\n\n"
+        + (rep.ecarts || []).join("\n") + "\n\nVous l'avez vérifié et il est juste : déposer quand même ?");
+      if (!ok) {
+        setErr("Dépôt annulé : écart non confirmé.");
+        setOccupe("");
+        return;
+      }
+      ecartsAcceptes = true;
+      rep = await envoyer(false);
+    }
 
     // 🚨 LE REFUS « ENVOI REEL » EST LE SEUL QU ON RATTRAPE, et seulement
     // apres un accord explicite.
@@ -561,13 +595,7 @@ export default function PageDsn() {
 
   async function generer(m: any) {
     setErr(""); setMsg(""); setOccupe("generer" + m.periode);
-    const r = await fetch("/api/dsn/generer?secret=" + encodeURIComponent(secret), {
-      method: "POST",
-      cache: "no-store",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ societe_id: m.societe_id, periode: m.periode }),
-    });
-    const d = await r.json();
+    const d = await appeler({ action: "generer", societe_id: m.societe_id, periode: m.periode });
     if (d.success) {
       setMsg(d.message);
       setDetail(d);
@@ -612,14 +640,23 @@ export default function PageDsn() {
       + "nouvelle DSN du même mois, en « annule et remplace ».")) return;
 
     setOccupe("deposee");
-    const d = await appeler({ action: "deposee", id: id });
+    let d = await appeler({ action: "deposee", id: id });
+    // 🆕 28/09 — les ecarts avec le mois precedent se confirment.
+    if (!d.success && d.statut_http === 409 && String(d.erreur || "").indexOf("confirmer_ecarts") >= 0) {
+      if (confirm("ÉCART AVEC LE MOIS PRÉCÉDENT\n\n" + (d.ecarts || []).join("\n")
+        + "\n\nVous l'avez vérifié et il est juste : marquer déposée quand même ?")) {
+        d = await appeler({ action: "deposee", id: id, confirmer_ecarts: true });
+      } else { setOccupe(""); return; }
+    }
     if (d.success) { setMsg(d.message); await charger(); }
     else setErr(d.erreur || "impossible");
     setOccupe("");
   }
 
   // ---- L ECRAN D ENTREE ----
-  if (!secret) {
+  // 🆕🚨 28/09 — PLUS DE CLE A TAPER : on attend la route ; sans session,
+  // on le dit et on mene a la connexion.
+  if (!pret || connexionRequise) {
     return (
       <div style={{ background: FOND, minHeight: "100vh", color: "#fff",
         fontFamily: "Georgia,serif", padding: "40px 20px" }}>
@@ -632,15 +669,18 @@ export default function PageDsn() {
             Un fichier par mois et par établissement.
           </p>
           <div style={CADRE}>
-            <span style={LIB}>Clé d&apos;accès</span>
-            <input type="password" value={secret} style={CHAMP}
-              onChange={(ev) => setSecret(ev.target.value)}
-              onKeyDown={(ev) => { if (ev.key === "Enter") charger(secret); }} />
-            <button onClick={() => charger(secret)} disabled={!secret}
-              style={{ ...BOUTON, marginTop: "12px", width: "100%",
-                opacity: secret ? 1 : 0.4 }}>
-              Ouvrir
-            </button>
+            {connexionRequise ? (
+              <>
+                <p style={{ fontSize: "14px", lineHeight: 1.6, marginTop: 0 }}>
+                  Votre session est absente ou a expiré. Connectez-vous : vous
+                  recevrez un lien par courriel.
+                </p>
+                <a href="/connexion" style={{ ...BOUTON, display: "block", textAlign: "center",
+                  textDecoration: "none" }}>Se connecter</a>
+              </>
+            ) : (
+              <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.6)" }}>Lecture…</p>
+            )}
           </div>
           {err && <p style={{ color: ROUGE, fontSize: "13px" }}>{err}</p>}
         </div>
@@ -684,8 +724,21 @@ export default function PageDsn() {
           </p>
         </div>
 
-        {msg && <p style={{ color: VERT, fontSize: "14px", marginBottom: "12px" }}>{msg}</p>}
-        {err && <p style={{ color: ROUGE, fontSize: "14px", marginBottom: "12px" }}>{err}</p>}
+        {/* 🆕 28/09 — le message suit l ecran : bandeau fixe en bas. */}
+        {(msg || err) && (
+          <div style={{ position: "fixed", left: "50%", bottom: "18px", transform: "translateX(-50%)",
+            zIndex: 3000, width: "min(92vw, 760px)", background: "#15151c",
+            border: "1px solid " + (err ? ROUGE : VERT), borderRadius: "10px",
+            padding: "12px 44px 12px 16px", boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
+            fontSize: "14px", lineHeight: 1.6, color: err ? ROUGE : VERT, whiteSpace: "pre-wrap" }}>
+            {err || msg}
+            <button onClick={() => { setMsg(""); setErr(""); }} aria-label="fermer"
+              style={{ position: "absolute", top: "6px", right: "10px", background: "none",
+                border: "none", color: "rgba(255,255,255,0.6)", fontSize: "20px", cursor: "pointer" }}>
+              ×
+            </button>
+          </div>
+        )}
 
         {/* ═══════════════════════════════════════════════════════════════
             🆕 18/09 — LES ACCES NET-ENTREPRISES
@@ -739,12 +792,12 @@ export default function PageDsn() {
                         {a.enregistre && (
                           <button onClick={() => testerAcces(soc)} disabled={occupe !== ""}
                             style={{ ...SECOND, color: BLEU, borderColor: BLEU,
-                              padding: "6px 12px", fontSize: "12.5px" }}>
+                              padding: "6px 12px", fontSize: "12.5px", ...cache(dr(soc.id).deposer) }}>
                             {occupe === "tester" + soc.id ? "…" : "Tester mes accès"}
                           </button>
                         )}
                         <button onClick={() => setOuvert(deplie ? "" : soc.id)}
-                          style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px" }}>
+                          style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px", ...cache(dr(soc.id).deposer) }}>
                           {deplie ? "annuler" : a.enregistre ? "remplacer" : "enregistrer"}
                         </button>
                       </div>
@@ -901,7 +954,7 @@ export default function PageDsn() {
                         </span>
                       </div>
                       <button onClick={() => setUrssafOuvert(deplie ? "" : soc.id)}
-                        style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px" }}>
+                        style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px", ...cache(dr(soc.id).contrats) }}>
                         {deplie ? "annuler"
                           : v.urssaf_codification ? "modifier" : "renseigner"}
                       </button>
@@ -965,7 +1018,7 @@ export default function PageDsn() {
                           : "aucun, la cotisation vaut zéro sur tous les bulletins"}
                       </p>
                       <button onClick={() => setAtOuvert(atOuvert === soc.id ? "" : soc.id)}
-                        style={{ ...SECOND, padding: "4px 10px", fontSize: "12px" }}>
+                        style={{ ...SECOND, padding: "4px 10px", fontSize: "12px", ...cache(dr(soc.id).contrats) }}>
                         {atOuvert === soc.id ? "annuler"
                           : v.at ? "nouveau taux" : "saisir le taux"}
                       </button>
@@ -1039,7 +1092,7 @@ export default function PageDsn() {
                                 : liste.length + " contrat(s)"}
                             </p>
                             <button onClick={() => { setGarOuvert(garOuvert === soc.id ? "" : soc.id); setGarSaisie({}); }}
-                              style={{ ...SECOND, padding: "4px 10px", fontSize: "12px" }}>
+                              style={{ ...SECOND, padding: "4px 10px", fontSize: "12px", ...cache(dr(soc.id).contrats) }}>
                               {garOuvert === soc.id ? "annuler" : "ajouter"}
                             </button>
                           </div>
@@ -1067,7 +1120,7 @@ export default function PageDsn() {
                                   </span>
                                 ) : (
                                   <button onClick={() => setGarFin({ id: g.id, date: "" })}
-                                    style={{ ...SECOND, padding: "2px 8px", fontSize: "11.5px" }}>arrêter</button>
+                                    style={{ ...SECOND, padding: "2px 8px", fontSize: "11.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
                                 )}
                               </div>
                             );
@@ -1469,7 +1522,7 @@ export default function PageDsn() {
                     propose en meme temps ne veut plus rien dire. */}
                 {m.siret && m.emis > 0 && (!d || d.statut === "brouillon") && (
                   <button onClick={() => generer(m)} disabled={occupe !== ""}
-                    style={BOUTON}>
+                    style={{ ...BOUTON, ...cache(dr(m.societe_id).preparer) }}>
                     {occupe === "generer" + m.periode ? "…"
                       : d ? "Regénérer" : "Générer la DSN"}
                   </button>
@@ -1477,7 +1530,7 @@ export default function PageDsn() {
 
                 {m.siret && m.emis > 0 && d && (d.statut === "deposee" || d.statut === "acceptee") && (
                   <button onClick={() => generer(m)} disabled={occupe !== ""}
-                    style={SECOND}>
+                    style={{ ...SECOND, ...cache(dr(m.societe_id).preparer) }}>
                     Générer un annule et remplace
                   </button>
                 )}
@@ -1495,7 +1548,7 @@ export default function PageDsn() {
 
                 {d && d.statut === "brouillon" && (
                   <button onClick={() => controlee(d.id)} disabled={occupe !== ""}
-                    style={{ ...SECOND, color: BLEU, borderColor: BLEU }}>
+                    style={{ ...SECOND, color: BLEU, borderColor: BLEU, ...cache(dr(m.societe_id).deposer) }}>
                     Passé dans dsn-val
                   </button>
                 )}
@@ -1506,7 +1559,7 @@ export default function PageDsn() {
                     moyen s ajoute. */}
                 {d && d.statut === "controlee" && a.enregistre && (
                   <button onClick={() => deposer(m, d)} disabled={occupe !== ""}
-                    style={{ ...BOUTON, background: VERT }}>
+                    style={{ ...BOUTON, background: VERT, ...cache(dr(m.societe_id).deposer) }}>
                     {occupe === "deposer" + d.id ? "…" : "Déposer sur net-entreprises"}
                   </button>
                 )}
@@ -1516,7 +1569,7 @@ export default function PageDsn() {
                     jamais etre le seul chemin. */}
                 {d && d.statut === "controlee" && (
                   <button onClick={() => deposee(d.id)} disabled={occupe !== ""}
-                    style={{ ...SECOND, color: VERT, borderColor: VERT }}>
+                    style={{ ...SECOND, color: VERT, borderColor: VERT, ...cache(dr(m.societe_id).deposer) }}>
                     Marquer déposée
                   </button>
                 )}
