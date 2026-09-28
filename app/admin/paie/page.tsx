@@ -484,6 +484,8 @@ export default function PagePaie() {
     if (!choisi || !contratSaisie) return;
     setErr(""); setMsg(""); setOccupe("contrat");
     const corps: any = { action: "modifier_contrat", contrat_id: choisi.id, ...contratSaisie };
+    // 🆕 28/09 — un contrat non cadre n a pas de forfait en jours.
+    if (corps.categorie !== "cadre") { corps.forfait_jours_annuel = ""; corps.plafond_reduit_forfait = false; }
     if (choisi.type_contrat === "mandat_social") delete corps.duree_hebdo;
     const d = await appeler(corps);
     if (d && d.success && d.contrat) {
@@ -1616,7 +1618,12 @@ export default function PagePaie() {
                           <div style={{ flex: "1 1 140px" }}>
                             <span style={LIB}>Catégorie</span>
                             <select value={cs.categorie} style={CHAMP}
-                              onChange={(ev) => setContratSaisie({ ...cs, categorie: ev.target.value })}>
+                              onChange={(ev) => setContratSaisie(ev.target.value === "cadre"
+                                ? { ...cs, categorie: ev.target.value }
+                                // 🆕 28/09 — repasser en non cadre VIDE le forfait : le
+                                // champ se cachait mais sa valeur restait enregistree
+                                // (essai 10 du 28/09).
+                                : { ...cs, categorie: ev.target.value, forfait_jours_annuel: "", plafond_reduit_forfait: false })}>
                               <option value="non_cadre">Non cadre</option>
                               <option value="cadre">Cadre</option>
                             </select>
@@ -1652,6 +1659,11 @@ export default function PagePaie() {
                             <span style={LIB}>Fin prévue</span>
                             <input type="date" value={cs.date_fin || ""} style={CHAMP}
                               onChange={(ev) => setContratSaisie({ ...cs, date_fin: ev.target.value })} />
+                            {/* 🆕 28/09 — l iPad ne sait pas vider un champ date. */}
+                            {cs.date_fin && (
+                              <button onClick={() => setContratSaisie({ ...cs, date_fin: "" })}
+                                style={{ ...LIEN, color: OR, marginTop: "4px" }}>effacer la date</button>
+                            )}
                           </div>
                         </div>
                         {/* 🆕 28/09 — LE VEHICULE DE FONCTION : l avantage en
@@ -1701,6 +1713,11 @@ export default function PagePaie() {
                               <div style={{ flex: "1 1 140px" }}>
                                 <span style={LIB}>Restitué le (vide sinon)</span>
                                 <input type="date" value={vv.fin || ""} style={CHAMP} onChange={(ev) => majV("fin", ev.target.value)} />
+                                {vv.fin && (
+                                  <button onClick={() => majV("fin", "")} style={{ ...LIEN, color: OR, marginTop: "4px" }}>
+                                    effacer la date
+                                  </button>
+                                )}
                               </div>
                               <div style={{ flex: "1 1 150px" }}>
                                 <span style={LIB}>Participation du salarié par mois</span>
@@ -1737,6 +1754,16 @@ export default function PagePaie() {
                               ? "Fin du mandat le" : "Date de rupture (dernier jour du contrat)"}</span>
                             <input type="date" value={cs.rompu_le || ""} style={CHAMP}
                               onChange={(ev) => setContratSaisie({ ...cs, rompu_le: ev.target.value })} />
+                            {/* 🆕 28/09 — ANNULER LA RUPTURE : l iPad ne vide pas un
+                                champ date (essai 2 du 28/09). Vide la date et le
+                                motif ; il reste a enregistrer. */}
+                            {cs.rompu_le && (
+                              <button onClick={() => setContratSaisie({ ...cs, rompu_le: "", motif_rupture_dsn: "" })}
+                                style={{ ...LIEN, color: OR, marginTop: "4px" }}>
+                                {choisi.type_contrat === "mandat_social" ? "annuler la fin du mandat" : "annuler la rupture"}
+                                {" "}(puis « Enregistrer le contrat »)
+                              </button>
+                            )}
                           </div>
                           {choisi.type_contrat !== "mandat_social" && (
                             <div style={{ flex: "2 1 260px" }}>
@@ -2850,14 +2877,19 @@ export default function PagePaie() {
                             </span>
                             {/* 🆕 28/09 — l affection de longue duree : ses IJ
                                 ne sont pas imposables. */}
-                            {arret && (
-                              <button onClick={async () => {
-                                const d = await appeler({ action: "arret_ald", evenement_id: x.id, ald: !x.ald });
-                                if (d && d.success) { setMsg(d.message || ""); setCalcul(null); if (choisi) chargerEvenements(choisi.id); }
-                                else setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
-                              }} style={{ ...LIEN, marginLeft: "10px", color: x.ald ? OR : "rgba(255,255,255,0.45)" }}>
-                                {x.ald ? "ALD : oui (non imposables)" : "ALD : non"}
-                              </button>
+                            {/* 🆕 28/09 — UNE VRAIE CASE, et SEULEMENT pour un arret
+                                maladie (le moteur n applique l ALD qu a la maladie).
+                                Le texte gris « ALD : non » ne se devinait pas. */}
+                            {arret && /^(01|maladie)$/i.test(String(x.motif || "").trim()) && (
+                              <label style={{ marginLeft: "10px", display: "inline-flex", gap: "6px",
+                                alignItems: "center", color: x.ald ? OR : "rgba(255,255,255,0.75)" }}>
+                                <input type="checkbox" checked={!!x.ald} onChange={async () => {
+                                  const d = await appeler({ action: "arret_ald", evenement_id: x.id, ald: !x.ald });
+                                  if (d && d.success) { setMsg(d.message || ""); setCalcul(null); if (choisi) chargerEvenements(choisi.id); }
+                                  else setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+                                }} />
+                                Affection de longue durée (indemnités non imposables)
+                              </label>
                             )}
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.55)" }}>
