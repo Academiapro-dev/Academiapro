@@ -831,8 +831,14 @@ async function calculer(contratId: string, periode: string,
   const joursCalendairesEmploi = finEmploi >= debutEmploi
     ? Math.round((Date.parse(finEmploi + "T00:00:00Z") - Date.parse(debutEmploi + "T00:00:00Z")) / 86400000) + 1
     : 0;
-  const proportionPlafond = periodePartielle && joursCalendairesMois > 0
-    ? Math.max(0, Math.min(1, joursCalendairesEmploi / joursCalendairesMois)) : 1;
+  // 🆕 28/09 — CAS RARE : LE PLAFOND REDUIT AU FORFAIT EN JOURS. Un forfait
+  // de moins de 218 jours PEUT reduire le plafond de securite sociale dans
+  // le meme rapport, avec le consentement du salarie (BOSS, assiette
+  // generale, §830) : `paie_contrats.plafond_reduit_forfait` le dit.
+  const facteurPlafondForfait = (forfaitJoursAn > 0 && forfaitJoursAn < 218
+    && (contrat as any).plafond_reduit_forfait === true) ? forfaitJoursAn / 218 : 1;
+  const proportionPlafond = (periodePartielle && joursCalendairesMois > 0
+    ? Math.max(0, Math.min(1, joursCalendairesEmploi / joursCalendairesMois)) : 1) * facteurPlafondForfait;
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕🚨 22/09 — L APPRENTI : SON MINIMUM LEGAL ET SON SEUIL D EXONERATION
@@ -1133,7 +1139,15 @@ async function calculer(contratId: string, periode: string,
   {
     let v: any = (contrat as any).vehicule;
     if (typeof v === "string") { try { v = JSON.parse(v); } catch { v = null; } }
-    if (v && typeof v === "object" && Number(v.valeur) > 0) {
+    // 🆕 28/09 — un vehicule evalue AU REEL ce mois-ci (element saisi) : le
+    // forfait ne s applique pas.
+    const auReel = (elements || []).some(function (x: any) {
+      return String(x.type_element) === "avantage_vehicule_reel"; });
+    if (auReel && v && typeof v === "object") {
+      notesVehicule.push("Véhicule de fonction évalué AU RÉEL ce mois-ci (élément saisi) : le forfait "
+        + "ne s'applique pas.");
+    }
+    if (!auReel && v && typeof v === "object" && Number(v.valeur) > 0) {
       const eurV = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
       const dispo = String(v.mis_a_disposition_le || "").slice(0, 10);
       const rendu = String(v.fin || "").slice(0, 10);
@@ -1260,6 +1274,32 @@ async function calculer(contratId: string, periode: string,
 
   for (const e of (elements || [])) {
     const t = String(e.type_element || "");
+
+    // 🆕 28/09 — CAS RARES : L ASSURANCE DU LOGEMENT prise en charge par
+    // l employeur (elle s ajoute au forfait du logement), LE LOGEMENT AU
+    // REEL (valeur locative + avantages accessoires, au choix de
+    // l employeur) et LE VEHICULE AU REEL (depenses reellement engagees).
+    // Un avantage en nature : au brut, puis deduit du net.
+    if (t === "avantage_logement_assurance" || t === "avantage_logement_reel"
+        || t === "avantage_vehicule_reel") {
+      const mAv = cts(Number(e.montant || 0));
+      if (mAv > 0) {
+        const libAv = t === "avantage_logement_assurance" ? "Avantage en nature logement : assurance prise en charge"
+          : t === "avantage_logement_reel" ? "Avantage en nature logement (évaluation au réel)"
+          : "Avantage en nature véhicule (évaluation au réel)";
+        lignesBrut.push({ libelle: libAv, quantite: null, taux: null, montant: mAv });
+        brutSoumis += mAv;
+        lignesBrut.push({ libelle: libAv + ", déduit du net", quantite: null, taux: null,
+          montant: -mAv, hors_brut: true });
+        nonSoumis -= mAv;
+        if (t === "avantage_logement_reel" && (elements || []).some(function (x: any) {
+          return String(x.type_element) === "avantage_logement"; })) {
+          notesAvantages.push("⛔ Logement évalué À LA FOIS au forfait et au réel ce mois-ci : "
+            + "l'employeur choisit l'une des deux évaluations — retirer l'autre élément.");
+        }
+      }
+      continue;
+    }
 
     // ─────────── L AVANTAGE EN NATURE NOURRITURE ───────────
     if (t === "avantage_repas") {
@@ -1631,8 +1671,8 @@ async function calculer(contratId: string, periode: string,
     notesPro.push("Contrat de professionnalisation : minimum légal " + minP.toLocaleString("fr-FR", eurP)
       + " € (" + pro.pourcentage + " % du SMIC" + (pro.age !== null ? ", " + pro.age + " ans" : "")
       + (pro.qualification_niveau4 ? ", bac professionnel ou plus" : "") + ")"
-      + (pro.age !== null && pro.age >= 26 ? " ⚠️ À 26 ans et plus, le minimum est aussi 85 % du salaire minimum "
-        + "conventionnel s'il est supérieur au SMIC : non contrôlé ici." : "")
+      + (pro.age !== null && pro.age >= 26 ? " À 26 ans et plus, le minimum est aussi 85 % du salaire minimum "
+        + "conventionnel s'il est supérieur au SMIC : contrôlé quand le contrat porte un coefficient." : "")
       + " Cotisations de droit commun, réduction générale comprise ; en CDD, pas d'indemnité de fin de contrat "
       + "(article L1243-10). ⚠️ L'exonération patronale propre aux demandeurs d'emploi de 45 ans et plus n'est "
       + "pas appliquée. ⛔ La DSN du contrat de professionnalisation n'est pas encore adaptée (dispositif de "
@@ -1997,6 +2037,8 @@ async function calculer(contratId: string, periode: string,
         debut: d1, fin: d2, jours: joursAbs, heures: heuresAbs,
         heures_du_mois: heuresMois, retenue: retenue,
         debut_arret: debA, subrogation: (a as any).subrogation === true,
+        // 🆕 28/09 — CAS RARE : arret d une affection de longue duree.
+        ald: (a as any).ald === true,
         // 🆕 27/09 soir — la periode de subrogation, pour reverser les IJ
         // percues par l employeur meme sans maintien de salaire.
         subro_debut: String((a as any).subro_debut || "").slice(0, 10),
@@ -2187,10 +2229,19 @@ async function calculer(contratId: string, periode: string,
       // (article D1226-4, voir joursDejaIndemnises). Ils s imputent d abord
       // sur le premier palier, puis sur le second.
       {
+        // 🆕 28/09 — CAS RARE : les arrets indemnises sous un CONTRAT
+        // PRECEDENT chez le meme employeur comptent aussi (D1226-4 parle des
+        // douze mois, pas du contrat) : meme salarie, meme societe.
+        const { data: memesContrats } = await supabase
+          .from("paie_contrats").select("id")
+          .eq("salarie_id", (contrat as any).salarie_id)
+          .eq("societe_id", (contrat as any).societe_id);
+        const idsContrats: string[] = (memesContrats || []).map(function (x: any) { return String(x.id); });
+        if (idsContrats.indexOf(String(contratId)) < 0) idsContrats.push(String(contratId));
         const { data: anterieurs } = await supabase
           .from("paie_evenements")
           .select("id, motif, date_debut, date_fin, reprise_date, annule_le")
-          .eq("contrat_id", contratId)
+          .in("contrat_id", idsContrats)
           .eq("type_evenement", "arret")
           .lt("date_debut", ab.debut_arret)
           .order("date_debut", { ascending: true });
@@ -2230,14 +2281,14 @@ async function calculer(contratId: string, periode: string,
           const pris1 = Math.min(regle.jours1, consommes);
           const pris2 = Math.min(regle.jours2, consommes - pris1);
           regle = { ...regle, jours1: regle.jours1 - pris1, jours2: regle.jours2 - pris2 };
-          notesArret.push("Arrêts de maladie déjà indemnisés dans les douze mois "
+          notesArret.push("Arrêts de maladie ou d'accident déjà indemnisés dans les douze mois "
             + "précédant celui du " + ab.debut_arret.slice(8, 10) + "/"
             + ab.debut_arret.slice(5, 7) + "/" + ab.debut_arret.slice(0, 4) + " : "
             + consommes + " jour(s) imputé(s) sur les durées de maintien (article "
             + "D1226-4 du code du travail). Il reste " + regle.jours1 + " jour(s) à "
             + regle.taux1 + " % et " + regle.jours2 + " à "
-            + String(regle.taux2).replace(".", ",") + " %. ⚠️ Seuls les arrêts de "
-            + "ce contrat sont comptés.");
+            + String(regle.taux2).replace(".", ",") + " %. Les arrêts des contrats "
+            + "précédents chez le même employeur sont comptés.");
         }
       }
 
@@ -2316,6 +2367,14 @@ async function calculer(contratId: string, periode: string,
         partImposableIj = 0.962;
         noteIj = " Indemnités journalières de " + nomNature[nature] + " : " + ijN.toLocaleString("fr-FR",
           { minimumFractionDigits: 2 }) + " € par jour (salaire journalier de base diminué de 21 %), sans carence.";
+      }
+
+      // 🆕 28/09 — CAS RARE : LES IJ D UNE AFFECTION DE LONGUE DUREE (ALD)
+      // ne sont pas imposables (article 80 quinquies du CGI) : l arret porte
+      // la marque « ALD », posee dans la liste des signalements.
+      if (nature === "maladie" && ab.ald) {
+        partImposableIj = 0;
+        noteIj += " Affection de longue durée : indemnités journalières NON imposables.";
       }
 
       const m = sansRegleNaissance
@@ -2466,15 +2525,40 @@ async function calculer(contratId: string, periode: string,
       // (ALD) ne sont pas imposables — le moteur ne le sait pas, une reserve
       // le dit.
       let ijssImposablesArret = 0;
+      // 🆕 28/09 — CAS RARE : LA SUBROGATION AU-DELA DU MAINTIEN. En
+      // subrogation, la caisse verse A L EMPLOYEUR les IJ de TOUS les jours
+      // indemnises de la periode subrogee — y compris ceux que le maintien
+      // ne couvre pas (carence de l employeur plus longue que celle de la
+      // caisse, duree de maintien epuisee). Il les reverse toutes.
+      let ijReverseesBrutes = m.ijss;
       if (ab.subrogation) {
-        ijssNettes = cts(m.ijss * (1 - 0.067));
+        const carenceC = ijssCarenceP === null ? 3 : Number(ijssCarenceP);
+        const t0s = Date.parse(ab.debut_arret + "T00:00:00Z");
+        const djs = new Date(ab.debut + "T00:00:00Z");
+        const fjs = Date.parse(ab.fin + "T00:00:00Z");
+        let totS = 0;
+        while (djs.getTime() <= fjs) {
+          const iso = djs.toISOString().slice(0, 10);
+          const rang = Math.round((djs.getTime() - t0s) / 86400000);
+          const dans = (!ab.subro_debut || iso >= ab.subro_debut) && (!ab.subro_fin || iso <= ab.subro_fin);
+          const vj = ijFn ? ijFn(rang) : (rang >= carenceC ? ijJour : 0);
+          if (dans && vj > 0) totS += vj;
+          djs.setUTCDate(djs.getUTCDate() + 1);
+        }
+        if (cts(totS) > cts(m.ijss) + 0.005) ijReverseesBrutes = cts(totS);
+      }
+      if (ab.subrogation) {
+        ijssNettes = cts(ijReverseesBrutes * (1 - 0.067));
+        const auDela = cts(ijReverseesBrutes - m.ijss);
         lignesBrut.push({
           libelle: "Indemnités journalières reversées (subrogation), nettes "
-            + "de CSG et de CRDS",
+            + "de CSG et de CRDS"
+            + (auDela > 0 ? " — dont " + cts(auDela * (1 - 0.067)).toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+              + " € pour des jours hors maintien" : ""),
           quantite: null, taux: null, montant: ijssNettes, hors_brut: true,
         });
         nonSoumis += ijssNettes;
-        ijssImposablesArret = cts(m.ijss * partImposableIj);
+        ijssImposablesArret = cts(ijReverseesBrutes * partImposableIj);
         ijssImposables += ijssImposablesArret;
       }
 
@@ -2501,9 +2585,9 @@ async function calculer(contratId: string, periode: string,
           + "ajoutées au net à payer, et leur part imposable ("
           + ijssImposablesArret.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
           + " €, soit le brut diminué de la CSG déductible de 3,80 %) est "
-          + "ajoutée au net imposable. ⚠️ Si l'arrêt relève d'une affection de "
-          + "longue durée (ALD), ces indemnités ne sont pas imposables : la "
-          + "part imposable est alors à retirer." : ""));
+          + "ajoutée au net imposable."
+          + (ab.ald ? "" : " Si l'arrêt relève d'une affection de longue durée (ALD), le "
+            + "marquer « ALD » dans la liste des signalements : ses indemnités ne sont pas imposables.") : ""));
     }
   }
 
@@ -4065,7 +4149,13 @@ async function calculer(contratId: string, periode: string,
       // coexistent en base, et les confondre fausserait le plancher.
       const smicMensuel = cts(await parametre("SMIC_MENSUEL", periode) || 0);
 
-      const planche = Math.max(minConv, smicMensuel);
+      // 🆕 28/09 — LE CONTRAT DE PROFESSIONNALISATION : a 26 ans et plus, le
+      // minimum est le SMIC ou 85 % du minimum conventionnel s il est
+      // superieur (D6325-15) ; avant 26 ans, c est le bareme en % du SMIC
+      // (controle ailleurs) : pas de plancher conventionnel ici.
+      const planche = estPro
+        ? ((pro && pro.age !== null && pro.age >= 26) ? Math.max(cts(minConv * 0.85), smicMensuel) : 0)
+        : Math.max(minConv, smicMensuel);
       const base = Number(contrat.salaire_mensuel || 0);
 
       minimumConventionnel = {
@@ -4261,10 +4351,13 @@ async function calculer(contratId: string, periode: string,
             + forfaitJoursAn + "/218"
             + (smicReduit > 0 ? ", soit " + smicReduit.toLocaleString("fr-FR",
               { minimumFractionDigits: 2 }) + " € par mois" : "")
-            + " (article D241-7 du code de la sécurité sociale). ⚠️ Le plafond "
-            + "de Sécurité sociale reste plein : il peut être réduit dans le "
-            + "même rapport, mais seulement avec le consentement du salarié "
-            + "(BOSS, assiette générale, §830) — ce n'est pas fait ici.");
+            + " (article D241-7 du code de la sécurité sociale)."
+            + (facteurPlafondForfait < 1
+              ? " Le plafond de Sécurité sociale est réduit dans le même rapport, avec le "
+                + "consentement du salarié (BOSS, assiette générale, §830)."
+              : " ⚠️ Le plafond de Sécurité sociale reste plein : il peut être réduit dans "
+                + "le même rapport avec le consentement du salarié (BOSS, assiette générale, "
+                + "§830) — à cocher dans « modifier le contrat »."));
         }
         r.push("⚠️ LES JOURS DE REPOS (RTT) du forfait ne sont pas décomptés : "
           + "le contrat ne porte pas de compteur. Un forfait dépassé se "
