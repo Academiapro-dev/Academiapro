@@ -12,6 +12,21 @@ import Guide from "../../../../components/Guide";
 // ⚠️ LES ADRESSES RESTENT EN « compliance » DANS LE CODE. C est le
 // middleware qui les transforme en /admin/comptable/... pour le cabinet.
 // Ne pas les reecrire ici : la reecriture se fait en un seul endroit.
+// 🆕🚨 28/09 — LA PAIE A SA FAMILLE ET SON RACCOURCI.
+//
+// Jacques : « j aimerais ne pas etre oblige de passer par un URL pour
+// arriver a la paye […] les boutons sur l ecran d accueil doivent etre fait
+// pour ca ». L ecran des bulletins (calcul, validation, recapitulatif
+// client) n avait AUCUNE porte dans l espace du cabinet : il ne s ouvrait
+// qu a /admin/paie, en tapant l adresse, avec la cle d administration.
+// Il s ouvre desormais a /admin/compliance/bulletins-paie, avec la
+// connexion du cabinet.
+// ⚠️ DEUX PORTES « PAIE » PRETAIENT A CONFUSION : celle qui existait
+// (/admin/compliance/paie, dans « Le cabinet ») passe l ECRITURE COMPTABLE
+// d une paie deja faite. Elle s appelle desormais « Écriture de paie » et
+// rejoint la famille Paie, a cote des bulletins.
+// ⚠️ LA DSN N A PAS ENCORE DE PORTE ICI : son ecran demande toujours la cle
+// d administration. Elle viendra avec son passage a la connexion.
 const OUTILS = [
   { titre: "Tenue", liens: [
     { nom: "Saisie", href: "/admin/compliance/saisie" },
@@ -21,6 +36,10 @@ const OUTILS = [
     { nom: "Factures et justificatifs", href: "/admin/compliance/pieces" },
     { nom: "Espaces clients", href: "/admin/compliance/acces-clients" },
     { nom: "Reprise d'un dossier", href: "/admin/compliance/reprise" },
+  ]},
+  { titre: "Paie", liens: [
+    { nom: "Bulletins de paie", href: "/admin/compliance/bulletins-paie" },
+    { nom: "Écriture de paie", href: "/admin/compliance/paie" },
   ]},
   { titre: "Banque et TVA", liens: [
     { nom: "Relevés", href: "/admin/compliance/releve" },
@@ -55,7 +74,6 @@ const OUTILS = [
     // 🆕 09/09 : deux portes de gestion interne du cabinet.
     { nom: "Lettres de mission", href: "/admin/compliance/lettres-mission" },
     { nom: "Temps passés", href: "/admin/compliance/temps" },
-    { nom: "Paie", href: "/admin/compliance/paie" },
     { nom: "Conformité internationale", href: "/admin/compliance" },
   ]},
 ];
@@ -112,6 +130,8 @@ export default function PageTableauDeBord() {
     { nom: "Tableau de bord", href: "/admin/compliance/chiffres" },
     { nom: "Déposer une facture", href: "/admin/compliance/pieces" },
     { nom: "Saisir une écriture", href: "/admin/compliance/saisie" },
+    // 🆕 28/09 — la paie du mois, sans taper d adresse.
+    { nom: "Faire la paie", href: "/admin/compliance/bulletins-paie" },
   ];
 
   function euros(n: any) {
