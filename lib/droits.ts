@@ -15,13 +15,32 @@ const supabase = createClient(
   }
 );
 
+// ---------------------------------------------------------------------------
+// 🆕 28/09 — LES QUATRE DROITS DE PAIE
+//
+// Ils suivent exactement le meme chemin que les droits comptables : une
+// colonne `peut_<droit>` dans compta_collaborateurs, lue par verifier().
+//   · paie_contrats  la fiche du salarie et son contrat (embauche, salaire,
+//                    horaire, taux de prelevement). Hors de portee de celui
+//                    qui prepare le mois : c est la « saisie limitee ».
+//   · paie_preparer  les elements du mois, les conges, les arrets, le
+//                    calcul, le brouillon, la soumission a validation.
+//   · paie_emettre   l emission du bulletin et les documents de fin de
+//                    contrat.
+//   · dsn_deposer    le depot des declarations sociales.
+// Un associe les porte tous (SQL du 28/09).
+// ---------------------------------------------------------------------------
 export type Droit =
   | "saisir"
   | "valider"
   | "cloturer"
   | "declarer"
   | "gerer_plan"
-  | "deposer_pieces";
+  | "deposer_pieces"
+  | "paie_contrats"
+  | "paie_preparer"
+  | "paie_emettre"
+  | "dsn_deposer";
 
 export type Verdict = {
   autorise: boolean;
@@ -31,12 +50,16 @@ export type Verdict = {
 };
 
 const LIBELLES: any = {
-  saisir: "saisir des ecritures",
+  saisir: "saisir des écritures",
   valider: "valider et lettrer",
-  cloturer: "cloturer un exercice",
-  declarer: "etablir les declarations",
-  gerer_plan: "gerer le plan comptable",
-  deposer_pieces: "deposer des pieces",
+  cloturer: "clôturer un exercice",
+  declarer: "établir les déclarations",
+  gerer_plan: "gérer le plan comptable",
+  deposer_pieces: "déposer des pièces",
+  paie_contrats: "modifier la fiche ou le contrat d'un salarié",
+  paie_preparer: "préparer la paie",
+  paie_emettre: "émettre des bulletins de paie",
+  dsn_deposer: "déposer les déclarations sociales",
 };
 
 // ---------------------------------------------------------------------------
@@ -55,6 +78,10 @@ const LIBELLES: any = {
 // fiche du collaborateur est cherchee DANS SON ORGANISME : deux cabinets
 // peuvent employer la meme adresse email sans se voir.
 // ---------------------------------------------------------------------------
+
+export function estAdmin(email: string | null | undefined): boolean {
+  return ADMINS.indexOf(String(email || "").toLowerCase().trim()) >= 0;
+}
 
 // L organisme de la session, ou null si la session n en porte pas.
 export function tenantCourant(): string | null {
@@ -112,12 +139,12 @@ export async function verifier(
     if (duTenant.indexOf(societeId) < 0) {
       return {
         autorise: false, email: session.email, role: null,
-        motif: "Ce dossier n appartient pas a votre organisme.",
+        motif: "Ce dossier n'appartient pas à votre organisme.",
       };
     }
   }
 
-  if (ADMINS.indexOf(session.email) >= 0) {
+  if (estAdmin(session.email)) {
     return { autorise: true, email: session.email, role: "administrateur", motif: null };
   }
 
@@ -126,14 +153,14 @@ export async function verifier(
   if (!collaborateur) {
     return {
       autorise: false, email: session.email, role: null,
-      motif: "Votre compte n est pas rattache au cabinet.",
+      motif: "Votre compte n'est pas rattaché au cabinet.",
     };
   }
 
   if (collaborateur.actif === false) {
     return {
       autorise: false, email: session.email, role: collaborateur.role,
-      motif: "Votre acces a ete desactive.",
+      motif: "Votre accès a été désactivé.",
     };
   }
 
@@ -142,7 +169,7 @@ export async function verifier(
   if (societeId && dossiers.length > 0 && dossiers.indexOf(societeId) < 0) {
     return {
       autorise: false, email: session.email, role: collaborateur.role,
-      motif: "Ce dossier ne vous est pas confie.",
+      motif: "Ce dossier ne vous est pas confié.",
     };
   }
 
@@ -155,7 +182,7 @@ export async function verifier(
   if (collaborateur["peut_" + droit] !== true) {
     return {
       autorise: false, email: session.email, role: collaborateur.role,
-      motif: "Votre role ne vous permet pas de " + (LIBELLES[droit] || droit) + ".",
+      motif: "Votre rôle ne vous permet pas de " + (LIBELLES[droit] || droit) + ".",
     };
   }
 
@@ -164,7 +191,7 @@ export async function verifier(
 
 function reponse(v: Verdict): Response {
   return new Response(
-    JSON.stringify({ ok: false, erreur: v.motif || "Acces refuse." }),
+    JSON.stringify({ ok: false, success: false, erreur: v.motif || "Accès refusé." }),
     {
       status: v.email ? 403 : 401,
       headers: { "Content-Type": "application/json" },
@@ -201,7 +228,7 @@ export async function dossiersAutorises(): Promise<string[]> {
   const duTenant = await dossiersDuTenant();
   if (duTenant.length === 0) return [];
 
-  if (ADMINS.indexOf(session.email) >= 0) return duTenant;
+  if (estAdmin(session.email)) return duTenant;
 
   const collaborateur = await ficheCollaborateur(session.email);
   if (!collaborateur || collaborateur.actif === false) return [];
@@ -210,4 +237,89 @@ export async function dossiersAutorises(): Promise<string[]> {
   if (dossiers.length === 0) return duTenant;
 
   return duTenant.filter(function (id: string) { return dossiers.indexOf(id) >= 0; });
+}
+
+// ---------------------------------------------------------------------------
+// 🆕 28/09 — LA CARTE BLANCHE (l interrupteur de confiance de la paie)
+//
+// Decision de Jacques : celui qui prepare la paie passe d abord par une
+// verification ; une fois qu il s est montre serieux et constant, on lui
+// donne la carte blanche, dossier par dossier, et il emet seul.
+//   · l administrateur et un ASSOCIE actif l ont d office, sur tous les
+//     dossiers de leur organisme : ce sont eux qui valident ;
+//   · un collaborateur ne l a que sur les dossiers listes dans
+//     `compta_collaborateurs.paie_carte_blanche`.
+// ⛔ La carte blanche ne donne AUCUN droit : il faut aussi `paie_emettre`.
+// Elle dit seulement si l emission passe ou non par une validation.
+// ---------------------------------------------------------------------------
+export async function carteBlanche(societeId: string): Promise<boolean> {
+  const session = sessionCourante();
+  if (!session || !societeId) return false;
+
+  const duTenant = await dossiersDuTenant();
+  if (duTenant.indexOf(societeId) < 0) return false;
+
+  if (estAdmin(session.email)) return true;
+
+  const collaborateur = await ficheCollaborateur(session.email);
+  if (!collaborateur || collaborateur.actif === false) return false;
+  if (collaborateur.role === "associe") return true;
+
+  const liste = collaborateur.paie_carte_blanche || [];
+  return liste.indexOf(societeId) >= 0;
+}
+
+// Qui peut regler l equipe (droits, dossiers confies, carte blanche) :
+// l administrateur, et les associes actifs de l organisme.
+export async function peutGererEquipe(): Promise<boolean> {
+  const session = sessionCourante();
+  if (!session || !tenantCourant()) return false;
+  if (estAdmin(session.email)) return true;
+
+  const collaborateur = await ficheCollaborateur(session.email);
+  return !!(collaborateur && collaborateur.actif !== false && collaborateur.role === "associe");
+}
+
+// Ce que la session peut faire en paie, dossier par dossier. Sert a l ecran,
+// pour ne montrer que les boutons utilisables. ⚠️ L ECRAN NE PROTEGE RIEN :
+// chaque action est de nouveau verifiee par la route.
+export async function profilPaie(societeIds: string[]): Promise<any> {
+  const session = sessionCourante();
+  const vide = { email: null, role: null, admin: false, gerer_equipe: false, dossiers: {} as any };
+  if (!session) return vide;
+
+  const duTenant = await dossiersDuTenant();
+  const admin = estAdmin(session.email);
+  const collaborateur = admin ? null : await ficheCollaborateur(session.email);
+  const actif = admin || !!(collaborateur && collaborateur.actif !== false);
+  const associe = !!(collaborateur && collaborateur.role === "associe");
+  const confies: string[] = (collaborateur && collaborateur.dossiers) || [];
+  const cartes: string[] = (collaborateur && collaborateur.paie_carte_blanche) || [];
+
+  const dossiers: any = {};
+  for (const id of societeIds) {
+    const visible = actif && duTenant.indexOf(id) >= 0
+      && (admin || confies.length === 0 || confies.indexOf(id) >= 0);
+    const droit = function (d: string): boolean {
+      if (!visible) return false;
+      if (admin) return true;
+      return !!(collaborateur && collaborateur["peut_" + d] === true);
+    };
+    dossiers[id] = {
+      voir: visible,
+      contrats: droit("paie_contrats"),
+      preparer: droit("paie_preparer"),
+      emettre: droit("paie_emettre"),
+      deposer: droit("dsn_deposer"),
+      carte_blanche: visible && (admin || associe || cartes.indexOf(id) >= 0),
+    };
+  }
+
+  return {
+    email: session.email,
+    role: admin ? "administrateur" : (collaborateur ? collaborateur.role : null),
+    admin: admin,
+    gerer_equipe: admin || (actif && associe),
+    dossiers: dossiers,
+  };
 }
