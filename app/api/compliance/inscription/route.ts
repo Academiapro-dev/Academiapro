@@ -213,6 +213,13 @@ export async function POST(req: NextRequest) {
         peut_declarer: true,
         peut_gerer_plan: true,
         peut_deposer_pieces: true,
+        // 🆕🚨 28/09 (essai E) — les quatre droits de paie. Ils manquaient :
+        // un cabinet cree par l inscription ne pouvait pas faire sa paie
+        // (le SQL du 28/09 ne les avait donnes qu aux associes deja inscrits).
+        peut_paie_contrats: true,
+        peut_paie_preparer: true,
+        peut_paie_emettre: true,
+        peut_dsn_deposer: true,
       });
       if (errCollab) {
         console.error("[compliance/inscription] collaborateur :", errCollab.message);
