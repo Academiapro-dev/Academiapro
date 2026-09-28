@@ -56,7 +56,8 @@ const GUIDES: any = {
       + "L'ordre suit l'urgence comptable : un déséquilibre passe avant une "
       + "TVA, une TVA avant un rapprochement.",
     points: [
-      "Les trois boutons en haut sont les gestes du quotidien : voir vos chiffres, déposer une facture, saisir une écriture.",
+      "Les quatre boutons en haut sont les gestes du quotidien : voir vos chiffres, déposer une facture, saisir une écriture, faire la paie.",
+      "Si vous travaillez pour plusieurs cabinets, le bandeau « Cabinet » en haut de l'écran permet de passer de l'un à l'autre.",
       "Chaque dossier porte les actions qui le concernent — elles n'apparaissent que si elles ont lieu d'être.",
       "Un dossier dormant remonte aussi : un client qu'on oublie est un client qui part.",
     ],
