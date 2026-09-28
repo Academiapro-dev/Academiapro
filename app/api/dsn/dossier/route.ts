@@ -1,5 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+import { sessionCourante } from "../../../../lib/session";
+import { verifier, dossiersAutorises, profilPaie } from "../../../../lib/droits";
+import type { Droit } from "../../../../lib/droits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -190,18 +193,16 @@ function controlerBic(v: any): any {
   return { ok: true, valeur: s };
 }
 
-export async function POST(req: NextRequest) {
-  const secret = req.nextUrl.searchParams.get("secret")
-    || req.headers.get("authorization")?.replace("Bearer ", "");
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-    return json({ erreur: "non autorise" }, 401);
-  }
-
-  let c: any = {};
-  try { c = await req.json(); } catch { c = {}; }
-  const action = q(c.action);
-
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 28/09 — CE QUI ETAIT LE POST EST DEVENU `traiter`. La porte (session,
+// organisme, droits, garde-fous du depot, journal) est dans le POST, en fin
+// de fichier.
+// ═══════════════════════════════════════════════════════════════════════
+async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Promise<NextResponse> {
   try {
+    const nouvelle = await actionsDsn(c, action, ctx);
+    if (nouvelle) return nouvelle;
+
     // ═══════════════════════════════════════════════════════════════════
     // ---- L ETAT DES LIEUX ----
     //
@@ -213,10 +214,19 @@ export async function POST(req: NextRequest) {
       // renommee, un droit manquant : tout cela rend `data = null` sans
       // lever d exception. Sans ce controle, l ecran affiche « rien a
       // faire » alors que la vraie reponse est « je n ai pas pu lire ».
-      const { data: societes, error: eSoc } = await supabase
+      // 🆕🚨 28/09 — BORNE A L ORGANISME ET AUX DOSSIERS CONFIES. Avec la
+      // cle, cette lecture rendait toutes les societes de la base.
+      const ids = ctx.cleServeur ? null : await dossiersAutorises();
+      if (ids && ids.length === 0) {
+        return json({ success: true, mois: [], societes: [], organismes: [], profil: await profilPaie([]),
+          avertissement: "Aucun dossier de paie n'est rattaché à votre compte." });
+      }
+      let qSoc = supabase
         .from("compta_societes")
         .select("id, tenant_id, raison_sociale, siret, code_ape, effectif")
         .order("raison_sociale");
+      if (ids) qSoc = qSoc.in("id", ids);
+      const { data: societes, error: eSoc } = await qSoc;
 
       if (eSoc) {
         return json({
@@ -225,10 +235,12 @@ export async function POST(req: NextRequest) {
         }, 500);
       }
 
-      const { data: bulletins, error: eBul } = await supabase
+      let qBul = supabase
         .from("paie_bulletins")
         .select("societe_id, periode, statut, brut")
         .order("periode", { ascending: false });
+      if (ids) qBul = qBul.in("societe_id", ids);
+      const { data: bulletins, error: eBul } = await qBul;
 
       if (eBul) {
         return json({
@@ -237,10 +249,12 @@ export async function POST(req: NextRequest) {
         }, 500);
       }
 
-      const { data: declarations, error: eDec } = await supabase
+      let qDec = supabase
         .from("dsn_declarations")
         .select("*")
         .order("periode", { ascending: false });
+      if (ids) qDec = qDec.in("societe_id", ids);
+      const { data: declarations, error: eDec } = await qDec;
 
       if (eDec) {
         return json({
@@ -433,11 +447,16 @@ export async function POST(req: NextRequest) {
       // « rien parce qu il n y a rien, ou rien parce que je n ai pas lu ? ».
       // Sans cette distinction, le doute coute un aller-retour a chaque
       // fois — et c est exactement ce qui vient de se passer.
+      const profil = ctx.cleServeur
+        ? { email: "cle-serveur", role: "administrateur", admin: true, gerer_equipe: false, dossiers: {} }
+        : await profilPaie((societes || []).map(function (s: any) { return String(s.id); }));
+
       return json({
         success: true,
         mois: lignes,
         societes: societesCompletes,
         organismes: organismes,
+        profil: profil,
         diagnostic: {
           bulletins_lus: (bulletins || []).length,
           annules_ignores: annulesIgnores,
@@ -981,4 +1000,316 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     return json({ erreur: String(e) }, 500);
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 28/09 — LA PORTE UNIQUE DE LA DSN (meme principe que la paie)
+//
+// L ecran DSN ne parle plus qu a cette route. Elle verifie la session,
+// l organisme, le dossier confie et le droit du geste, puis transmet de
+// serveur a serveur, avec la cle, aux routes de generation (generer) et de
+// depot (deposer), qui ne changent pas. La cle ne s affiche plus jamais a
+// l ecran ; elle reste acceptee pour les scripts.
+//
+// LES DROITS :
+//   · consulter              : droit nul (dossier confie suffit)
+//   · regler la societe      : paie_contrats (URSSAF, IBAN, taux AT,
+//                              mutuelle et prevoyance)
+//   · generer la DSN         : paie_preparer
+//   · contrôlée, déposée, identifiants net-entreprises, depot :
+//                              dsn_deposer
+//
+// 🚨 LES GARDE-FOUS DU DEPOT (action « deposer ») :
+//   BLOQUANTS
+//     1. la declaration doit etre passee dans dsn-val (statut contrôlée) ;
+//     2. aucun bulletin du mois ne doit rester en brouillon : la DSN ne lit
+//        que les bulletins emis, un brouillon est un salarie absent ;
+//     3. autant de contrats dans le fichier que de salaries payes ;
+//     4. le brut declare doit egaler le brut des bulletins emis : sinon la
+//        declaration a ete generee avant une emission ou un rectificatif,
+//        et il faut la regenerer.
+//   A CONFIRMER (une confirmation explicite, inscrite au journal)
+//     5. la masse salariale varie de plus de 30 % par rapport au mois
+//        precedent ;
+//     6. l effectif declare change par rapport au mois precedent.
+// ═══════════════════════════════════════════════════════════════════════
+
+type Ctx = { cleServeur: boolean; email: string; ip: string | null; hote: string };
+type Regle = { droit: Droit | null; cible: string; ecrit: boolean };
+
+const REGLES: Record<string, Regle> = {
+  etat: { droit: null, cible: "aucune", ecrit: false },
+  urssaf: { droit: "paie_contrats", cible: "societe", ecrit: true },
+  taux_at: { droit: "paie_contrats", cible: "societe", ecrit: true },
+  garantie: { droit: "paie_contrats", cible: "societe", ecrit: true },
+  garantie_fin: { droit: "paie_contrats", cible: "garantie", ecrit: true },
+  voir: { droit: null, cible: "declaration", ecrit: false },
+  contenu: { droit: null, cible: "declaration", ecrit: false },
+  controlee: { droit: "dsn_deposer", cible: "declaration", ecrit: true },
+  deposee: { droit: "dsn_deposer", cible: "declaration", ecrit: true },
+  crm: { droit: "dsn_deposer", cible: "declaration", ecrit: true },
+  // ---- 28/09 : le relais ----
+  generer: { droit: "paie_preparer", cible: "societe", ecrit: true },
+  acces_etat: { droit: null, cible: "societe", ecrit: false },
+  acces_enregistrer: { droit: "dsn_deposer", cible: "societe", ecrit: true },
+  acces_tester: { droit: "dsn_deposer", cible: "societe", ecrit: false },
+  deposer: { droit: "dsn_deposer", cible: "declaration", ecrit: true },
+};
+
+async function cibleDe(spec: string, c: any): Promise<{ societeId: string | null; reference: string | null }> {
+  if (spec === "aucune") return { societeId: null, reference: null };
+  const id = spec === "societe" ? q(c.societe_id) : q(c.id);
+  if (!id) return { societeId: null, reference: null };
+  const table = spec === "societe" ? "compta_societes"
+    : spec === "declaration" ? "dsn_declarations"
+    : spec === "garantie" ? "paie_garanties_societe" : null;
+  if (!table) return { societeId: null, reference: id };
+  const colonne = spec === "societe" ? "id" : "societe_id";
+  const { data } = await supabase.from(table).select(colonne).eq("id", id).maybeSingle();
+  return { societeId: data ? String((data as any)[colonne]) : null, reference: id };
+}
+
+async function journal(societeId: string | null, ctx: Ctx, action: string, cible: string,
+  reference: string | null, apres: any): Promise<void> {
+  const { error } = await supabase.from("compta_audit").insert({
+    societe_id: societeId, email: ctx.email, action: action, cible: cible,
+    reference: reference, avant: null, apres: apres === undefined ? null : apres, adresse_ip: ctx.ip,
+  });
+  if (error) console.error("[dsn/dossier] journal :", error.message);
+}
+
+// ⛔ LE MOT DE PASSE NET-ENTREPRISES N ENTRE JAMAIS AU JOURNAL.
+function pourJournal(c: any): any {
+  const copie: any = {};
+  for (const k of Object.keys(c || {})) {
+    if (k === "mot_de_passe" || k === "motdepasse" || k === "cle" || k === "secret" || k === "contenu") continue;
+    copie[k] = c[k];
+  }
+  return copie;
+}
+
+async function relais(ctx: Ctx, chemin: string, init: any): Promise<NextResponse> {
+  try {
+    const r = await fetch("https://" + ctx.hote + chemin, { ...init, cache: "no-store" });
+    const texte = await r.text();
+    return new NextResponse(texte || "{}", {
+      status: r.status, headers: { ...SANS_CACHE, "Content-Type": "application/json" },
+    });
+  } catch (e: any) {
+    return json({ erreur: "appel interne impossible : " + String(e && e.message ? e.message : e) }, 502);
+  }
+}
+
+function cle(): string {
+  return encodeURIComponent(process.env.CRON_SECRET || "");
+}
+
+function moisPrecedent(periode: string): string {
+  const d = new Date(periode.slice(0, 7) + "-01T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  return d.toISOString().slice(0, 7) + "-01";
+}
+
+function finDuMois(periode: string): string {
+  const d = new Date(periode.slice(0, 7) + "-01T00:00:00Z");
+  d.setUTCMonth(d.getUTCMonth() + 1);
+  d.setUTCDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+function eur(n: any): string {
+  return Number(n || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+// Les garde-fous d un depot : ce qui bloque, et ce qui demande confirmation.
+async function gardeFous(declarationId: string, sansDsnVal?: boolean): Promise<{ bloquants: string[]; ecarts: string[] }> {
+  const bloquants: string[] = [];
+  const ecarts: string[] = [];
+
+  const { data: d } = await supabase.from("dsn_declarations").select("*").eq("id", declarationId).maybeSingle();
+  if (!d) return { bloquants: ["déclaration introuvable."], ecarts: [] };
+  const dec: any = d;
+  const periode = String(dec.periode).slice(0, 10);
+  const fin = finDuMois(periode);
+
+  // 1. dsn-val
+  if (!sansDsnVal && dec.statut === "brouillon") {
+    bloquants.push("la déclaration n'est pas passée dans dsn-val : faites-la contrôler, puis touchez « Passé dans dsn-val ».");
+  }
+
+  // 2. aucun brouillon, et les bulletins emis du mois
+  const { data: bul } = await supabase.from("paie_bulletins")
+    .select("contrat_id, statut, brut, numero, paie_contrats(paie_salaries(nom, prenom))")
+    .eq("societe_id", dec.societe_id).gte("periode", periode).lte("periode", fin)
+    .in("statut", ["brouillon", "emis"]);
+  const bulletins = (bul || []) as any[];
+  const brouillons = bulletins.filter(function (b) { return b.statut === "brouillon"; });
+  if (brouillons.length > 0) {
+    bloquants.push(brouillons.length + " bulletin(s) du mois encore en brouillon ("
+      + brouillons.map(function (b) {
+        const s = (b.paie_contrats && b.paie_contrats.paie_salaries) || {};
+        return (String(s.prenom || "") + " " + String(s.nom || "").toUpperCase()).trim() || b.numero;
+      }).join(", ")
+      + ") : la DSN ne lit que les bulletins émis, ces salariés en seraient absents. Émettez-les, régénérez la DSN, puis déposez.");
+  }
+  const emis = bulletins.filter(function (b) { return b.statut === "emis"; });
+  const contratsPayes: any = {};
+  let brutEmis = 0;
+  for (const b of emis) { contratsPayes[b.contrat_id] = true; brutEmis += Number(b.brut || 0); }
+  const nbPayes = Object.keys(contratsPayes).length;
+
+  // 3. les contrats dans le fichier
+  if (dec.chemin_fichier) {
+    const { data: blob } = await supabase.storage.from("documents-signes").download(dec.chemin_fichier);
+    if (blob) {
+      const texte = Buffer.from(await blob.arrayBuffer()).toString("latin1");
+      const nbContrats = texte.split("\n").filter(function (l) { return l.indexOf("S21.G00.40.001,") === 0; }).length;
+      const nature = (texte.split("\n").filter(function (l) { return l.indexOf("S20.G00.05.001,") === 0; })[0] || "");
+      const mensuelle = nature.indexOf("'01'") >= 0;
+      if (mensuelle && nbContrats < nbPayes) {
+        bloquants.push(nbPayes + " salarié(s) payé(s) ce mois-ci, mais " + nbContrats
+          + " contrat(s) dans la déclaration : elle a été générée avant une émission. Régénérez-la.");
+      }
+    } else {
+      bloquants.push("le fichier de la déclaration est illisible : régénérez-la.");
+    }
+  } else {
+    bloquants.push("la déclaration n'a pas de fichier : générez-la.");
+  }
+
+  // 4. le brut declare = le brut emis
+  if (dec.total_brut !== null && dec.total_brut !== undefined && emis.length > 0
+    && Math.abs(Number(dec.total_brut) - brutEmis) > 1) {
+    bloquants.push("le brut déclaré (" + eur(dec.total_brut) + ") n'est pas celui des bulletins émis ("
+      + eur(brutEmis) + ") : un bulletin a été émis ou rectifié après la génération. Régénérez la DSN.");
+  }
+
+  // 5 et 6. comparaison avec le mois precedent (derniere declaration)
+  const precedent = moisPrecedent(periode);
+  const { data: avant } = await supabase.from("dsn_declarations")
+    .select("total_brut, nb_individus, numero_ordre, periode")
+    .eq("societe_id", dec.societe_id).gte("periode", precedent).lte("periode", finDuMois(precedent))
+    .order("numero_ordre", { ascending: false }).limit(1);
+  const p: any = ((avant || []) as any[])[0];
+  if (p) {
+    const brutAvant = Number(p.total_brut || 0);
+    const brutMaintenant = Number(dec.total_brut || 0);
+    if (brutAvant > 0) {
+      const ecart = Math.abs(brutMaintenant - brutAvant) / brutAvant * 100;
+      if (ecart > 30) {
+        ecarts.push("la masse salariale passe de " + eur(brutAvant) + " à " + eur(brutMaintenant)
+          + " (" + (brutMaintenant >= brutAvant ? "+" : "−") + Math.round(ecart) + " %) par rapport au mois précédent.");
+      }
+    }
+    const effAvant = Number(p.nb_individus || 0);
+    const effMaintenant = Number(dec.nb_individus || 0);
+    if (effAvant > 0 && effMaintenant !== effAvant) {
+      ecarts.push("l'effectif déclaré passe de " + effAvant + " à " + effMaintenant + " salarié(s).");
+    }
+  }
+
+  return { bloquants: bloquants, ecarts: ecarts };
+}
+
+async function actionsDsn(c: any, action: string, ctx: Ctx): Promise<NextResponse | null> {
+
+  if (action === "generer") {
+    return relais(ctx, "/api/dsn/generer?secret=" + cle(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ societe_id: c.societe_id, periode: c.periode }),
+    });
+  }
+
+  if (action === "acces_etat" || action === "acces_tester") {
+    return relais(ctx, "/api/dsn/deposer?action=" + (action === "acces_etat" ? "etat" : "tester")
+      + "&v=" + Date.now() + "&societe=" + encodeURIComponent(q(c.societe_id)) + "&secret=" + cle(), { method: "GET" });
+  }
+
+  if (action === "acces_enregistrer") {
+    return relais(ctx, "/api/dsn/deposer?secret=" + cle(), {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "enregistrer", societe_id: c.societe_id,
+        siret_declarant: c.siret_declarant, nom_declarant: c.nom_declarant,
+        prenom_declarant: c.prenom_declarant, mot_de_passe: c.mot_de_passe,
+      }),
+    });
+  }
+
+  // 🆕 28/09 — LES MEMES GARDE-FOUS avant « Passé dans dsn-val » et
+  // « Marquer déposée » : un fichier perime ne doit ni se faire controler,
+  // ni se declarer depose a la main (depot fait sur le portail).
+  if ((action === "controlee" || action === "deposee") && !ctx.cleServeur) {
+    const g = await gardeFous(q(c.id), action === "controlee");
+    if (g.bloquants.length > 0) {
+      return json({ erreur: "⛔ " + g.bloquants.join(" · ") + " Rien n'a été modifié.", garde_fous: g }, 409);
+    }
+    if (action === "deposee" && g.ecarts.length > 0 && c.confirmer_ecarts !== true) {
+      return json({ erreur: "Écart à confirmer (confirmer_ecarts) : " + g.ecarts.join(" · "),
+        ecarts: g.ecarts, garde_fous: g }, 409);
+    }
+    return null;
+  }
+
+  if (action === "deposer") {
+    const id = q(c.id);
+    if (!ctx.cleServeur) {
+      const g = await gardeFous(id);
+      if (g.bloquants.length > 0) {
+        return json({ erreur: "⛔ Dépôt bloqué : " + g.bloquants.join(" · ") + " Rien n'a été déposé.",
+          garde_fous: g }, 409);
+      }
+      if (g.ecarts.length > 0 && c.confirmer_ecarts !== true) {
+        return json({ erreur: "Écart à confirmer avant le dépôt (confirmer_ecarts) : " + g.ecarts.join(" · "),
+          ecarts: g.ecarts, garde_fous: g }, 409);
+      }
+    }
+    return relais(ctx, "/api/dsn/deposer?action=deposer&v=" + Date.now()
+      + "&declaration=" + encodeURIComponent(id)
+      + (c.confirmer_reel === true ? "&confirmer=reel" : "") + "&secret=" + cle(), { method: "GET" });
+  }
+
+  return null;
+}
+
+export async function POST(req: NextRequest) {
+  const secret = req.nextUrl.searchParams.get("secret")
+    || req.headers.get("authorization")?.replace("Bearer ", "");
+  const cleServeur = !!process.env.CRON_SECRET && secret === process.env.CRON_SECRET;
+  const session = cleServeur ? null : sessionCourante();
+  if (!cleServeur && !session) {
+    return json({ erreur: "Connectez-vous pour ouvrir la DSN : votre session est absente ou a expiré.",
+      connexion: true }, 401);
+  }
+
+  let c: any = {};
+  try { c = await req.json(); } catch { c = {}; }
+  const action = q(c.action);
+
+  const ctx: Ctx = {
+    cleServeur: cleServeur,
+    email: cleServeur ? "cle-serveur" : String(session ? session.email : ""),
+    ip: (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null,
+    hote: req.headers.get("host") || "",
+  };
+
+  const regle = REGLES[action];
+  if (!regle) return json({ erreur: "action inconnue : " + action }, 400);
+
+  let cible: { societeId: string | null; reference: string | null } = { societeId: null, reference: null };
+  try { cible = await cibleDe(regle.cible, c); } catch (e: any) { return json({ erreur: String(e) }, 500); }
+  if (regle.cible !== "aucune" && !cible.societeId) {
+    return json({ erreur: "introuvable : l'élément demandé n'existe pas ou n'est pas accessible." }, 404);
+  }
+  if (!cleServeur && regle.cible !== "aucune") {
+    const v = await verifier(regle.droit, cible.societeId);
+    if (!v.autorise) return json({ erreur: v.motif || "Accès refusé." }, v.email ? 403 : 401);
+  }
+
+  const res = await traiter(req, c, action, ctx);
+
+  if (regle.ecrit && res.status < 400) {
+    await journal(cible.societeId, ctx, "dsn." + action, regle.cible, cible.reference, pourJournal(c));
+  }
+  return res;
 }
