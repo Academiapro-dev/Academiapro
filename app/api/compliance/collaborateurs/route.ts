@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sessionCourante } from "../../../../lib/session";
 import { tenantCourant, peutGererEquipe } from "../../../../lib/droits";
+import { Resend } from "resend";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,17 @@ export const maxDuration = 60;
 //    non envoye garde sa valeur.
 // 5. LE JOURNAL : chaque ajout ou modification est inscrit dans
 //    compta_audit, avec l etat avant et apres.
+// 6. 🆕🚨 L ACCES DU COLLABORATEUR. Ajouter une fiche ne lui ouvrait AUCUN
+//    acces : ni compte de connexion, ni rattachement au cabinet
+//    (compliance_membres). Il ne pouvait pas se connecter. Desormais, a
+//    l ajout (et sur « Envoyer l'invitation ») : le compte est cree s il
+//    n existe pas, rattache au cabinet, et une invitation part par courriel.
+//    ⚠️ UNE ADRESSE DEJA RATTACHEE A UN AUTRE CABINET est refusee : une
+//    session ne porte qu un cabinet, et un second rattachement rendrait
+//    imprevisible le cabinet ouvert a la connexion.
+//    Desactiver la fiche desactive aussi le rattachement.
+// 7. 🆕 LE JOURNAL SE LIT : GET ?journal=1 rend les gestes de paie, de DSN
+//    et d equipe du cabinet, les plus recents d abord.
 // ═══════════════════════════════════════════════════════════════════════
 
 const DROITS = [
@@ -105,6 +117,194 @@ function listeIds(v: any): string[] {
   });
 }
 
+const MARQUES: Record<string, { site: string; entree: string; nom: string; expediteur: string }> = {
+  "mrcomptable.fr": { site: "https://mrcomptable.fr", entree: "/comptable/inscription", nom: "Mr. Comptable",
+    expediteur: "Mr. Comptable <contact@mrcomptable.fr>" },
+  "www.mrcomptable.fr": { site: "https://mrcomptable.fr", entree: "/comptable/inscription", nom: "Mr. Comptable",
+    expediteur: "Mr. Comptable <contact@mrcomptable.fr>" },
+  "academiapro.fr": { site: "https://academiapro.fr", entree: "/connexion", nom: "AcadéMIA Pro",
+    expediteur: "AcadéMIA Pro <contact@academiapro.fr>" },
+};
+
+function marqueDe(req: NextRequest) {
+  const h = (req.headers.get("host") || "").split(":")[0].toLowerCase();
+  return MARQUES[h] || MARQUES["www.mrcomptable.fr"];
+}
+
+function html(t: any): string {
+  return String(t === null || t === undefined ? "" : t)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+async function idDuCompte(email: string): Promise<string | null> {
+  const { data } = await supabase.rpc("utilisateur_par_email", { p_email: email });
+  if (!data) return null;
+  if (typeof data === "string") return data;
+  if (Array.isArray(data) && data.length > 0) {
+    const x: any = data[0];
+    return typeof x === "string" ? x : (x && (x.id || x.utilisateur_par_email)) || null;
+  }
+  return (data as any).id || null;
+}
+
+// Le compte, le rattachement au cabinet, l invitation.
+async function ouvrirAcces(
+  req: NextRequest, email: string, tenantId: string, invitePar: string, nom: string | null
+): Promise<{ ok: boolean; message: string }> {
+  let uid = await idDuCompte(email);
+  if (!uid) {
+    const { data, error } = await supabase.auth.admin.createUser({ email: email, email_confirm: true });
+    if (error || !data || !data.user) {
+      return { ok: false, message: "le compte de connexion n'a pas pu être créé ("
+        + (error ? error.message : "réponse vide") + ")." };
+    }
+    uid = data.user.id;
+  }
+
+  const { data: membres } = await supabase.from("compliance_membres")
+    .select("id, tenant_id, actif").eq("user_id", uid);
+  const liste = (membres || []) as any[];
+  const ici = liste.filter(function (m) { return String(m.tenant_id) === tenantId; })[0];
+  const ailleurs = liste.filter(function (m) { return String(m.tenant_id) !== tenantId && m.actif !== false; });
+
+  if (!ici && ailleurs.length > 0) {
+    return { ok: false, message: "cette adresse a déjà un espace dans un autre cabinet : une connexion "
+      + "n'ouvre qu'un cabinet à la fois. Utilisez une autre adresse pour ce collaborateur." };
+  }
+  if (!ici) {
+    const { error } = await supabase.from("compliance_membres").insert({
+      user_id: uid, tenant_id: tenantId, role: "collaborateur", actif: true, profil: "cabinet_comptable",
+    });
+    if (error) return { ok: false, message: "le rattachement au cabinet a échoué (" + error.message + ")." };
+  } else if (ici.actif === false) {
+    await supabase.from("compliance_membres").update({ actif: true }).eq("id", ici.id);
+  }
+
+  const cle = process.env.RESEND_API_KEY || "";
+  if (!cle) return { ok: true, message: "accès ouvert, mais l'invitation n'a pas pu partir (courriel indisponible)." };
+  const marque = marqueDe(req);
+  const lien = marque.site + marque.entree;
+  try {
+    const resend = new Resend(cle);
+    const envoi: any = await resend.emails.send({
+      from: marque.expediteur,
+      to: email,
+      reply_to: invitePar,
+      subject: "Invitation — l'espace de travail de votre cabinet sur " + marque.nom,
+      html: '<div style="font-family:Georgia,serif;color:#222;max-width:600px;margin:0 auto;padding:20px">'
+        + "<h2>Bonjour" + (nom ? " " + html(nom) : "") + ",</h2>"
+        + "<p>" + html(invitePar) + " vous a ajouté à l'espace de travail de votre cabinet sur "
+        + html(marque.nom) + ".</p>"
+        + "<p>Pour vous connecter, ouvrez l'espace, indiquez cette adresse (" + html(email)
+        + ") : vous recevrez un lien de connexion. Aucun mot de passe à retenir.</p>"
+        + '<p style="text-align:center;margin:28px 0"><a href="' + lien + '" style="background:#c8a96e;'
+        + 'color:#050508;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:bold">'
+        + "Ouvrir mon espace</a></p>"
+        + '<p style="font-size:12px;color:#777">Vous pouvez répondre à ce courriel pour toute question.</p></div>',
+    } as any);
+    if (envoi && envoi.error) {
+      return { ok: true, message: "accès ouvert, mais l'invitation n'est pas partie ("
+        + String(envoi.error.message || envoi.error) + ")." };
+    }
+  } catch (e: any) {
+    return { ok: true, message: "accès ouvert, mais l'invitation n'est pas partie (" + String(e) + ")." };
+  }
+  return { ok: true, message: "une invitation lui a été envoyée." };
+}
+
+// Le rattachement suit la fiche : desactiver l un desactive l autre.
+async function suivreActif(email: string, tenantId: string, actif: boolean): Promise<void> {
+  const uid = await idDuCompte(email);
+  if (!uid) return;
+  await supabase.from("compliance_membres").update({ actif: actif }).eq("user_id", uid).eq("tenant_id", tenantId);
+}
+
+const LIBELLES_JOURNAL: any = {
+  "paie.nouveau": "a créé un salarié et son contrat",
+  "paie.modifier_contrat": "a modifié un contrat",
+  "paie.repartition": "a modifié les jours travaillés",
+  "paie.taux_pas": "a modifié le taux de prélèvement",
+  "paie.ajouter_element": "a ajouté un élément du mois",
+  "paie.supprimer_element": "a retiré un élément du mois",
+  "paie.joindre_preuve": "a joint une pièce justificative",
+  "paie.joindre_avis": "a joint un avis d'arrêt",
+  "paie.poser_conges": "a posé des congés",
+  "paie.supprimer_conges": "a retiré des congés",
+  "paie.ajouter_evenement": "a saisi un arrêt ou une fin de contrat",
+  "paie.supprimer_evenement": "a retiré un arrêt ou une fin de contrat",
+  "paie.arret_ald": "a modifié l'affection de longue durée d'un arrêt",
+  "paie.signalement": "a généré un signalement DSN",
+  "paie.deposer_evenement": "a marqué un signalement déposé",
+  "paie.sortir_bulletin": "a sorti un brouillon de bulletin",
+  "paie.soumettre": "a soumis un bulletin à validation",
+  "paie.justifier": "a justifié un point orange",
+  "paie.renvoi": "a renvoyé un bulletin pour correction",
+  "paie.levee": "a levé un point rouge",
+  "paie.emettre": "a émis un bulletin",
+  "paie.fin_contrat": "a produit les documents de fin de contrat",
+  "paie.envoyer_recap": "a envoyé le récapitulatif au client",
+  "paie.lever_recap": "a levé l'attente du client",
+  "paie.recap_confirme": "a confirmé le récapitulatif (client)",
+  "paie.recap_conteste": "a signalé une erreur dans le récapitulatif (client)",
+  "paie.recap_relance": "relance automatique du client",
+  "paie.regler_seuils": "a réglé les seuils des contrôles",
+  "dsn.generer": "a généré la DSN",
+  "dsn.controlee": "a déclaré la DSN passée dans dsn-val",
+  "dsn.deposer": "a déposé la DSN sur net-entreprises",
+  "dsn.deposee": "a marqué la DSN déposée",
+  "dsn.urssaf": "a réglé l'URSSAF de la société",
+  "dsn.taux_at": "a saisi un taux AT/MP",
+  "dsn.garantie": "a ajouté une mutuelle ou une prévoyance",
+  "dsn.garantie_fin": "a arrêté une mutuelle ou une prévoyance",
+  "dsn.acces_enregistrer": "a enregistré les identifiants net-entreprises",
+  "dsn.crm": "a enregistré le retour d'une DSN",
+  "equipe.ajout": "a ajouté un collaborateur",
+  "equipe.modification": "a modifié les droits d'un collaborateur",
+  "equipe.invitation": "a envoyé une invitation",
+};
+
+async function lireJournal(tenantId: string): Promise<any> {
+  const { data: soc } = await supabase.from("compta_societes").select("id, raison_sociale")
+    .eq("tenant_id", tenantId).limit(2000);
+  const ids = (soc || []).map(function (s: any) { return String(s.id); });
+  const noms: any = {};
+  for (const s of (soc || [])) noms[String((s as any).id)] = (s as any).raison_sociale;
+
+  const { data: equipe } = await supabase.from("compta_collaborateurs").select("email").eq("tenant_id", tenantId);
+  const emails = (equipe || []).map(function (e: any) { return String(e.email); });
+
+  const lignes: any[] = [];
+  if (ids.length > 0) {
+    for (const prefixe of ["paie.%", "dsn.%"]) {
+      const { data } = await supabase.from("compta_audit")
+        .select("email, action, cible, reference, apres, societe_id, created_at")
+        .in("societe_id", ids).like("action", prefixe)
+        .order("created_at", { ascending: false }).limit(300);
+      for (const l of (data || [])) lignes.push(l);
+    }
+  }
+  if (emails.length > 0) {
+    const { data } = await supabase.from("compta_audit")
+      .select("email, action, cible, reference, apres, societe_id, created_at")
+      .is("societe_id", null).like("action", "equipe.%").in("reference", emails)
+      .order("created_at", { ascending: false }).limit(100);
+    for (const l of (data || [])) lignes.push(l);
+  }
+  lignes.sort(function (a, b) { return String(a.created_at) < String(b.created_at) ? 1 : -1; });
+
+  return lignes.slice(0, 300).map(function (l: any) {
+    const a: any = l.apres || {};
+    const detail = [a.numero, a.motif ? "« " + a.motif + " »" : null, a.justification ? "« " + a.justification + " »" : null,
+      l.action.indexOf("equipe.") === 0 ? l.reference : null].filter(function (x) { return !!x; }).join(" · ");
+    return {
+      quand: l.created_at, qui: l.email, action: l.action,
+      libelle: LIBELLES_JOURNAL[l.action] || l.action,
+      dossier: l.societe_id ? (noms[String(l.societe_id)] || "") : "",
+      detail: detail,
+    };
+  });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -114,6 +314,11 @@ export async function GET(req: NextRequest) {
     // filtre, un cabinet verrait les collaborateurs d un autre.
     const tenantId = tenantCourant();
     if (!tenantId) return sansOrganisme();
+
+    // 🆕 28/09 — le journal du cabinet.
+    if (req.nextUrl.searchParams.get("journal") === "1") {
+      return NextResponse.json({ ok: true, journal: await lireJournal(tenantId) });
+    }
 
     const { data, error } = await supabase
       .from("compta_collaborateurs")
@@ -184,6 +389,26 @@ export async function POST(req: NextRequest) {
       .eq("email", email)
       .eq("tenant_id", tenantId)
       .maybeSingle();
+
+    // 🆕 28/09 — « Envoyer l'invitation » : ouvrir l acces d un
+    // collaborateur deja enregistre, sans toucher a ses droits.
+    if (b.inviter === true) {
+      if (!deja) {
+        return NextResponse.json({ ok: false, erreur: "Collaborateur introuvable dans votre cabinet." }, { status: 404 });
+      }
+      if ((deja as any).actif === false) {
+        return NextResponse.json({ ok: false, erreur: "Réactivez d'abord ce collaborateur." }, { status: 409 });
+      }
+      const acces = await ouvrirAcces(req, email, tenantId, session.email, (deja as any).nom || null);
+      await supabase.from("compta_audit").insert({
+        societe_id: null, email: session.email, action: "equipe.invitation", cible: "compta_collaborateurs",
+        reference: email, avant: null, apres: { resultat: acces.message },
+        adresse_ip: (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null,
+      });
+      return NextResponse.json(acces.ok
+        ? { ok: true, email: email, message: "Accès ouvert pour " + email + " : " + acces.message }
+        : { ok: false, erreur: "Accès non ouvert pour " + email + " : " + acces.message }, { status: acces.ok ? 200 : 409 });
+    }
 
     const role = ROLES[String(b.role || "")] ? String(b.role)
       : (deja && ROLES[(deja as any).role] ? String((deja as any).role) : "collaborateur");
@@ -320,10 +545,20 @@ export async function POST(req: NextRequest) {
     });
     if (eJ) console.error("[collaborateurs] journal :", eJ.message);
 
+    // 🆕 28/09 — l acces suit la fiche.
+    let suite = "";
+    if (!deja) {
+      const acces = await ouvrirAcces(req, email, tenantId, session.email, fiche.nom || null);
+      suite = acces.ok ? " Accès ouvert : " + acces.message
+        : " ⚠️ Accès NON ouvert : " + acces.message;
+    } else if (b.actif !== undefined) {
+      await suivreActif(email, tenantId, b.actif !== false);
+    }
+
     return NextResponse.json({
       ok: true,
       email: email,
-      message: (deja ? "Droits mis à jour pour " : "Collaborateur ajouté : ") + email + ".",
+      message: (deja ? "Droits mis à jour pour " : "Collaborateur ajouté : ") + email + "." + suite,
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
