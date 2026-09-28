@@ -1693,7 +1693,7 @@ async function calculer(contratId: string, periode: string,
     }
     notesPro.push("Contrat de professionnalisation : minimum légal " + minP.toLocaleString("fr-FR", eurP)
       + " € (" + pro.pourcentage + " % du SMIC" + (pro.age !== null ? ", " + pro.age + " ans" : "")
-      + (pro.qualification_niveau4 ? ", bac professionnel ou plus" : "") + ")"
+      + (pro.qualification_niveau4 ? ", bac professionnel ou plus" : "") + ")."
       + (pro.age !== null && pro.age >= 26 ? " À 26 ans et plus, le minimum est aussi 85 % du salaire minimum "
         + "conventionnel s'il est supérieur au SMIC : contrôlé quand le contrat porte un coefficient." : "")
       + " Cotisations de droit commun, réduction générale comprise ; en CDD, pas d'indemnité de fin de contrat "
@@ -2109,8 +2109,19 @@ async function calculer(contratId: string, periode: string,
         : cts(baseMois * heuresAbs / heuresMois);
 
       lignesBrut.push({
+        // 🆕 28/09 — le motif en francais, accents compris (« maternite »
+        // et « accident trajet » s affichaient bruts).
         libelle: "Absence — arrêt de travail ("
-          + String((a as any).motif || "").replace(/_/g, " ") + ") du "
+          + (function (mo: string): string {
+            const x = mo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            if (x === "01" || (/maladie/.test(x) && !/profession/.test(x))) return "maladie";
+            if (x === "02" || /matern/.test(x)) return "maternité";
+            if (x === "03" || /patern/.test(x)) return "paternité";
+            if (x === "04" || /trajet/.test(x)) return "accident de trajet";
+            if (x === "05" || /profession/.test(x)) return "maladie professionnelle";
+            if (x === "06" || (/accident/.test(x) && /travail/.test(x))) return "accident du travail";
+            return mo.replace(/_/g, " ");
+          })(String((a as any).motif || "")) + ") du "
           + jjmm(d1) + " au " + jjmm(d2),
         quantite: heuresAbs,
         taux: Math.round((baseMois / heuresMois) * 10000) / 10000,
@@ -2669,10 +2680,12 @@ async function calculer(contratId: string, periode: string,
         + " : le décompte de la caisse fait foi, l'écart se régularise le "
         + "mois suivant." + noteIj
         + (ab.subrogation ? " Subrogation : les indemnités reversées sont "
-          + "ajoutées au net à payer, et leur part imposable ("
-          + ijssImposablesArret.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
-          + " €, soit le brut diminué de la CSG déductible de 3,80 %) est "
-          + "ajoutée au net imposable."
+          + "ajoutées au net à payer"
+          + (ab.ald ? " ; aucune part imposable (affection de longue durée)."
+            : ", et leur part imposable ("
+              + ijssImposablesArret.toLocaleString("fr-FR", { minimumFractionDigits: 2 })
+              + " €" + (regimeAt ? ", pour moitié" : ", soit le brut diminué de la CSG déductible de 3,80 %")
+              + ") est ajoutée au net imposable.")
           + (ab.ald ? "" : " Si l'arrêt relève d'une affection de longue durée (ALD), le "
             + "marquer « ALD » dans la liste des signalements : ses indemnités ne sont pas imposables.") : ""));
     }
@@ -3016,8 +3029,8 @@ async function calculer(contratId: string, periode: string,
       const moy3 = bruts.slice(0, n3).reduce(function (a: number, b: number) { return a + b; }, 0) / n3;
       salRef = Math.max(moy12, moy3);
       origineRef = moy3 >= moy12
-        ? "moyenne des " + n3 + " dernier(s) mois émis"
-        : "moyenne des " + n12 + " dernier(s) mois émis";
+        ? (n3 === 1 ? "moyenne du dernier mois émis" : "moyenne des " + n3 + " derniers mois émis")
+        : (n12 === 1 ? "moyenne du dernier mois émis" : "moyenne des " + n12 + " derniers mois émis");
     } else {
       let mensuelRef = Number(contrat.salaire_mensuel || 0);
       if (!(mensuelRef > 0) && contrat.salaire_horaire) mensuelRef = Number(contrat.salaire_horaire) * dureeContratMois;
@@ -4484,9 +4497,12 @@ async function calculer(contratId: string, periode: string,
             ? " ; " + Number(appr.fraction_soumise).toFixed(2)
               + " € restent soumis."
             : " ; rien ne dépasse ce seuil, aucune cotisation salariale n'est due.")
-          + " ⚠️ L'employeur, lui, cotise sur la TOTALITÉ du brut : "
-          + "l'exonération patronale propre à l'apprentissage est supprimée "
-          + "depuis 2019, sa contrepartie est la réduction générale.");
+          + (estApprentiPublic
+            ? " L'employeur public, lui, est exonéré de la part patronale d'assurances sociales, "
+              + "d'allocations familiales, de dialogue social et d'Ircantec (prise en charge par l'État)."
+            : " ⚠️ L'employeur, lui, cotise sur la TOTALITÉ du brut : "
+              + "l'exonération patronale propre à l'apprentissage est supprimée "
+              + "depuis 2019, sa contrepartie est la réduction générale."));
 
         r.push("⚠️ CE QUE LE CALCUL DE L'APPRENTI NE FAIT PAS : la "
           + "majoration de 15 points d'un contrat court préparant un diplôme "
@@ -4682,6 +4698,11 @@ async function calculer(contratId: string, periode: string,
       // 🆕 28/09 — pour un mandataire, les reserves qui ne le concernent pas
       // (reduction generale, minimum conventionnel, maintien, conges) sont
       // retirees : elles laissaient croire le contraire de la note du mandat.
+      // 🆕 28/09 — l apprenti public n a pas de reduction generale : la
+      // reserve de la regularisation progressive ne le concerne pas.
+      if (estApprentiPublic && !horsSalariat) {
+        return r.filter(function (x: string) { return !/^La RGDU est calculée/.test(x); });
+      }
       if (horsSalariat) {
         return r.filter(function (x: string) {
           return !/^La RGDU est calculée|^Le salaire minimum conventionnel est contrôlé/.test(x);
