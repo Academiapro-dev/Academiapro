@@ -37,9 +37,9 @@ export const maxDuration = 60;
 //    (compliance_membres). Il ne pouvait pas se connecter. Desormais, a
 //    l ajout (et sur « Envoyer l'invitation ») : le compte est cree s il
 //    n existe pas, rattache au cabinet, et une invitation part par courriel.
-//    ⚠️ UNE ADRESSE DEJA RATTACHEE A UN AUTRE CABINET est refusee : une
-//    session ne porte qu un cabinet, et un second rattachement rendrait
-//    imprevisible le cabinet ouvert a la connexion.
+//    🆕 (point 2) UNE ADRESSE DEJA RATTACHEE A UN AUTRE CABINET est
+//    acceptee : la connexion rouvre le dernier cabinet choisi, et le
+//    tableau de bord permet de passer de l un a l autre.
 //    Desactiver la fiche desactive aussi le rattachement.
 // 7. 🆕 LE JOURNAL SE LIT : GET ?journal=1 rend les gestes de paie, de DSN
 //    et d equipe du cabinet, les plus recents d abord.
@@ -167,10 +167,10 @@ async function ouvrirAcces(
   const ici = liste.filter(function (m) { return String(m.tenant_id) === tenantId; })[0];
   const ailleurs = liste.filter(function (m) { return String(m.tenant_id) !== tenantId && m.actif !== false; });
 
-  if (!ici && ailleurs.length > 0) {
-    return { ok: false, message: "cette adresse a déjà un espace dans un autre cabinet : une connexion "
-      + "n'ouvre qu'un cabinet à la fois. Utilisez une autre adresse pour ce collaborateur." };
-  }
+  // 🆕 28/09 (point 2) — une adresse deja rattachee a un autre cabinet est
+  // acceptee : elle passera d un cabinet a l autre depuis le tableau de bord
+  // (« changer de cabinet »). On le dit dans le message.
+  const deuxieme = !ici && ailleurs.length > 0;
   if (!ici) {
     const { error } = await supabase.from("compliance_membres").insert({
       user_id: uid, tenant_id: tenantId, role: "collaborateur", actif: true, profil: "cabinet_comptable",
@@ -209,7 +209,9 @@ async function ouvrirAcces(
   } catch (e: any) {
     return { ok: true, message: "accès ouvert, mais l'invitation n'est pas partie (" + String(e) + ")." };
   }
-  return { ok: true, message: "une invitation lui a été envoyée." };
+  return { ok: true, message: "une invitation lui a été envoyée."
+    + (deuxieme ? " Cette adresse appartient déjà à un autre cabinet : elle passera de l'un à l'autre "
+      + "depuis son tableau de bord (« changer de cabinet »)." : "") };
 }
 
 // Le rattachement suit la fiche : desactiver l un desactive l autre.
