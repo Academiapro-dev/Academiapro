@@ -102,6 +102,10 @@ const TYPES_ELEMENT = [
   { cle: "heures_sup_50", nom: "Heures supplémentaires 50 %", soumis: true },
   // 🆕 28/09 — les heures complémentaires du temps partiel.
   { cle: "heures_comp_10", nom: "Heures complémentaires 10 % (temps partiel)", soumis: true },
+  // 🆕 28/09 — cas rares : avantages evalues au montant.
+  { cle: "avantage_logement_assurance", nom: "Assurance du logement de fonction payée par l'employeur", soumis: true },
+  { cle: "avantage_logement_reel", nom: "Avantage logement évalué au réel", soumis: true },
+  { cle: "avantage_vehicule_reel", nom: "Avantage véhicule évalué au réel (remplace le forfait)", soumis: true },
   { cle: "heures_comp_25", nom: "Heures complémentaires 25 % (temps partiel)", soumis: true },
   { cle: "prime", nom: "Prime", soumis: true },
   { cle: "panier", nom: "Panier repas", soumis: false },
@@ -125,6 +129,13 @@ const TYPES_ELEMENT = [
 // cas et la valeur faciale du titre dans l'autre : personne ne peut le
 // deviner, et une saisie inversée passe inaperçue sur le bulletin.
 const AIDE_ELEMENT: any = {
+  avantage_logement_assurance: "Montant = part mensuelle de l'assurance du logement de fonction payée "
+    + "par l'employeur. Elle s'ajoute à l'avantage logement : au brut, puis déduite du net.",
+  avantage_logement_reel: "Montant = valeur locative mensuelle (valeur cadastrale / 12) + avantages "
+    + "accessoires réels (eau, énergie, chauffage…), moins la participation du salarié. À la place "
+    + "de l'élément « avantage logement » au forfait, jamais les deux.",
+  avantage_vehicule_reel: "Montant = dépenses réelles du mois pour l'usage privé du véhicule. Le forfait "
+    + "du véhicule porté sur le contrat ne s'applique pas ce mois-là.",
   heures_comp_10: "Temps partiel seulement. Quantité = nombre d'heures au-delà de la durée du "
     + "contrat, dans la limite du dixième de cette durée. Taux : laisser vide, il se calcule "
     + "(taux horaire majoré de 10 %). Montant : laisser vide.",
@@ -442,6 +453,9 @@ export default function PagePaie() {
       date_fin: v(choisi.date_fin).slice(0, 10),
       rompu_le: v(choisi.rompu_le).slice(0, 10),
       motif_rupture_dsn: v(choisi.motif_rupture_dsn),
+      // 🆕 28/09 — cas rares : code risque AT, plafond reduit au forfait.
+      code_risque_at: v(choisi.code_risque_at),
+      plafond_reduit_forfait: choisi.plafond_reduit_forfait === true,
       // 🆕 28/09 — le vehicule de fonction (null = aucun).
       vehicule: choisi.vehicule ? {
         mode: v(choisi.vehicule.mode) || "achat",
@@ -1549,6 +1563,7 @@ export default function PagePaie() {
                 }
                 morceaux.push(choisi.categorie === "cadre" ? "cadre" : "non cadre");
                 if (choisi.coefficient) morceaux.push("coefficient " + choisi.coefficient);
+                if (choisi.code_risque_at) morceaux.push("risque AT " + choisi.code_risque_at);
                 if (choisi.vehicule) morceaux.push("véhicule de fonction");
                 if (choisi.lieu_travail_insee) morceaux.push("lieu de travail " + choisi.lieu_travail_insee);
                 if (choisi.date_fin) morceaux.push("fin prévue le " + dateFr(choisi.date_fin));
@@ -1596,12 +1611,22 @@ export default function PagePaie() {
                           {champ("coefficient", "Coefficient", "100px")}
                           {champ("position_conv", "Position", "100px")}
                           {champ("lieu_travail_insee", "Lieu de travail (code INSEE)", "170px", { placeholder: "ex. 69382" })}
+                          {champ("code_risque_at", "Code risque AT (CARSAT)", "140px", { placeholder: "ex. 745BD" })}
                           {champ("salaire_mensuel", "Salaire mensuel brut", "140px")}
                           {champ("salaire_horaire", "ou taux horaire", "120px")}
                           {choisi.type_contrat !== "mandat_social"
                             && champ("duree_hebdo", "Heures par semaine", "120px", { placeholder: "35" })}
                           {cs.categorie === "cadre" && choisi.type_contrat !== "mandat_social"
                             && champ("forfait_jours_annuel", "Forfait (jours par an)", "150px", { placeholder: "vide si à l'horaire" })}
+                          {cs.categorie === "cadre" && choisi.type_contrat !== "mandat_social"
+                            && Number(String(cs.forfait_jours_annuel || "").replace(",", ".")) > 0
+                            && Number(String(cs.forfait_jours_annuel || "").replace(",", ".")) < 218 && (
+                            <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" }}>
+                              <input type="checkbox" checked={!!cs.plafond_reduit_forfait}
+                                onChange={(ev) => setContratSaisie({ ...cs, plafond_reduit_forfait: ev.target.checked })} />
+                              Plafond de Sécurité sociale réduit dans le même rapport (le salarié y a consenti)
+                            </label>
+                          )}
                           <div style={{ flex: "1 1 150px" }}>
                             <span style={LIB}>Fin prévue</span>
                             <input type="date" value={cs.date_fin || ""} style={CHAMP}
@@ -2802,6 +2827,17 @@ export default function PagePaie() {
                                   + (x.date_fin ? " au " + jma(x.date_fin) : "")
                                 : "le " + jma(x.date_fin || x.date_debut)}
                             </span>
+                            {/* 🆕 28/09 — l affection de longue duree : ses IJ
+                                ne sont pas imposables. */}
+                            {arret && (
+                              <button onClick={async () => {
+                                const d = await appeler({ action: "arret_ald", evenement_id: x.id, ald: !x.ald });
+                                if (d && d.success) { setMsg(d.message || ""); setCalcul(null); if (choisi) chargerEvenements(choisi.id); }
+                                else setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+                              }} style={{ ...LIEN, marginLeft: "10px", color: x.ald ? OR : "rgba(255,255,255,0.45)" }}>
+                                {x.ald ? "ALD : oui (non imposables)" : "ALD : non"}
+                              </button>
+                            )}
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.55)" }}>
                               {x.motif}
