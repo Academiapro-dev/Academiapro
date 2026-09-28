@@ -200,11 +200,18 @@ async function organismeDe(email: string): Promise<{ tenantId: string | null; ro
     const { data: userId } = await supabase.rpc("utilisateur_par_email", { p_email: email });
 
     if (userId) {
+      // 🆕 28/09 — UNE PERSONNE PEUT APPARTENIR A PLUSIEURS CABINETS (un
+      // collaborateur, un sous-traitant de paie). On rouvre le DERNIER
+      // cabinet choisi (« changer de cabinet », tableau de bord) ; a defaut,
+      // le plus ancien rattachement. Sans cet ordre, la base rendait l un
+      // d eux au hasard.
       const { data: membre } = await supabase
         .from("compliance_membres")
         .select("tenant_id, role, profil")
         .eq("user_id", userId)
         .eq("actif", true)
+        .order("dernier_choix_le", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: true })
         .limit(1)
         .maybeSingle();
 
