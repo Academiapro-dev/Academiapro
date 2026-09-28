@@ -135,13 +135,28 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
                       {l.poste && <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>{l.poste}</p>}
                     </div>
                     <div style={{ textAlign: "right" }}>
-                      <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>Brut {euros(l.brut)}</p>
+                      {/* 🆕 28/09 (essai B) — un stagiaire : la gratification, et
+                          la seule part soumise en petit. */}
+                      {l.gratification ? (
+                        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>
+                          Gratification {euros(l.gratification)}
+                          <span style={{ display: "block", fontSize: "11.5px" }}>dont {euros(l.brut)} soumis</span>
+                        </p>
+                      ) : (
+                        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>Brut {euros(l.brut)}</p>
+                      )}
                       <p style={{ margin: "2px 0 0", fontSize: "16px", color: OR, fontWeight: "bold" }}>Net {euros(l.net)}</p>
                     </div>
                   </div>
                   <div style={{ marginTop: "10px", fontSize: "13.5px", color: "rgba(255,255,255,0.75)", lineHeight: 1.6 }}>
+                    {/* 🆕 28/09 (essai B) — les arrets et les conges du mois. */}
+                    {(l.absences || []).map(function (a: string, i: number) {
+                      return <div key={"a" + i}>{a}</div>;
+                    })}
                     {(!l.elements || l.elements.length === 0) ? (
-                      <span style={{ color: "rgba(255,255,255,0.45)" }}>Aucun élément particulier ce mois-ci.</span>
+                      (l.absences || []).length > 0 ? null : (
+                        <span style={{ color: "rgba(255,255,255,0.45)" }}>Aucun élément particulier ce mois-ci.</span>
+                      )
                     ) : l.elements.map(function (e: any, i: number) {
                       return (
                         <div key={i}>
