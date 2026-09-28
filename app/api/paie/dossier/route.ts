@@ -2485,6 +2485,8 @@ const REGLES: Record<string, Regle> = {
   lever: { droit: "paie_emettre", cible: "bulletin", ecrit: false },
   joindre_preuve: { droit: "paie_preparer", cible: "element", ecrit: true },
   voir_preuve: { droit: null, cible: "element", ecrit: false },
+  joindre_avis: { droit: "paie_preparer", cible: "evenement", ecrit: true },
+  voir_avis: { droit: null, cible: "evenement", ecrit: false },
   envoyer_recap: { droit: "paie_preparer", cible: "societe", ecrit: true },
   lever_recap: { droit: "paie_emettre", cible: "societe", ecrit: true },
   mesure: { droit: null, cible: "aucune", ecrit: false },
@@ -2646,11 +2648,52 @@ async function seuils(): Promise<any> {
 }
 
 function controler(
-  b: any, contrat: any, elements: any[], precedent: any | null, historique: any[], s: any
+  b: any, contrat: any, elements: any[], precedent: any | null, historique: any[], s: any,
+  arrets?: any[]
 ): { couleur: string; alertes: any[] } {
   const alertes: any[] = [];
   const net = Number(b.net_a_payer || 0);
   const d: any = b.detail || {};
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LES ALERTES DU MOTEUR ALLUMENT LE FEU.
+  // Le moteur ecrit deja, dans ses reserves, ce qui rend un bulletin faux
+  // ou illegal : salaire sous le minimum conventionnel ou legal, stagiaire
+  // ou contrat de professionnalisation sous le minimum, indemnite de
+  // rupture insuffisante, heures complementaires au-dela du tiers, taux
+  // AT absent, effectif inconnu, arrets illisibles… Elles commencent par
+  // ⛔ ou 🚨. Jusqu ici le feu ne les lisait pas : un bulletin illegal
+  // pouvait sortir au vert. Elles passent desormais en ROUGE.
+  // La mutuelle absente (obligatoire dans toute entreprise) passe en
+  // ORANGE : elle se regle sur l ecran DSN, pas sur le bulletin.
+  // ═════════════════════════════════════════════════════════════════════
+  const reserves: any[] = Array.isArray(d.reserves) ? d.reserves : [];
+  for (const t of reserves) {
+    const texte = String(t || "").trim();
+    if (texte.indexOf("⛔") === 0 || texte.indexOf("🚨") === 0) {
+      alertes.push({ code: "MOTEUR", niveau: "rouge",
+        texte: "Le calcul signale : " + (texte.length > 400 ? texte.slice(0, 400) + "…" : texte) });
+    } else if (texte.indexOf("⚠️") === 0 && /aucune mutuelle/i.test(texte)) {
+      alertes.push({ code: "MUTUELLE", niveau: "orange",
+        texte: "Aucune mutuelle ni prévoyance n'est renseignée pour la société : la complémentaire "
+          + "santé est obligatoire. Elle se saisit sur l'écran DSN, bloc « Recouvrement URSSAF »." });
+    }
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — L AVIS D ARRET DE TRAVAIL EST UNE PIECE EXIGEE.
+  // Un arret fait retenir du salaire et verser un maintien ; un arret
+  // saisi sans avis, c est de l argent paye sur une simple declaration.
+  // ═════════════════════════════════════════════════════════════════════
+  for (const a of (arrets || [])) {
+    if (a.preuve_chemin) continue;
+    const du = String(a.date_debut || "").slice(0, 10);
+    const au = String(a.date_fin || "").slice(0, 10);
+    alertes.push({ code: "AVIS_ARRET_MANQUANT", niveau: "rouge", evenement_id: a.id,
+      texte: "Arrêt de travail du " + du.split("-").reverse().join("/")
+        + (au ? " au " + au.split("-").reverse().join("/") : "")
+        + " : l'avis d'arrêt n'est pas joint. Joignez-le depuis la liste des signalements." });
+  }
 
   // La reference : le salaire du contrat, a defaut le brut du mois.
   const hebdo = Number(contrat && contrat.duree_hebdo) > 0 ? Number(contrat.duree_hebdo) : 35;
@@ -2774,7 +2817,7 @@ function controler(
 // Tout ce qu il faut pour controler le bulletin d un contrat sur un mois.
 async function controleDuMois(contratId: string, periode: string, s?: any): Promise<any> {
   const bornes = { debut: periode, fin: dernierJour(periode) };
-  const [bRes, ctRes, elRes, precRes, histRes] = await Promise.all([
+  const [bRes, ctRes, elRes, precRes, histRes, arRes] = await Promise.all([
     supabase.from("paie_bulletins")
       .select("id, numero, statut, brut, net_a_payer, cout_employeur, detail, validation, prepare_par, "
         + "soumis_par, soumis_le, valide_par, valide_le, renvoi_motif, justification, levee_motif, levee_par, "
@@ -2790,6 +2833,9 @@ async function controleDuMois(contratId: string, periode: string, s?: any): Prom
       .order("periode", { ascending: false }).limit(1),
     supabase.from("paie_elements").select("type_element, montant, periode")
       .eq("contrat_id", contratId).gte("periode", moisDecale(periode, -3)).lt("periode", bornes.debut),
+    // 🆕 28/09 — les arrets qui touchent le mois (pour exiger l avis).
+    supabase.from("paie_evenements").select("id, date_debut, date_fin, annule_le, preuve_chemin")
+      .eq("contrat_id", contratId).eq("type_evenement", "arret").lte("date_debut", bornes.fin),
   ]);
 
   const liste = (bRes.data || []) as any[];
@@ -2798,8 +2844,13 @@ async function controleDuMois(contratId: string, periode: string, s?: any): Prom
   if (!bulletin) return { bulletin: null, controle: null };
 
   const precedent = ((precRes.data || []) as any[])[0] || null;
+  const arrets = ((arRes.data || []) as any[]).filter(function (a) {
+    if (a.annule_le) return false;
+    const fin = String(a.date_fin || "").slice(0, 10);
+    return !fin || fin >= bornes.debut;
+  });
   const controle = controler(bulletin, ctRes.data || {}, (elRes.data || []) as any[],
-    precedent, (histRes.data || []) as any[], s || await seuils());
+    precedent, (histRes.data || []) as any[], s || await seuils(), arrets);
   return { bulletin: bulletin, controle: controle, elements: elRes.data || [] };
 }
 
@@ -2927,6 +2978,80 @@ function moisEnClair(periode: string): string {
   const noms = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
     "septembre", "octobre", "novembre", "décembre"];
   return noms[Number(periode.slice(5, 7)) - 1] + " " + periode.slice(0, 4);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 28/09 — PREVENIR. Un bulletin qui attend une validation, personne ne
+// le sait tant qu il n ouvre pas l ecran ; un bulletin renvoye non plus.
+// Un courriel part donc a chaque soumission (aux personnes qui peuvent
+// valider) et a chaque renvoi (a celui qui l a prepare). Un courriel qui ne
+// part pas ne bloque jamais le geste : il est signale dans la reponse.
+// ═══════════════════════════════════════════════════════════════════════
+async function courriel(ctx: Ctx, a: string[], sujet: string, corps: string): Promise<string | null> {
+  const cle = process.env.RESEND_API_KEY || "";
+  const dest = a.filter(function (x) { return String(x || "").indexOf("@") > 0; });
+  if (!cle || dest.length === 0) return null;
+  try {
+    const marque = marqueDuCourriel(ctx.hote);
+    const resend = new Resend(cle);
+    const envoi: any = await resend.emails.send({
+      from: marque.expediteur, to: dest, subject: sujet,
+      html: '<div style="font-family:Georgia,serif;color:#222;max-width:620px;margin:0 auto;padding:20px">'
+        + corps
+        + '<p style="text-align:center;margin:26px 0"><a href="' + marque.site + '/admin/compliance/bulletins-paie" '
+        + 'style="background:#c8a96e;color:#050508;padding:12px 24px;border-radius:8px;text-decoration:none;'
+        + 'font-weight:bold">Ouvrir la paie</a></p></div>',
+    } as any);
+    if (envoi && envoi.error) return String(envoi.error.message || envoi.error);
+    return null;
+  } catch (e: any) {
+    return String(e && e.message ? e.message : e);
+  }
+}
+
+// Ceux qui peuvent valider un bulletin de cette societe : les associes
+// actifs, et les collaborateurs qui ont le droit d emettre ET la carte
+// blanche sur ce dossier. Celui qui soumet n est pas prevenu de son geste.
+async function validateurs(societeId: string, sauf: string): Promise<string[]> {
+  const { data: soc } = await supabase.from("compta_societes").select("tenant_id").eq("id", societeId).maybeSingle();
+  if (!soc) return [];
+  const { data } = await supabase.from("compta_collaborateurs")
+    .select("email, role, actif, dossiers, peut_paie_emettre, paie_carte_blanche")
+    .eq("tenant_id", (soc as any).tenant_id).eq("actif", true).limit(200);
+  const l: string[] = [];
+  for (const c of ((data || []) as any[])) {
+    const email = String(c.email || "").toLowerCase();
+    if (!email || email === String(sauf || "").toLowerCase()) continue;
+    const confies: string[] = c.dossiers || [];
+    if (confies.length > 0 && confies.indexOf(societeId) < 0) continue;
+    const ok = c.role === "associe"
+      || (c.peut_paie_emettre === true && (c.paie_carte_blanche || []).indexOf(societeId) >= 0);
+    if (ok && l.indexOf(email) < 0) l.push(email);
+  }
+  return l;
+}
+
+// 🆕 28/09 — la piece d un element ou l avis d un arret, au coffre.
+async function deposerPiece(
+  c: any, dossier: string
+): Promise<{ erreur: string | null; chemin: string | null; status: number }> {
+  const type = String(c.type || "").toLowerCase();
+  const TYPES: any = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png" };
+  if (!TYPES[type]) return { erreur: "format non accepté : un PDF, une photo JPEG ou PNG.", chemin: null, status: 400 };
+  const brut = String(c.contenu || "").replace(/^data:[^,]*,/, "");
+  const octets = Buffer.from(brut, "base64");
+  if (octets.length === 0) return { erreur: "fichier vide.", chemin: null, status: 400 };
+  if (octets.length > 3 * 1024 * 1024) {
+    return { erreur: "fichier trop lourd (" + (Math.round(octets.length / 104857.6) / 10)
+      + " Mo) : 3 Mo au plus. Photographiez la pièce plutôt que de la scanner en haute définition.", chemin: null, status: 400 };
+  }
+  const nom = String(c.nom || "piece").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "piece";
+  const chemin = "paie-preuves/" + dossier + "/"
+    + Date.now() + "-" + nom + (nom.toLowerCase().endsWith("." + TYPES[type]) ? "" : "." + TYPES[type]);
+  const { error } = await supabase.storage.from("documents-signes")
+    .upload(chemin, octets, { contentType: type, upsert: false });
+  if (error) return { erreur: "dépôt impossible : " + error.message, chemin: null, status: 500 };
+  return { erreur: null, chemin: chemin, status: 200 };
 }
 
 // Le verrou de l emission, pose APRES le recalcul (les montants sont frais).
@@ -3145,13 +3270,43 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
     }).eq("id", r.bulletin.id).eq("statut", "brouillon");
     if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
 
-    const { data: ct } = await supabase.from("paie_contrats").select("societe_id").eq("id", contratId).maybeSingle();
-    await journal(ct ? String((ct as any).societe_id) : null, ctx, "paie.soumettre", "bulletin",
+    const { data: ct } = await supabase.from("paie_contrats")
+      .select("societe_id, paie_salaries(nom, prenom)")
+      .eq("id", contratId).maybeSingle();
+    const societeId = ct ? String((ct as any).societe_id) : null;
+    const { data: socN } = societeId
+      ? await supabase.from("compta_societes").select("raison_sociale").eq("id", societeId).maybeSingle()
+      : { data: null } as any;
+    await journal(societeId, ctx, "paie.soumettre", "bulletin",
       String(r.bulletin.id), { numero: r.bulletin.numero, couleur: r.controle.couleur, justification: just });
+
+    // 🆕 28/09 — les personnes qui peuvent valider sont prevenues.
+    let avis = "";
+    if (societeId) {
+      const qui = await validateurs(societeId, ctx.email);
+      if (qui.length === 0) {
+        avis = " Personne d'autre ne peut valider ce dossier : aucun courriel n'est parti.";
+      } else {
+        const sal: any = (ct as any).paie_salaries || {};
+        const nomSal = (String(sal.prenom || "") + " " + String(sal.nom || "").toUpperCase()).trim();
+        const nomSoc = String((socN as any) ? (socN as any).raison_sociale || "" : "");
+        const alertes = r.controle.alertes.filter(function (a: any) { return a.niveau !== "info"; });
+        const echec = await courriel(ctx, qui,
+          "Bulletin à valider — " + nomSal + " — " + moisEnClair(periode) + " — " + nomSoc,
+          "<h2>Un bulletin attend votre validation</h2>"
+          + "<p>" + html(ctx.email) + " a soumis le bulletin " + html(r.bulletin.numero) + " de <b>" + html(nomSal)
+          + "</b> (" + html(nomSoc) + ", " + html(moisEnClair(periode)) + ").</p>"
+          + "<p>Feu : <b>" + html(r.controle.couleur) + "</b>" + (just ? " · justification : « " + html(just) + " »" : "") + "</p>"
+          + (alertes.length > 0 ? "<ul>" + alertes.map(function (a: any) { return "<li>" + html(a.texte) + "</li>"; }).join("") + "</ul>" : ""));
+        avis = echec ? " ⚠️ Le courriel aux validateurs n'est pas parti : " + echec
+          : " " + qui.length + " personne(s) prévenue(s) par courriel.";
+      }
+    }
 
     return NextResponse.json({ success: true, controle: r.controle,
       message: "Bulletin " + r.bulletin.numero + " soumis à validation"
-        + (r.controle.couleur === "rouge" ? " — avec un point rouge : il ne pourra être émis qu'une fois corrigé ou levé." : ".") });
+        + (r.controle.couleur === "rouge" ? " — avec un point rouge : il ne pourra être émis qu'une fois corrigé ou levé." : ".")
+        + avis });
   }
 
   // ---- JUSTIFIER LES POINTS ORANGE ----
@@ -3196,9 +3351,22 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
       String(bb.id), { numero: bb.numero, motif: motif, prepare_par: bb.prepare_par || bb.soumis_par || null,
         controle: bb.controle || null });
 
-    return NextResponse.json({ success: true, message: action === "renvoyer"
+    // 🆕 28/09 — celui qui a prepare le bulletin sait qu il lui revient.
+    let avis = "";
+    const preparateur = String(bb.prepare_par || bb.soumis_par || "");
+    if (action === "renvoyer" && preparateur.indexOf("@") > 0 && preparateur !== ctx.email) {
+      const echec = await courriel(ctx, [preparateur],
+        "Bulletin " + bb.numero + " renvoyé pour correction",
+        "<h2>Un bulletin vous est renvoyé</h2>"
+        + "<p>" + html(ctx.email) + " vous renvoie le bulletin " + html(bb.numero) + " pour correction :</p>"
+        + "<p><b>« " + html(motif) + " »</b></p><p>Corrigez, puis soumettez-le de nouveau.</p>");
+      avis = echec ? " ⚠️ Le courriel à " + preparateur + " n'est pas parti : " + echec
+        : " " + preparateur + " est prévenu par courriel.";
+    }
+
+    return NextResponse.json({ success: true, message: (action === "renvoyer"
       ? "Bulletin " + bb.numero + " renvoyé avec votre motif."
-      : "Points rouges du bulletin " + bb.numero + " levés. Le motif est inscrit au journal." });
+      : "Points rouges du bulletin " + bb.numero + " levés. Le motif est inscrit au journal.") + avis });
   }
 
   // ═════════════════════════════════════════════════════════════════════
@@ -3220,32 +3388,43 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
         + "la pièce se joint au bulletin rectificatif." }, { status: 400 });
     }
 
-    const type = String(c.type || "").toLowerCase();
-    const TYPES: any = { "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png" };
-    if (!TYPES[type]) {
-      return NextResponse.json({ erreur: "format non accepté : un PDF, une photo JPEG ou PNG." }, { status: 400 });
-    }
-    const brut = String(c.contenu || "").replace(/^data:[^,]*,/, "");
-    const octets = Buffer.from(brut, "base64");
-    if (octets.length === 0) return NextResponse.json({ erreur: "fichier vide." }, { status: 400 });
-    if (octets.length > 3 * 1024 * 1024) {
-      return NextResponse.json({ erreur: "fichier trop lourd (" + (Math.round(octets.length / 104857.6) / 10)
-        + " Mo) : 3 Mo au plus. Photographiez la pièce plutôt que de la scanner en haute définition." }, { status: 400 });
-    }
-    const nom = String(c.nom || "piece").replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 80) || "piece";
-    const chemin = "paie-preuves/" + e.tenant_id + "/" + e.societe_id + "/" + e.id + "/"
-      + Date.now() + "-" + nom + (nom.toLowerCase().endsWith("." + TYPES[type]) ? "" : "." + TYPES[type]);
-
-    const { error: eUp } = await supabase.storage.from("documents-signes")
-      .upload(chemin, octets, { contentType: type, upsert: false });
-    if (eUp) return NextResponse.json({ erreur: "dépôt impossible : " + eUp.message }, { status: 500 });
+    const dep = await deposerPiece(c, e.tenant_id + "/" + e.societe_id + "/" + e.id);
+    if (dep.erreur || !dep.chemin) return NextResponse.json({ erreur: dep.erreur }, { status: dep.status });
+    const chemin = dep.chemin;
 
     const { error } = await supabase.from("paie_elements").update({
-      preuve_chemin: chemin, preuve_nom: String(c.nom || nom).slice(0, 120),
+      preuve_chemin: chemin, preuve_nom: String(c.nom || "piece").slice(0, 120),
       preuve_par: ctx.email, preuve_le: new Date().toISOString(),
     }).eq("id", e.id);
     if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
     return NextResponse.json({ success: true, message: "Pièce jointe à l'élément." });
+  }
+
+  // ---- L AVIS D ARRET DE TRAVAIL (28/09) ----
+  if (action === "joindre_avis") {
+    const { data: ev } = await supabase.from("paie_evenements")
+      .select("id, tenant_id, societe_id, type_evenement").eq("id", String(c.id)).maybeSingle();
+    if (!ev || (ev as any).type_evenement !== "arret") {
+      return NextResponse.json({ erreur: "arrêt introuvable" }, { status: 404 });
+    }
+    const x: any = ev;
+    const dep = await deposerPiece(c, x.tenant_id + "/" + x.societe_id + "/arret-" + x.id);
+    if (dep.erreur || !dep.chemin) return NextResponse.json({ erreur: dep.erreur }, { status: dep.status });
+    const { error } = await supabase.from("paie_evenements").update({
+      preuve_chemin: dep.chemin, preuve_nom: String(c.nom || "avis").slice(0, 120),
+      preuve_par: ctx.email, preuve_le: new Date().toISOString(),
+    }).eq("id", x.id);
+    if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+    return NextResponse.json({ success: true, message: "Avis d'arrêt joint." });
+  }
+
+  if (action === "voir_avis") {
+    const { data: ev } = await supabase.from("paie_evenements").select("preuve_chemin").eq("id", String(c.id)).maybeSingle();
+    const ch = ev ? (ev as any).preuve_chemin : null;
+    if (!ch) return NextResponse.json({ erreur: "aucun avis joint à cet arrêt" }, { status: 404 });
+    const { data: signe } = await supabase.storage.from("documents-signes").createSignedUrl(ch, 3600);
+    if (!signe) return NextResponse.json({ erreur: "lien impossible" }, { status: 500 });
+    return NextResponse.json({ success: true, url: signe.signedUrl });
   }
 
   if (action === "voir_preuve") {
@@ -3285,7 +3464,7 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
     const { data: cree, error: eIns } = await supabase.from("paie_recaps").insert({
       tenant_id: rec.societe.tenant_id, societe_id: societeId, periode: periode, jeton: jeton,
       contenu: rec.contenu, empreinte: rec.empreinte, destinataire: dest, envoye_par: ctx.email,
-      statut: "envoye",
+      statut: "envoye", site: marqueDuCourriel(ctx.hote).site,
     }).select("id").maybeSingle();
     if (eIns || !cree) return NextResponse.json({ erreur: "enregistrement impossible : " + (eIns ? eIns.message : "") }, { status: 500 });
 
