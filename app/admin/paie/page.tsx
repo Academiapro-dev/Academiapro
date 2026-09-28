@@ -714,6 +714,30 @@ export default function PagePaie() {
     setOccupe("");
   }
 
+  // 🆕 28/09 — l avis d arret de travail, piece exigee pour tout arret.
+  async function joindreAvis(x: any, fichier: File) {
+    setErr(""); setErrEv(""); setMsg(""); setOccupe("piece");
+    try {
+      const prep = await fichierPourEnvoi(fichier);
+      const d = await appeler({ action: "joindre_avis", id: x.id, nom: fichier.name,
+        type: prep.type, contenu: prep.base64 });
+      if (d && d.success) {
+        setMsg(d.message);
+        if (choisi) chargerEvenements(choisi.id);
+        await chargerMois();
+      } else setErrEv((d && d.erreur) || "dépôt impossible");
+    } catch (e: any) {
+      setErrEv("avis non envoyé : " + String(e && e.message ? e.message : e));
+    }
+    setOccupe("");
+  }
+
+  async function voirAvis(id: string) {
+    const d = await appeler({ action: "voir_avis", id: id });
+    if (d && d.success && d.url) window.open(d.url, "_blank");
+    else setErrEv((d && d.erreur) || "ouverture impossible");
+  }
+
   async function voirPiece(id: string) {
     const d = await appeler({ action: "voir_preuve", id: id });
     if (d && d.success && d.url) window.open(d.url, "_blank");
@@ -3309,6 +3333,26 @@ export default function PagePaie() {
                                 Affection de longue durée (indemnités non imposables)
                               </label>
                             )}
+                            {/* 🆕 28/09 — L AVIS D ARRET : piece exigee, point rouge
+                                dans « Validation du mois » tant qu il manque. */}
+                            {arret && (x.preuve_chemin ? (
+                              <button onClick={() => voirAvis(x.id)}
+                                style={{ ...LIEN, color: VERT, marginLeft: "10px" }}>
+                                avis d&apos;arrêt ✓
+                              </button>
+                            ) : (
+                              <label style={{ ...LIEN, color: ORANGE, marginLeft: "10px",
+                                cursor: "pointer", fontSize: "12px" }}>
+                                {occupe === "piece" ? "…" : "joindre l'avis d'arrêt"}
+                                <input type="file" accept="image/*,application/pdf"
+                                  style={{ display: "none" }}
+                                  onChange={(ev) => {
+                                    const fi = ev.target.files && ev.target.files[0];
+                                    if (fi) joindreAvis(x, fi);
+                                    ev.target.value = "";
+                                  }} />
+                              </label>
+                            ))}
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.55)" }}>
                               {x.motif}
