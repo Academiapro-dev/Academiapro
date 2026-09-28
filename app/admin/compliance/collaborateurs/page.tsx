@@ -147,6 +147,29 @@ export default function PageCollaborateurs() {
     return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
   }
 
+  // 🆕 28/09 (essai B) — LES DOSSIERS CONFIES D UN COLLABORATEUR EXISTANT.
+  // Ils ne se choisissaient qu a la creation : impossible de confier un
+  // nouveau dossier a quelqu un deja enregistre. Aucun coche = tous.
+  function basculerDossierDe(c: any, id: string) {
+    const actuels: string[] = (c.dossiers || []).slice();
+    let l: string[];
+    if (actuels.length === 0) {
+      if (!confirm("Ce collaborateur voit aujourd'hui TOUS les dossiers du cabinet. Le restreindre à ce seul dossier ?")) return;
+      l = [id];
+    } else {
+      const i = actuels.indexOf(id);
+      if (i >= 0) actuels.splice(i, 1); else actuels.push(id);
+      // ⚠️ Une liste vide voudrait dire « tous les dossiers » : retirer le
+      // dernier dossier ouvrirait tout le cabinet. On refuse, et on le dit.
+      if (actuels.length === 0) {
+        setErreur("Un collaborateur garde au moins un dossier. Pour lui retirer tout accès, désactivez-le.");
+        return;
+      }
+      l = actuels;
+    }
+    envoyer({ email: c.email, dossiers: l }, c.id);
+  }
+
   function nomDossier(id: string): string {
     const s = ((d && d.dossiers) || []).filter(function (x: any) { return x.id === id; })[0];
     return s ? s.raison_sociale + " (" + s.code + ")" : id;
@@ -283,6 +306,32 @@ export default function PageCollaborateurs() {
 
                 {estOuvert && (
                   <div style={{ marginTop: "16px", paddingTop: "14px", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    {d.dossiers.length > 0 && (
+                      <>
+                        <p style={GROUPE}>DOSSIERS CONFIÉS</p>
+                        <Case
+                          actif={!c.dossiers || c.dossiers.length === 0}
+                          onClick={() => {
+                            if (c.dossiers && c.dossiers.length > 0
+                              && confirm("Ouvrir à ce collaborateur TOUS les dossiers du cabinet ?")) {
+                              envoyer({ email: c.email, dossiers: [] }, c.id);
+                            }
+                          }}
+                          texte="Tous les dossiers du cabinet"
+                        />
+                        {d.dossiers.map(function (s: any) {
+                          return (
+                            <Case
+                              key={"d" + s.id}
+                              actif={(c.dossiers || []).indexOf(s.id) >= 0}
+                              onClick={() => basculerDossierDe(c, s.id)}
+                              texte={s.raison_sociale + " (" + s.code + ")"}
+                            />
+                          );
+                        })}
+                      </>
+                    )}
+
                     <p style={GROUPE}>COMPTABILITÉ</p>
                     {DROITS_COMPTA.map(function (dr: any) {
                       return (
