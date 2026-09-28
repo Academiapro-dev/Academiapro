@@ -13,6 +13,9 @@ import { useState, useEffect } from "react";
 // remettait aux valeurs du role jusqu au 28/09).
 // ⚠️ L ECRAN EST OUVERT A L ADMINISTRATEUR ET AUX ASSOCIES : la route le
 // verifie, l ecran ne protege rien.
+// 🆕 28/09 — L ACCES : ajouter un collaborateur lui ouvre son acces et lui
+// envoie une invitation ; « Envoyer l'invitation » le fait pour une fiche
+// deja enregistree. Et le JOURNAL du cabinet se lit en bas de l ecran.
 // ═══════════════════════════════════════════════════════════════════════
 
 const DROITS_COMPTA = [
@@ -39,6 +42,7 @@ export default function PageCollaborateurs() {
   const [erreur, setErreur] = useState("");
   const [formulaire, setFormulaire] = useState(false);
   const [ouvert, setOuvert] = useState<any>({});
+  const [journal, setJournal] = useState<any[] | null>(null);
 
   const [f, setF] = useState<any>({ email: "", nom: "", role: "collaborateur", dossiers: [] });
 
@@ -122,6 +126,25 @@ export default function PageCollaborateurs() {
     if (i >= 0) l.splice(i, 1);
     else l.push(id);
     envoyer({ email: c.email, paie_carte_blanche: l }, c.id);
+  }
+
+  async function chargerJournal() {
+    setOccupe("journal"); setErreur("");
+    try {
+      const r = await fetch("/api/compliance/collaborateurs?journal=1");
+      const data = await r.json();
+      if (data.ok) setJournal(data.journal || []);
+      else setErreur(data.erreur || "Lecture impossible.");
+    } catch (e: any) {
+      setErreur("Lecture impossible : " + String(e));
+    }
+    setOccupe("");
+  }
+
+  function quand(v: any): string {
+    const d = new Date(String(v || ""));
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
   }
 
   function nomDossier(id: string): string {
@@ -307,18 +330,61 @@ export default function PageCollaborateurs() {
                       </p>
                     )}
 
-                    <button
-                      onClick={() => envoyer({ email: c.email, actif: !c.actif }, c.id)}
-                      disabled={occupe !== ""}
-                      style={{ ...BOUTON, color: c.actif ? "#e8836a" : "#4caf50", borderColor: "rgba(255,255,255,0.2)", marginTop: "8px" }}
-                    >
-                      {c.actif ? "Désactiver" : "Réactiver"}
-                    </button>
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "8px" }}>
+                      {c.actif && (
+                        <button
+                          onClick={() => envoyer({ email: c.email, inviter: true }, c.id)}
+                          disabled={occupe !== ""}
+                          style={BOUTON}
+                        >
+                          {occupe === c.id ? "…" : "Envoyer l'invitation"}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => envoyer({ email: c.email, actif: !c.actif }, c.id)}
+                        disabled={occupe !== ""}
+                        style={{ ...BOUTON, color: c.actif ? "#e8836a" : "#4caf50", borderColor: "rgba(255,255,255,0.2)" }}
+                      >
+                        {c.actif ? "Désactiver" : "Réactiver"}
+                      </button>
+                    </div>
+                    <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px", margin: "8px 0 0", lineHeight: 1.6 }}>
+                      L&apos;invitation ouvre son accès à l&apos;espace du cabinet et lui explique comment se connecter.
+                    </p>
                   </div>
                 )}
               </div>
             );
           })
+        )}
+
+        {/* 🆕 28/09 — LE JOURNAL DU CABINET : qui a fait quoi, et quand. */}
+        {d && (
+          <div style={{ ...CARTE, marginTop: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: "10px" }}>
+              <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "2px", margin: 0 }}>JOURNAL DU CABINET</p>
+              <button onClick={chargerJournal} disabled={occupe !== ""} style={BOUTON}>
+                {occupe === "journal" ? "…" : journal ? "Actualiser" : "Voir le journal"}
+              </button>
+            </div>
+            <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "8px 0 0", lineHeight: 1.6 }}>
+              Les 300 derniers gestes de paie, de DSN et d&apos;équipe : qui, quand, sur quel dossier.
+            </p>
+            {journal && journal.length === 0 && (
+              <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", marginBottom: 0 }}>Aucun geste enregistré.</p>
+            )}
+            {journal && journal.map(function (l: any, i: number) {
+              return (
+                <div key={i} style={{ padding: "8px 0", borderTop: "1px solid rgba(255,255,255,0.06)", fontSize: "13px", lineHeight: 1.6 }}>
+                  <span style={{ color: "rgba(255,255,255,0.45)" }}>{quand(l.quand)}</span>
+                  {" · "}<span style={{ color: "#fff" }}>{l.qui}</span>
+                  {" "}<span style={{ color: "rgba(255,255,255,0.8)" }}>{l.libelle}</span>
+                  {l.dossier ? <span style={{ color: "#c8a96e" }}>{" — " + l.dossier}</span> : null}
+                  {l.detail ? <span style={{ color: "rgba(255,255,255,0.5)" }}>{" — " + l.detail}</span> : null}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
