@@ -2927,11 +2927,11 @@ async function controleDuMois(contratId: string, periode: string, s?: any): Prom
 // ═══════════════════════════════════════════════════════════════════════
 async function contenuRecap(societeId: string, periode: string): Promise<any> {
   const fin = dernierJour(periode);
-  const [socRes, bRes, elRes, ctRes] = await Promise.all([
+  const [socRes, bRes, elRes, ctRes, arRes, cgRes] = await Promise.all([
     supabase.from("compta_societes").select("id, tenant_id, raison_sociale, contact_email, email_contact")
       .eq("id", societeId).maybeSingle(),
     supabase.from("paie_bulletins")
-      .select("id, numero, statut, brut, net_a_payer, contrat_id, controle, "
+      .select("id, numero, statut, brut, net_a_payer, contrat_id, controle, stage:detail->stage, "
         + "paie_contrats(intitule_poste, paie_salaries(nom, prenom))")
       .eq("societe_id", societeId).gte("periode", periode).lte("periode", fin)
       .in("statut", ["brouillon", "emis"]),
@@ -2940,7 +2940,37 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
     supabase.from("paie_contrats")
       .select("id, date_debut, date_fin, rompu_le, intitule_poste, paie_salaries(nom, prenom)")
       .eq("societe_id", societeId).eq("statut", "actif"),
+    // 🆕 28/09 (essai B) — les arrets et les conges du mois : le client doit
+    // les voir. La colonne annoncait « absences » et n en montrait aucune.
+    supabase.from("paie_evenements").select("contrat_id, date_debut, date_fin, motif, annule_le")
+      .eq("societe_id", societeId).eq("type_evenement", "arret").lte("date_debut", fin),
+    supabase.from("paie_conges").select("contrat_id, jours")
+      .eq("societe_id", societeId).eq("type_mouvement", "prise").gte("periode", periode).lte("periode", fin),
   ]);
+
+  const NATURES: any = { "01": "Arrêt maladie", "02": "Congé maternité", "03": "Congé paternité",
+    "04": "Accident de trajet", "05": "Maladie professionnelle", "06": "Accident du travail",
+    "15": "Temps partiel thérapeutique", "16": "Temps partiel thérapeutique",
+    "17": "Temps partiel thérapeutique", "18": "Temps partiel thérapeutique" };
+  const jm = function (d: string): string { return d ? d.slice(8, 10) + "/" + d.slice(5, 7) : ""; };
+  const absencesDe = function (contratId: string): string[] {
+    const l: string[] = [];
+    for (const a of ((arRes.data || []) as any[])) {
+      if (a.contrat_id !== contratId || a.annule_le) continue;
+      const du = String(a.date_debut || "").slice(0, 10);
+      const au = String(a.date_fin || "").slice(0, 10);
+      if (au && au < periode) continue;
+      const code = String(a.motif || "").slice(0, 2);
+      const nature = NATURES[code] || (a.motif && !/^\d+$/.test(String(a.motif)) ? String(a.motif) : "Arrêt de travail");
+      l.push(nature + " du " + jm(du) + (au ? " au " + jm(au) : ", fin non connue"));
+    }
+    let jours = 0;
+    for (const cg of ((cgRes.data || []) as any[])) {
+      if (cg.contrat_id === contratId) jours += Math.abs(Number(cg.jours || 0));
+    }
+    if (jours > 0) l.push("Congés payés : " + jours.toLocaleString("fr-FR") + " jour(s)");
+    return l;
+  };
 
   const soc: any = socRes.data || {};
   const parContrat: any = {};
@@ -2965,6 +2995,11 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
       bulletin: String(b.numero || ""),
       brut: r2(b.brut),
       net: r2(b.net_a_payer),
+      // 🆕 28/09 (essai B) — une stagiaire affichait « Brut 207 € » (la seule
+      // part soumise) pour une gratification de 900 € : le client aurait cru
+      // a une erreur. On montre la gratification.
+      gratification: b.stage && Number(b.stage.gratification) > 0 ? r2(b.stage.gratification) : null,
+      absences: absencesDe(id),
       elements: ((elRes.data || []) as any[])
         .filter(function (e) { return e.contrat_id === id; })
         .map(function (e) {
@@ -2998,7 +3033,8 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
   };
 
   const empreinte = crypto.createHash("sha256").update(JSON.stringify(lignes.map(function (l) {
-    return [l.contrat_id, l.brut, l.net, l.elements.map(function (e: any) { return [e.libelle, e.quantite, e.montant]; })];
+    return [l.contrat_id, l.brut, l.net, l.gratification, l.absences,
+      l.elements.map(function (e: any) { return [e.libelle, e.quantite, e.montant]; })];
   }))).digest("hex");
 
   return {
@@ -3297,7 +3333,10 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
     return NextResponse.json({
       success: true, periode: periode, lignes: lignes,
       recap: recap, recap_manquants: rec.manquants, recap_perimes: rec.perimes,
-      destinataire_propose: rec.societe.email,
+      // 🆕 28/09 (essai B) — la derniere adresse utilisee d abord : le champ
+      // revenait a l adresse de la societe, et un renvoi pouvait partir
+      // ailleurs sans qu on le voie.
+      destinataire_propose: (recap && recap.destinataire) || rec.societe.email,
       droits: profil ? profil.dossiers[societeId] : { voir: true, contrats: true, preparer: true, emettre: true, deposer: true, carte_blanche: true },
     });
   }
@@ -3549,13 +3588,20 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
     const marque = marqueDuCourriel(ctx.hote);
     const lien = marque.site + "/compliance/recap-paie/" + jeton;
     const lignesHtml = rec.contenu.lignes.map(function (l: any) {
-      const el = l.elements.length === 0 ? "—" : l.elements.map(function (e: any) {
-        return html(e.libelle) + (e.quantite !== null && e.quantite !== undefined ? " (" + html(e.quantite) + ")" : "")
-          + (e.montant ? " : " + html(euros(e.montant)) : "");
-      }).join("<br>");
+      const morceaux: string[] = [];
+      for (const e of l.elements) {
+        morceaux.push(html(e.libelle) + (e.quantite !== null && e.quantite !== undefined ? " (" + html(e.quantite) + ")" : "")
+          + (e.montant ? " : " + html(euros(e.montant)) : ""));
+      }
+      for (const a of (l.absences || [])) morceaux.push(html(a));
+      const el = morceaux.length === 0 ? "—" : morceaux.join("<br>");
+      const brut = l.gratification
+        ? "Gratification " + html(euros(l.gratification)) + '<br><span style="font-size:11px;color:#777">dont '
+          + html(euros(l.brut)) + " soumis</span>"
+        : html(euros(l.brut));
       return '<tr><td style="padding:8px;border-bottom:1px solid #ddd">' + html(l.salarie) + "</td>"
         + '<td style="padding:8px;border-bottom:1px solid #ddd;font-size:13px">' + el + "</td>"
-        + '<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">' + html(euros(l.brut)) + "</td>"
+        + '<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right">' + brut + "</td>"
         + '<td style="padding:8px;border-bottom:1px solid #ddd;text-align:right"><b>' + html(euros(l.net)) + "</b></td></tr>";
     }).join("");
 
