@@ -387,6 +387,10 @@ export async function POST(req: NextRequest) {
           // colonne `niveau`, qui porte le niveau de la grille
           // conventionnelle et va avec le coefficient.
           niveau_diplome_prepare: propre(c.niveau_diplome_prepare),
+          // 🆕 28/09 — l apprenti d un employeur public (Ircantec,
+          // exonerations propres). Ecrit SEULEMENT s il est coche : la
+          // colonne n existe qu apres le SQL du 28/09.
+          ...(type === "apprentissage" && c.apprenti_public === true ? { apprenti_public: true } : {}),
           // 🆕 22/09 — Le forfait en jours : nul quand le contrat n en a
           // pas. ⚠️ `nombreFr` accepte la virgule, mais un forfait est un
           // nombre entier de jours : on arrondit plutot que de refuser.
@@ -496,6 +500,9 @@ export async function POST(req: NextRequest) {
       // 🆕 28/09 — CAS RARE : le plafond de securite sociale reduit au forfait
       // en jours, avec le consentement du salarie (BOSS, §830).
       if (donne("plafond_reduit_forfait")) maj.plafond_reduit_forfait = c.plafond_reduit_forfait === true;
+      if (donne("apprenti_public") && typeCt === "apprentissage") {
+        maj.apprenti_public = c.apprenti_public === true;
+      }
       if (donne("qualification_niveau4") && typeCt === "professionnalisation") {
         maj.qualification_niveau4 = c.qualification_niveau4 === true;
       }
