@@ -104,6 +104,8 @@ const TYPES_ELEMENT = [
   { cle: "heures_comp_10", nom: "Heures complémentaires 10 % (temps partiel)", soumis: true },
   // 🆕 28/09 — cas rares : avantages evalues au montant.
   { cle: "avantage_logement_assurance", nom: "Assurance du logement de fonction payée par l'employeur", soumis: true },
+  // 🆕 28/09 — le compteur des jours de repos du forfait en jours.
+  { cle: "jours_repos_forfait", nom: "Jours de repos du forfait pris (forfait en jours)", soumis: true },
   { cle: "avantage_logement_reel", nom: "Avantage logement évalué au réel", soumis: true },
   { cle: "avantage_vehicule_reel", nom: "Avantage véhicule évalué au réel (remplace le forfait)", soumis: true },
   { cle: "heures_comp_25", nom: "Heures complémentaires 25 % (temps partiel)", soumis: true },
@@ -129,6 +131,8 @@ const TYPES_ELEMENT = [
 // cas et la valeur faciale du titre dans l'autre : personne ne peut le
 // deviner, et une saisie inversée passe inaperçue sur le bulletin.
 const AIDE_ELEMENT: any = {
+  jours_repos_forfait: "Quantité = nombre de jours de repos du forfait pris ce mois. Taux et montant : "
+    + "laisser vides — ce n'est pas une somme, le compteur de l'année s'affiche dans les notes.",
   avantage_logement_assurance: "Montant = part mensuelle de l'assurance du logement de fonction payée "
     + "par l'employeur. Elle s'ajoute à l'avantage logement : au brut, puis déduite du net.",
   avantage_logement_reel: "Montant = valeur locative mensuelle (valeur cadastrale / 12) + avantages "
@@ -455,6 +459,7 @@ export default function PagePaie() {
       motif_rupture_dsn: v(choisi.motif_rupture_dsn),
       // 🆕 28/09 — cas rares : code risque AT, plafond reduit au forfait.
       code_risque_at: v(choisi.code_risque_at),
+      apprenti_public: choisi.apprenti_public === true,
       plafond_reduit_forfait: choisi.plafond_reduit_forfait === true,
       // 🆕 28/09 — le vehicule de fonction (null = aucun).
       vehicule: choisi.vehicule ? {
@@ -1398,6 +1403,15 @@ export default function PagePaie() {
                     mensuel vide pour appliquer le minimum légal
                   </label>
                 )}
+                {/* 🆕 28/09 — l apprenti d un employeur public : Ircantec et
+                    exonerations propres. */}
+                {f.type_contrat === "apprentissage" && (
+                  <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", fontSize: "13px" }}>
+                    <input type="checkbox" checked={!!f.apprenti_public}
+                      onChange={(ev) => setF({ ...f, apprenti_public: ev.target.checked })} />
+                    Employeur du secteur public (État, collectivité, hôpital) : retraite complémentaire Ircantec
+                  </label>
+                )}
                 {f.type_contrat === "apprentissage" && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
                     borderTop: "1px solid rgba(255,255,255,0.08)" }}>
@@ -1612,6 +1626,13 @@ export default function PagePaie() {
                           {champ("position_conv", "Position", "100px")}
                           {champ("lieu_travail_insee", "Lieu de travail (code INSEE)", "170px", { placeholder: "ex. 69382" })}
                           {champ("code_risque_at", "Code risque AT (CARSAT)", "140px", { placeholder: "ex. 745BD" })}
+                          {choisi.type_contrat === "apprentissage" && (
+                            <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" }}>
+                              <input type="checkbox" checked={!!cs.apprenti_public}
+                                onChange={(ev) => setContratSaisie({ ...cs, apprenti_public: ev.target.checked })} />
+                              Employeur du secteur public : retraite complémentaire Ircantec
+                            </label>
+                          )}
                           {champ("salaire_mensuel", "Salaire mensuel brut", "140px")}
                           {champ("salaire_horaire", "ou taux horaire", "120px")}
                           {choisi.type_contrat !== "mandat_social"
