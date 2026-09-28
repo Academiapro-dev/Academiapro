@@ -3718,7 +3718,10 @@ export default function PagePaie() {
                         {/* ⚠️ NI UN BULLETIN EMIS NI UN BULLETIN ANNULE NE
                             PEUVENT ETRE EMIS : le bouton disparait, et la
                             route refuse de son cote. */}
-                        {b.statut === "brouillon" && (
+                        {/* 🆕 28/09 (essai C) — comme partout ailleurs, le lien
+                            ne s affiche qu a qui peut emettre SANS validation :
+                            un collaborateur sans carte blanche le voyait. */}
+                        {b.statut === "brouillon" && droitsIci.emettre && droitsIci.carte_blanche && (
                           <button onClick={() => emettre(b)}
                             style={{ background: "none", border: "none", color: VERT,
                               cursor: "pointer", fontSize: "12.5px", marginLeft: "10px" }}>
