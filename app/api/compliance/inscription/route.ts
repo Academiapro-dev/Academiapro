@@ -95,7 +95,12 @@ export async function POST(req: NextRequest) {
     const numeroTva = numeroTvaDepuisSiren(siren);
 
     // 1. Le compte existe-t-il deja ?
-    const { data: dejaId } = await supabase.rpc("utilisateur_par_email", { email });
+    // 🆕🚨 28/09 — LE PARAMETRE S APPELLE p_email, PAS email (verifie le
+    // 23/08, voir app/api/auth/valider). Avec { email }, l appel echouait
+    // EN SILENCE : un compte deja existant (un apprenant, un collaborateur
+    // invite) n etait jamais reconnu, la creation echouait, et l inscription
+    // repondait « Création du compte impossible. »
+    const { data: dejaId } = await supabase.rpc("utilisateur_par_email", { p_email: email });
 
     let userId: string | null = dejaId || null;
 
