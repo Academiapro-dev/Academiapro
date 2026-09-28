@@ -63,6 +63,10 @@
     {
       "path": "/api/dsn/retours",
       "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/cron/relances-paie",
+      "schedule": "15 8 * * *"
     }
   ]
 }
