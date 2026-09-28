@@ -485,6 +485,17 @@ export async function POST(req: NextRequest) {
         else if (!/^\d{1,4}$/.test(t)) refus.push("l'IDCC est un nombre de 1 à 4 chiffres (1486 pour Syntec, 2378 pour le travail temporaire).");
         else maj.idcc = Number(t);
       }
+      // 🆕 28/09 — CAS RARE : le code risque accidents du travail (notifie par
+      // la CARSAT, 5 caracteres : 3 chiffres et 2 lettres, ex. 745BD).
+      if (donne("code_risque_at")) {
+        const t = propre(c.code_risque_at);
+        if (t === null) maj.code_risque_at = null;
+        else if (!/^[0-9]{3}[A-Z0-9]{2}$/i.test(t)) refus.push("code risque AT : 5 caractères, 3 chiffres puis 2 lettres (ex. 745BD), lu sur la notification CARSAT.");
+        else maj.code_risque_at = t.toUpperCase();
+      }
+      // 🆕 28/09 — CAS RARE : le plafond de securite sociale reduit au forfait
+      // en jours, avec le consentement du salarie (BOSS, §830).
+      if (donne("plafond_reduit_forfait")) maj.plafond_reduit_forfait = c.plafond_reduit_forfait === true;
       if (donne("qualification_niveau4") && typeCt === "professionnalisation") {
         maj.qualification_niveau4 = c.qualification_niveau4 === true;
       }
@@ -1866,6 +1877,26 @@ export async function POST(req: NextRequest) {
         verdict: verdict,
         reserves: reserves,
       });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕 28/09 — CAS RARE : MARQUER UN ARRET « ALD » (affection de longue
+    // duree) : ses indemnites journalieres ne sont pas imposables.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "arret_ald") {
+      const evId = propre(c.evenement_id);
+      if (!evId) return NextResponse.json({ erreur: "arrêt manquant" }, { status: 400 });
+      const { data: ev0 } = await supabase
+        .from("paie_evenements").select("id, type_evenement").eq("id", evId).maybeSingle();
+      if (!ev0 || String((ev0 as any).type_evenement) !== "arret") {
+        return NextResponse.json({ erreur: "arrêt introuvable" }, { status: 404 });
+      }
+      const { error: eAld } = await supabase
+        .from("paie_evenements").update({ ald: c.ald === true }).eq("id", evId);
+      if (eAld) return NextResponse.json({ erreur: eAld.message + " — rien n'a été enregistré." }, { status: 500 });
+      return NextResponse.json({ success: true,
+        message: c.ald === true ? "Arrêt marqué ALD : ses indemnités ne sont pas imposables."
+          : "Marque ALD retirée." });
     }
 
     if (action === "evenements") {
