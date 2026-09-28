@@ -423,6 +423,13 @@ export default function NavBar() {
   // signer.
   if (chemin.indexOf("/compliance/signature/") === 0) return null;
 
+  // 🆕 28/09 — MEME REGLE POUR LE RECAPITULATIF DE PAIE. La page s adresse
+  // a l EMPLOYEUR, client du cabinet, qui arrive par le lien d un courriel
+  // sans compte : lui afficher la barre de travail du cabinet (dossiers,
+  // saisie, TVA) lui proposerait des ecrans auxquels il n a pas acces. Une
+  // seule chose a faire : lire sa paie, puis confirmer ou signaler.
+  if (chemin.indexOf("/compliance/recap-paie/") === 0) return null;
+
   const barre = {
     display: "flex",
     justifyContent: "space-between",
