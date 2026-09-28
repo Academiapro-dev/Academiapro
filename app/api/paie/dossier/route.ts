@@ -2490,7 +2490,30 @@ const REGLES: Record<string, Regle> = {
   envoyer_recap: { droit: "paie_preparer", cible: "societe", ecrit: true },
   lever_recap: { droit: "paie_emettre", cible: "societe", ecrit: true },
   mesure: { droit: null, cible: "aucune", ecrit: false },
+  seuils: { droit: null, cible: "societe", ecrit: false },
+  regler_seuils: { droit: null, cible: "societe", ecrit: true },
 };
+
+// 🆕 28/09 — les gestes qui changent les montants d un mois deja sorti.
+const PERIMANTS = [
+  "ajouter_element", "supprimer_element", "poser_conges", "supprimer_conges",
+  "ajouter_evenement", "supprimer_evenement", "arret_ald",
+  "repartition", "taux_pas", "modifier_contrat",
+];
+
+async function contratDe(spec: string, c: any): Promise<string | null> {
+  const morceaux = spec.split(":");
+  const type = morceaux[0];
+  const champ = morceaux[1] || (type === "contrat" ? "contrat_id" : "id");
+  const id = propre(c[champ]);
+  if (!id) return null;
+  if (type === "contrat") return id;
+  const table = type === "element" ? "paie_elements" : type === "evenement" ? "paie_evenements"
+    : type === "conges" ? "paie_conges" : null;
+  if (!table) return null;
+  const { data } = await supabase.from(table).select("contrat_id").eq("id", id).maybeSingle();
+  return data ? String((data as any).contrat_id) : null;
+}
 
 async function cibleDe(spec: string, c: any): Promise<{ societeId: string | null; reference: string | null }> {
   const morceaux = spec.split(":");
@@ -2636,14 +2659,35 @@ const HORS_CONTROLE_MONTANT = [
   "absence_maladie", "absence_injustifiee",
 ];
 
-async function seuils(): Promise<any> {
-  const { data } = await supabase.from("paie_seuils").select("code, valeur, niveau");
-  const s: any = {
-    ECART_NET_ORANGE: 25, ECART_NET_ROUGE: 80, ELEMENT_HABITUDE_FOIS: 3,
-    ELEMENT_SALAIRE_ORANGE: 50, ELEMENT_SALAIRE_ROUGE: 300,
-    HEURES_SUP_ORANGE: 20, HEURES_SUP_ROUGE: 60, PREUVE_MONTANT: 300,
-  };
+// 🆕 28/09 — LES SEUILS SE REGLENT PAR CABINET. Les valeurs de
+// `paie_seuils` valent pour tous ; un cabinet peut en regler certains pour
+// lui seul (`paie_seuils_cabinet`), par exemple accepter de plus fortes
+// variations de net pour des salaries a commissions. Sans reglage, c est la
+// valeur commune qui s applique.
+const SEUILS_DEFAUT: any = {
+  ECART_NET_ORANGE: 25, ECART_NET_ROUGE: 80, ELEMENT_HABITUDE_FOIS: 3,
+  ELEMENT_SALAIRE_ORANGE: 50, ELEMENT_SALAIRE_ROUGE: 300,
+  HEURES_SUP_ORANGE: 20, HEURES_SUP_ROUGE: 60, PREUVE_MONTANT: 300,
+};
+
+// Les bornes de saisie : un seuil hors de ces bornes n aurait plus de sens
+// (un ecart de 0 % mettrait tout le monde en orange, un de 10 000 % n en
+// mettrait jamais personne).
+const SEUILS_BORNES: any = {
+  ECART_NET_ORANGE: [1, 500], ECART_NET_ROUGE: [1, 1000], ELEMENT_HABITUDE_FOIS: [1, 100],
+  ELEMENT_SALAIRE_ORANGE: [1, 1000], ELEMENT_SALAIRE_ROUGE: [1, 10000],
+  HEURES_SUP_ORANGE: [1, 200], HEURES_SUP_ROUGE: [1, 300], PREUVE_MONTANT: [1, 100000],
+};
+
+async function seuils(tenantId?: string | null): Promise<any> {
+  const s: any = { ...SEUILS_DEFAUT };
+  const { data } = await supabase.from("paie_seuils").select("code, valeur");
   for (const l of (data || [])) s[String((l as any).code)] = Number((l as any).valeur);
+  if (tenantId) {
+    const { data: propres } = await supabase.from("paie_seuils_cabinet")
+      .select("code, valeur").eq("tenant_id", tenantId);
+    for (const l of (propres || [])) s[String((l as any).code)] = Number((l as any).valeur);
+  }
   return s;
 }
 
@@ -2667,6 +2711,20 @@ function controler(
   // La mutuelle absente (obligatoire dans toute entreprise) passe en
   // ORANGE : elle se regle sur l ecran DSN, pas sur le bulletin.
   // ═════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕🚨 28/09 — LE BROUILLON PERIME. Un element ajoute ou retire, des
+  // conges, un arret ou un contrat modifies APRES la sortie du brouillon :
+  // ses montants ne sont plus les bons. Sans ce controle, le client
+  // confirmerait un recapitulatif faux (essai du 28/09 : la prime retiree
+  // restait dans le net du brouillon). La route marque le brouillon a
+  // chaque saisie ; le ressortir efface la marque.
+  // ═════════════════════════════════════════════════════════════════════
+  if (b.statut === "brouillon" && b.controle && b.controle.perime) {
+    alertes.push({ code: "PERIME", niveau: "rouge",
+      texte: "Le brouillon ne tient pas compte des dernières saisies (élément, congés, arrêt ou contrat "
+        + "modifiés après lui) : ressortez-le avant de le soumettre ou d'envoyer le récapitulatif." });
+  }
+
   const reserves: any[] = Array.isArray(d.reserves) ? d.reserves : [];
   for (const t of reserves) {
     const texte = String(t || "").trim();
@@ -2821,10 +2879,10 @@ async function controleDuMois(contratId: string, periode: string, s?: any): Prom
     supabase.from("paie_bulletins")
       .select("id, numero, statut, brut, net_a_payer, cout_employeur, detail, validation, prepare_par, "
         + "soumis_par, soumis_le, valide_par, valide_le, renvoi_motif, justification, levee_motif, levee_par, "
-        + "levee_le, type_bulletin, rectifie_id")
+        + "levee_le, type_bulletin, rectifie_id, controle")
       .eq("contrat_id", contratId).gte("periode", bornes.debut).lte("periode", bornes.fin)
       .in("statut", ["brouillon", "emis"]),
-    supabase.from("paie_contrats").select("id, salaire_mensuel, salaire_horaire, duree_hebdo, type_contrat")
+    supabase.from("paie_contrats").select("id, tenant_id, salaire_mensuel, salaire_horaire, duree_hebdo, type_contrat")
       .eq("id", contratId).maybeSingle(),
     supabase.from("paie_elements").select("*")
       .eq("contrat_id", contratId).gte("periode", bornes.debut).lte("periode", bornes.fin),
@@ -2850,7 +2908,8 @@ async function controleDuMois(contratId: string, periode: string, s?: any): Prom
     return !fin || fin >= bornes.debut;
   });
   const controle = controler(bulletin, ctRes.data || {}, (elRes.data || []) as any[],
-    precedent, (histRes.data || []) as any[], s || await seuils(), arrets);
+    precedent, (histRes.data || []) as any[],
+    s || await seuils(ctRes.data ? String((ctRes.data as any).tenant_id || "") || null : null), arrets);
   return { bulletin: bulletin, controle: controle, elements: elRes.data || [] };
 }
 
@@ -2872,7 +2931,7 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
     supabase.from("compta_societes").select("id, tenant_id, raison_sociale, contact_email, email_contact")
       .eq("id", societeId).maybeSingle(),
     supabase.from("paie_bulletins")
-      .select("id, numero, statut, brut, net_a_payer, contrat_id, "
+      .select("id, numero, statut, brut, net_a_payer, contrat_id, controle, "
         + "paie_contrats(intitule_poste, paie_salaries(nom, prenom))")
       .eq("societe_id", societeId).gte("periode", periode).lte("periode", fin)
       .in("statut", ["brouillon", "emis"]),
@@ -2926,6 +2985,13 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
     manquants.push(nomDe(ct));
   }
 
+  // 🆕 28/09 — les brouillons perimes : leurs montants sont faux.
+  const perimes: string[] = [];
+  for (const id of Object.keys(parContrat)) {
+    const b = parContrat[id];
+    if (b.statut === "brouillon" && b.controle && b.controle.perime) perimes.push(nomDe(b.paie_contrats || {}));
+  }
+
   const totaux = {
     brut: r2(lignes.reduce(function (a, l) { return a + l.brut; }, 0)),
     net: r2(lignes.reduce(function (a, l) { return a + l.net; }, 0)),
@@ -2941,6 +3007,7 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
     contenu: { societe: String(soc.raison_sociale || ""), periode: periode, lignes: lignes, totaux: totaux },
     empreinte: empreinte,
     manquants: manquants,
+    perimes: perimes,
   };
 }
 
@@ -3057,9 +3124,10 @@ async function deposerPiece(
 // Le verrou de l emission, pose APRES le recalcul (les montants sont frais).
 async function verrouEmission(b: any, justification: string | null, ctx: Ctx): Promise<NextResponse | null> {
   const periode = moisDe(b.periode) || String(b.periode).slice(0, 10);
-  if (justification) {
-    await supabase.from("paie_bulletins").update({ justification: justification }).eq("id", b.id);
-  }
+  // Le bulletin vient d etre recalcule : ses montants sont a jour, la
+  // marque de peremption tombe (28/09).
+  await supabase.from("paie_bulletins").update(justification
+    ? { justification: justification, controle: null } : { controle: null }).eq("id", b.id);
   const r = await controleDuMois(String(b.contrat_id), periode);
   if (!r.bulletin || !r.controle) {
     return NextResponse.json({ erreur: "bulletin introuvable après recalcul. ⛔ Rien n'a été émis." }, { status: 404 });
@@ -3199,7 +3267,8 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
       return true;
     });
 
-    const s = await seuils();
+    const { data: socT } = await supabase.from("compta_societes").select("tenant_id").eq("id", societeId).maybeSingle();
+    const s = await seuils(socT ? String((socT as any).tenant_id || "") || null : null);
     const lignes = await Promise.all(enPoste.map(async function (ct: any) {
       const r = await controleDuMois(String(ct.id), periode, s);
       const sal = ct.paie_salaries || {};
@@ -3227,7 +3296,7 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
 
     return NextResponse.json({
       success: true, periode: periode, lignes: lignes,
-      recap: recap, recap_manquants: rec.manquants,
+      recap: recap, recap_manquants: rec.manquants, recap_perimes: rec.perimes,
       destinataire_propose: rec.societe.email,
       droits: profil ? profil.dossiers[societeId] : { voir: true, contrats: true, preparer: true, emettre: true, deposer: true, carte_blanche: true },
     });
@@ -3250,6 +3319,10 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
       return NextResponse.json({ erreur: "le bulletin n'a pas pu être recalculé : "
         + ((r0.json && r0.json.erreur) || "erreur inconnue") + ". Rien n'a été soumis." }, { status: 400 });
     }
+    // Recalcule a l instant : la marque de peremption tombe (28/09).
+    await supabase.from("paie_bulletins").update({ controle: null })
+      .eq("contrat_id", contratId).gte("periode", periode).lte("periode", dernierJour(periode))
+      .eq("statut", "brouillon");
 
     const r = await controleDuMois(contratId, periode);
     if (!r.bulletin || r.bulletin.statut !== "brouillon") {
@@ -3452,6 +3525,11 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
     if (rec.contenu.lignes.length === 0) {
       return NextResponse.json({ erreur: "aucun bulletin ce mois-ci : rien à récapituler." }, { status: 409 });
     }
+    if (rec.perimes.length > 0) {
+      return NextResponse.json({ erreur: "le brouillon de " + rec.perimes.join(", ") + " ne tient pas compte des "
+        + "dernières saisies : ressortez-le avant d'envoyer le récapitulatif, sinon le client confirmerait "
+        + "des montants faux." }, { status: 409 });
+    }
 
     const dest = String(propre(c.destinataire) || rec.societe.email || "").toLowerCase().trim();
     if (!dest || dest.indexOf("@") < 1 || dest.indexOf(".") < 0) {
@@ -3548,6 +3626,59 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
   // bulletins chacun a soumis, combien lui ont ete renvoyes, combien ont du
   // etre leves.
   // ═════════════════════════════════════════════════════════════════════
+  // ═════════════════════════════════════════════════════════════════════
+  // ---- LES SEUILS DU CABINET (28/09) ----
+  // Lire : tout le monde voit les seuils qui s appliquent a son dossier.
+  // Regler : l administrateur et les associes seulement, pour leur cabinet.
+  // Une valeur vide rend la valeur commune.
+  // ═════════════════════════════════════════════════════════════════════
+  if (action === "seuils" || action === "regler_seuils") {
+    const { data: socT } = await supabase.from("compta_societes").select("tenant_id")
+      .eq("id", String(c.societe_id || "")).maybeSingle();
+    const tenantId = socT ? String((socT as any).tenant_id || "") : "";
+    if (!tenantId) return NextResponse.json({ erreur: "dossier sans organisme" }, { status: 400 });
+
+    if (action === "regler_seuils") {
+      if (!ctx.cleServeur && !(await peutGererEquipe())) {
+        return NextResponse.json({ erreur: "réservé à l'administrateur et aux associés." }, { status: 403 });
+      }
+      const valeurs: any = c.valeurs || {};
+      const erreurs: string[] = [];
+      for (const code of Object.keys(valeurs)) {
+        if (SEUILS_DEFAUT[code] === undefined) continue;
+        const brut = valeurs[code];
+        if (brut === null || brut === undefined || String(brut).trim() === "") {
+          await supabase.from("paie_seuils_cabinet").delete().eq("tenant_id", tenantId).eq("code", code);
+          continue;
+        }
+        const v = Number(String(brut).replace(",", ".").replace(/\s/g, ""));
+        const b = SEUILS_BORNES[code];
+        if (!isFinite(v) || v < b[0] || v > b[1]) {
+          erreurs.push(code + " : entre " + b[0] + " et " + b[1]);
+          continue;
+        }
+        const { error } = await supabase.from("paie_seuils_cabinet").upsert({
+          tenant_id: tenantId, code: code, valeur: v, maj_par: ctx.email, maj_le: new Date().toISOString(),
+        }, { onConflict: "tenant_id,code" });
+        if (error) erreurs.push(code + " : " + error.message);
+      }
+      if (erreurs.length > 0) {
+        return NextResponse.json({ erreur: "certains seuils n'ont pas été enregistrés — " + erreurs.join(" · ") }, { status: 400 });
+      }
+    }
+
+    const { data: communs } = await supabase.from("paie_seuils").select("code, libelle, valeur, unite, niveau");
+    const { data: propres } = await supabase.from("paie_seuils_cabinet").select("code, valeur").eq("tenant_id", tenantId);
+    const liste = ((communs || []) as any[]).map(function (l) {
+      const p = ((propres || []) as any[]).filter(function (x) { return x.code === l.code; })[0];
+      return { code: l.code, libelle: l.libelle, unite: l.unite, niveau: l.niveau,
+        commun: Number(l.valeur), cabinet: p ? Number(p.valeur) : null,
+        applique: p ? Number(p.valeur) : Number(l.valeur), bornes: SEUILS_BORNES[l.code] || null };
+    });
+    return NextResponse.json({ success: true, seuils: liste,
+      message: action === "regler_seuils" ? "Seuils du cabinet enregistrés." : undefined });
+  }
+
   if (action === "mesure") {
     if (!ctx.cleServeur && !(await peutGererEquipe())) {
       return NextResponse.json({ erreur: "réservé à l'administrateur et aux associés." }, { status: 403 });
@@ -3632,7 +3763,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // 🆕🚨 28/09 — LES SAISIES QUI CHANGENT LA PAIE PERIMENT LE BROUILLON.
+  // Le contrat se lit AVANT le geste : apres une suppression, l element ou
+  // l evenement n existe plus.
+  let contratPerime: string | null = null;
+  if (PERIMANTS.indexOf(action) >= 0) {
+    try { contratPerime = await contratDe(regle.cible, c); } catch (e) { contratPerime = null; }
+  }
+
   const res = await traiter(req, c, action, ctx);
+
+  if (contratPerime && res.status < 400) {
+    const { error: eP } = await supabase.from("paie_bulletins")
+      .update({ controle: { perime: true, depuis: new Date().toISOString(), par: action } })
+      .eq("contrat_id", contratPerime).eq("statut", "brouillon");
+    if (eP) console.error("[paie/dossier] peremption :", eP.message);
+  }
 
   if (regle.ecrit && res.status < 400) {
     await journal(cible.societeId, ctx, "paie." + action, regle.cible.split(":")[0], cible.reference, pourJournal(c));
