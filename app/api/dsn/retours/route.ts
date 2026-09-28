@@ -939,9 +939,44 @@ export async function GET(req: NextRequest) {
       societes = data || [];
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 28/09 — AU-DELA DE CENT SOCIETES : PAR LOTS, DANS LE TEMPS IMPARTI
+    //
+    // Deux a trois secondes par societe, davantage quand un curseur rattrape
+    // du retard : a cent societes et plus, un passage unique depassait les
+    // 300 secondes de la fonction, et les dernieres n etaient jamais servies.
+    //   · LES PLUS EN RETARD D ABORD : tri sur le curseur (vide = jamais
+    //     passe = en tete). Un passage qui s arrete laisse donc de cote les
+    //     societes deja a jour, qui passeront au suivant.
+    //   · QUATRE A LA FOIS : chaque societe a son propre compte
+    //     net-entreprises ; les appels d un lot partent ensemble.
+    //   · UN BUDGET DE 240 SECONDES : aucun lot ne demarre au-dela ; le reste
+    //     est REPORTE au passage suivant (toutes les heures), et la reponse le
+    //     dit.
+    //   · UNE SOCIETE EN ERREUR N ARRETE PAS LES AUTRES.
+    // ═══════════════════════════════════════════════════════════════════
+    const debutPassage = Date.now();
+    const BUDGET_MS = 240000;
+    const PARALLELE = 4;
+    societes.sort(function (a: any, b: any) {
+      const ca = a.dsn_retours_curseur ? Date.parse(String(a.dsn_retours_curseur)) : 0;
+      const cb = b.dsn_retours_curseur ? Date.parse(String(b.dsn_retours_curseur)) : 0;
+      return (isNaN(ca) ? 0 : ca) - (isNaN(cb) ? 0 : cb);
+    });
     const resultats: any[] = [];
-    for (const s of societes) {
-      resultats.push(await rafraichirUne(s));
+    let reportees = 0;
+    for (let i = 0; i < societes.length; i += PARALLELE) {
+      if (Date.now() - debutPassage > BUDGET_MS) {
+        reportees = societes.length - i;
+        break;
+      }
+      const lot = societes.slice(i, i + PARALLELE);
+      const faits = await Promise.all(lot.map(function (s: any) {
+        return rafraichirUne(s).catch(function (e: any) {
+          return { societe_id: s.id, fait: false, erreur: String(e && e.message ? e.message : e) };
+        });
+      }));
+      for (const x of faits) resultats.push(x);
     }
 
     const total = resultats.reduce(function (n, r) { return n + (r.retours_ranges || 0); }, 0);
@@ -950,6 +985,13 @@ export async function GET(req: NextRequest) {
     return reponse({
       success: resultats.every(function (r) { return r.fait; }),
       societes: resultats.length,
+      // 🆕 28/09 — ce qui n a pas ete servi faute de temps, et quand.
+      societes_reportees: reportees,
+      duree_secondes: Math.round((Date.now() - debutPassage) / 1000),
+      message_lots: reportees > 0
+        ? reportees + " société(s) reportée(s) au prochain passage (toutes les heures) : les plus "
+          + "en retard passent toujours en premier."
+        : "Toutes les sociétés ont été servies.",
       par_cron: parCron,
       acces_jamais_verifies: jamaisVerifies,
       acces_en_refus: enRefus,
