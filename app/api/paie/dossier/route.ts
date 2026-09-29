@@ -3328,6 +3328,17 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
 
     const rec = await contenuRecap(societeId, periode);
     const recap = await etatRecap(societeId, periode, rec.empreinte);
+    // 🆕 29/09 — L ADRESSE PROPOSEE EST LA DERNIERE REELLEMENT UTILISEE POUR UN
+    // ENVOI. « Lever l attente » enregistre une ligne de recapitulatif SANS
+    // adresse ; devenue la plus recente, elle faisait retomber le champ sur
+    // l adresse de la fiche. On saute les lignes sans destinataire.
+    const { data: envoisAvecAdresse } = await supabase.from("paie_recaps")
+      .select("destinataire")
+      .eq("societe_id", societeId).eq("periode", periode)
+      .not("destinataire", "is", null)
+      .order("cree_le", { ascending: false }).limit(1);
+    const derniereAdresse = ((envoisAvecAdresse || []) as any[]).length > 0
+      ? String((envoisAvecAdresse as any[])[0].destinataire || "") : "";
     const profil = ctx.cleServeur ? null : await profilPaie([societeId]);
 
     return NextResponse.json({
@@ -3336,7 +3347,7 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
       // 🆕 28/09 (essai B) — la derniere adresse utilisee d abord : le champ
       // revenait a l adresse de la societe, et un renvoi pouvait partir
       // ailleurs sans qu on le voie.
-      destinataire_propose: (recap && recap.destinataire) || rec.societe.email,
+      destinataire_propose: derniereAdresse || rec.societe.email,
       droits: profil ? profil.dossiers[societeId] : { voir: true, contrats: true, preparer: true, emettre: true, deposer: true, carte_blanche: true },
     });
   }
