@@ -114,6 +114,102 @@ const SECOND: any = {
   border: "1px solid " + OR, fontWeight: "normal",
 };
 
+// Les boutons de la grille des URSSAF : meme allure que les outils des
+// dossiers ; celui qui est choisi passe en dore plein.
+const URS: any = {
+  background: "rgba(255,255,255,0.03)", color: "#fff",
+  border: "1px solid rgba(255,255,255,0.10)", borderRadius: "8px",
+  padding: "10px 12px", fontSize: "13.5px", fontFamily: "Georgia,serif",
+  textAlign: "left", cursor: "pointer", lineHeight: "1.35",
+};
+const URS_ACTIF: any = {
+  ...URS, background: OR, color: "#0b0b10", border: "1px solid " + OR,
+  fontWeight: "bold",
+};
+const SOUS: any = {
+  display: "block", fontSize: "11.5px", color: "rgba(255,255,255,0.45)",
+  margin: "12px 0 6px",
+};
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 30/09 — LES 36 URSSAF, NOMMEES POUR ETRE TROUVEES (decision de
+// Jacques). La table officielle (fichier URSSAF du 18/06/2026) a des noms
+// heterogenes (« URSSAF D AUVERGNE » rangee a D, « Urssaf du Limousin » a
+// « du », des sigles) et des doublons que seule la ville distingue
+// (« VENISSIEUX » / « VENISSIEUX CEDEX ») alors que l un est reserve aux
+// grandes entreprises. Le 30/09, en repetition, la mauvaise a ete choisie.
+// On range donc par REGION, par ordre alphabetique ; l outre-mer et les
+// organismes particuliers (grandes entreprises, lieu unique, PAM, CNTFS)
+// a part.
+// ⛔ SEUL L AFFICHAGE CHANGE : la codification enregistree et le SIRET
+// declare restent ceux de la table. Un organisme absent de cette liste
+// (nouvelle livraison) s affiche sous son nom officiel, parmi les cas
+// particuliers : rien ne disparait.
+// [groupe, nom dans la grille, nom complet]
+// ═══════════════════════════════════════════════════════════════════════
+const URSSAF_NOMS: any = {
+  U427: ["region", "Alsace", "URSSAF Alsace"],
+  U727: ["region", "Aquitaine", "URSSAF Aquitaine"],
+  U837: ["region", "Auvergne", "URSSAF Auvergne"],
+  U267: ["region", "Bourgogne", "URSSAF Bourgogne"],
+  U537: ["region", "Bretagne", "URSSAF Bretagne"],
+  U247: ["region", "Centre-Val de Loire", "URSSAF Centre-Val de Loire"],
+  U217: ["region", "Champagne-Ardenne", "URSSAF Champagne-Ardenne"],
+  U200: ["region", "Corse", "URSSAF Corse"],
+  U437: ["region", "Franche-Comté", "URSSAF Franche-Comté"],
+  U117: ["region", "Île-de-France", "URSSAF Île-de-France"],
+  U917: ["region", "Languedoc-Roussillon", "URSSAF Languedoc-Roussillon"],
+  U747: ["region", "Limousin", "URSSAF Limousin"],
+  U417: ["region", "Lorraine", "URSSAF Lorraine"],
+  U737: ["region", "Midi-Pyrénées", "URSSAF Midi-Pyrénées"],
+  U317: ["region", "Nord-Pas-de-Calais", "URSSAF Nord-Pas-de-Calais"],
+  U287: ["region", "Normandie", "URSSAF Normandie"],
+  U527: ["region", "Pays de la Loire", "URSSAF Pays de la Loire"],
+  U227: ["region", "Picardie", "URSSAF Picardie"],
+  U547: ["region", "Poitou-Charentes", "URSSAF Poitou-Charentes"],
+  U937: ["region", "Provence-Alpes-Côte d'Azur", "URSSAF Provence-Alpes-Côte d'Azur"],
+  U827: ["region", "Rhône-Alpes", "URSSAF Rhône-Alpes"],
+  U971: ["outremer", "Guadeloupe", "CGSS de Guadeloupe"],
+  U973: ["outremer", "Guyane", "CGSS de la Guyane"],
+  U972: ["outremer", "Martinique", "CGSS de Martinique"],
+  U976: ["outremer", "Mayotte", "CGSS de Mayotte"],
+  U974: ["outremer", "La Réunion", "CGSS de La Réunion"],
+  U693: ["particulier", "Rhône-Alpes — grandes et très grandes entreprises", "URSSAF Rhône-Alpes — grandes et très grandes entreprises"],
+  U451: ["particulier", "Centre-Val de Loire — lieu unique et grandes entreprises", "URSSAF Centre-Val de Loire — adhésion en lieu unique et grandes entreprises"],
+  U311: ["particulier", "Midi-Pyrénées — très grandes entreprises", "URSSAF Midi-Pyrénées — très grandes entreprises"],
+  U595: ["particulier", "Nord (Lille) — très grandes entreprises", "URSSAF du Nord (Lille) — très grandes entreprises"],
+  U116: ["particulier", "Île-de-France — pôle grandes entreprises", "URSSAF Île-de-France — pôle grandes entreprises"],
+  U748: ["particulier", "Limousin (second code, même organisme)", "URSSAF Limousin (code U748)"],
+  U109: ["particulier", "CDG PAM — Nantes", "CDG PAM — Nantes"],
+  U979: ["particulier", "Centre de gestion PAM — Saint-Denis", "Centre de gestion PAM — Saint-Denis"],
+  U828: ["particulier", "CNTFS — Seynod", "CNTFS — Seynod"],
+  U438: ["particulier", "CNTFS Franche-Comté — Besançon", "CNTFS Franche-Comté — Besançon"],
+};
+
+function urssafNom(cod: string, denomination?: string, ville?: string): any {
+  const m = URSSAF_NOMS[cod];
+  if (m) return { groupe: m[0], court: m[1], long: m[2] };
+  const brut = (denomination || cod || "") + (ville ? " · " + ville : "");
+  return { groupe: "particulier", court: brut, long: brut };
+}
+
+// Les organismes lus en base, repartis en trois groupes et ranges par ordre
+// alphabetique du nom affiche (accents compris).
+function urssafRanges(organismes: any[]): any {
+  const g: any = { region: [], outremer: [], particulier: [] };
+  for (let i = 0; i < (organismes || []).length; i++) {
+    const o = organismes[i];
+    const n = urssafNom(o.codification, o.denomination, o.ville);
+    g[n.groupe].push({ cod: o.codification, court: n.court });
+  }
+  ["region", "outremer", "particulier"].forEach(function (k) {
+    g[k].sort(function (a: any, b: any) {
+      return String(a.court).localeCompare(String(b.court), "fr", { sensitivity: "base" });
+    });
+  });
+  return g;
+}
+
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin",
   "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
@@ -237,6 +333,8 @@ export default function PageDsn() {
   const [organismes, setOrganismes] = useState<any[]>([]);
   const [urssafSaisie, setUrssafSaisie] = useState<any>({});
   const [urssafOuvert, setUrssafOuvert] = useState("");
+  // 🆕 30/09 — les cas particuliers (grandes entreprises…) restent replies.
+  const [urssafAutres, setUrssafAutres] = useState<any>({});
   // 🆕 25/09 — LE TAUX AT/MP : ce qui est en cours de frappe, par societe,
   // et quel formulaire est deplie.
   const [atSaisie, setAtSaisie] = useState<any>({});
@@ -957,7 +1055,7 @@ export default function PageDsn() {
                             : "rgba(255,255,255,0.45)" }}>
                           {!v.urssaf_codification
                             ? "aucune URSSAF renseignée"
-                            : (v.urssaf_denomination || v.urssaf_codification)
+                            : urssafNom(v.urssaf_codification, v.urssaf_denomination).long
                               + (v.iban_prelevement
                                 ? " · prélèvement sur " + ibanLisible(v.iban_prelevement)
                                 : " · sans prélèvement")}
@@ -1003,7 +1101,7 @@ export default function PageDsn() {
                           ? "non assujettie"
                           : "sans réponse, la cotisation vaut zéro sur tous les bulletins"}
                       {v.vm_effectif !== null && v.vm_effectif !== undefined
-                        ? " · " + v.vm_effectif + " salarié(s) connus"
+                        ? " · effectif : " + v.vm_effectif
                         : ""}
                     </p>
 
@@ -1216,22 +1314,83 @@ export default function PageDsn() {
 
                     {deplie && (
                       <div style={{ marginTop: "12px" }}>
-                        <div style={{ marginBottom: "10px" }}>
-                          <span style={LIB}>URSSAF de rattachement</span>
-                          <select style={CHAMP} value={codification}
-                            onChange={(ev) => setUrssafSaisie({ ...urssafSaisie,
-                              [soc.id]: { ...f, codification: ev.target.value } })}>
-                            <option value="">— aucune —</option>
-                            {organismes.map(function (o: any) {
-                              return (
-                                <option key={o.codification} value={o.codification}>
-                                  {o.denomination}
-                                  {o.ville ? " · " + o.ville : ""}
-                                </option>
-                              );
-                            })}
-                          </select>
-                        </div>
+                        {(function () {
+                          // 🆕 30/09 — UNE GRILLE DE REGIONS AU LIEU D UNE LISTE
+                          // QUI DEFILE : on touche sa region, elle passe en dore.
+                          const g = urssafRanges(organismes);
+                          const officiel = organismes.find(function (o: any) {
+                            return o.codification === codification;
+                          }) || {};
+                          const choisi = codification
+                            ? urssafNom(codification, officiel.denomination, officiel.ville) : null;
+                          const montrerAutres = urssafAutres[soc.id] === true
+                            || (choisi !== null && choisi.groupe === "particulier");
+                          const grille = function (liste: any[]) {
+                            return (
+                              <div style={{ display: "grid",
+                                gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))",
+                                gap: "6px" }}>
+                                {liste.map(function (o: any) {
+                                  const actif = o.cod === codification;
+                                  return (
+                                    <button key={o.cod} type="button" aria-pressed={actif}
+                                      onClick={() => setUrssafSaisie({ ...urssafSaisie,
+                                        [soc.id]: { ...f, codification: o.cod } })}
+                                      style={actif ? URS_ACTIF : URS}>
+                                      {o.court}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            );
+                          };
+                          return (
+                            <div style={{ marginBottom: "10px" }}>
+                              <span style={LIB}>URSSAF de rattachement</span>
+                              <p style={{ margin: "0 0 4px", fontSize: "12.5px",
+                                lineHeight: "1.6",
+                                color: choisi ? VERT : "rgba(255,255,255,0.5)" }}>
+                                {choisi ? "Choisie : " + choisi.long
+                                  : "Touchez la région qui figure sur les courriers de l'URSSAF."}
+                                {choisi && (
+                                  <button type="button"
+                                    onClick={() => setUrssafSaisie({ ...urssafSaisie,
+                                      [soc.id]: { ...f, codification: "" } })}
+                                    style={{ background: "none", border: "none", color: OR,
+                                      textDecoration: "underline", cursor: "pointer",
+                                      fontSize: "12px", fontFamily: "Georgia,serif",
+                                      marginLeft: "10px", padding: 0 }}>
+                                    retirer
+                                  </button>
+                                )}
+                              </p>
+
+                              <span style={SOUS}>Régions</span>
+                              {grille(g.region)}
+
+                              {g.outremer.length > 0 && (
+                                <div>
+                                  <span style={SOUS}>Outre-mer</span>
+                                  {grille(g.outremer)}
+                                </div>
+                              )}
+
+                              {g.particulier.length > 0 && (
+                                <div style={{ marginTop: "12px" }}>
+                                  <button type="button" aria-expanded={montrerAutres}
+                                    onClick={() => setUrssafAutres({ ...urssafAutres,
+                                      [soc.id]: !montrerAutres })}
+                                    style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px" }}>
+                                    Grandes entreprises et cas particuliers {montrerAutres ? "▴" : "▾"}
+                                  </button>
+                                  {montrerAutres && (
+                                    <div style={{ marginTop: "8px" }}>{grille(g.particulier)}</div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
                           <div style={{ flex: "2 1 260px" }}>
