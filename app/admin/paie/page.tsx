@@ -48,7 +48,7 @@
 //      pour le recuperer. Il se telecharge et se partage depuis sa ligne.
 // ═══════════════════════════════════════════════════════════════════════
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 const OR = "#c8a96e";
 const VERT = "#7fc97f";
@@ -242,6 +242,23 @@ function texteRecap(r: any): string {
   if (r.statut === "conteste") return "le client signale une erreur : « " + (r.remarque || "sans précision") + " ». Corrigez, puis renvoyez-le.";
   if (r.statut === "leve") return "attente du client levée par " + (r.envoye_par || "?") + " : « " + (r.remarque || "") + " ».";
   return String(r.statut || "");
+}
+
+// 🆕 29/09 — LE MOIS EN CLAIR, et LE STYLE D UN GESTE. Les gestes de la
+// validation etaient de petits liens de texte, perdus entre les phrases :
+// l editeur lui-meme devait les chercher. Ce sont maintenant de vrais
+// boutons, a la couleur de leur consequence.
+const NOMS_MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+  "août", "septembre", "octobre", "novembre", "décembre"];
+function libelleMois(p: string): string {
+  const a = String(p || "").slice(0, 4);
+  const m = Number(String(p || "").slice(5, 7));
+  return (NOMS_MOIS[m - 1] || "") + " " + a;
+}
+function GESTE(couleur: string): any {
+  return { background: "transparent", border: "1px solid " + couleur, color: couleur,
+    borderRadius: "7px", padding: "6px 12px", fontSize: "13px", cursor: "pointer",
+    fontFamily: "Georgia,serif", lineHeight: 1.2 };
 }
 
 // 🆕 28/09 — LA PIECE JUSTIFICATIVE PART LEGERE. Une photo d iPad pese
@@ -633,10 +650,19 @@ export default function PagePaie() {
   // envoye au client. La route refait chaque controle : l ecran ne fait
   // que montrer.
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕 29/09 — UNE REPONSE EN RETARD NE DOIT PAS ECRASER LA BONNE. Quand on
+  // change de mois pendant que le mois precedent se charge encore, les deux
+  // reponses arrivent l une apres l autre : la derniere arrivee l emportait,
+  // meme celle de l ancien mois (l adresse de septembre revenait sur
+  // octobre ; les chiffres auraient pu suivre). Chaque demande porte un
+  // numero ; seule la plus recente est affichee.
+  const demandeMois = useRef(0);
   async function chargerMois(ct?: any, p?: string) {
     const c0 = ct || choisi;
     if (!c0 || !c0.societe_id) return;
+    const numero = ++demandeMois.current;
     const d = await appeler({ action: "tableau_mois", societe_id: c0.societe_id, periode: p || periode });
+    if (numero !== demandeMois.current) return;
     if (d && d.success) {
       setMois(d);
       setRecapDest(function (v: string) { return v || d.destinataire_propose || ""; });
@@ -1020,6 +1046,70 @@ export default function PagePaie() {
     return l.bulletin.statut === "brouillon" && l.controle
       && l.controle.alertes.some(function (a: any) { return a.code === "PERIME"; });
   });
+
+  // 🆕 29/09 — LA PROCHAINE ETAPE, DITE EN CLAIR. L ecran montrait tout a
+  // la fois ; il dit maintenant, en une phrase, ce qu il faut faire ensuite,
+  // dans l ordre d un mois de paie : les brouillons, les points rouges, les
+  // points orange, la validation, le recapitulatif, l emission, la DSN.
+  const prochaine: string | null = (function () {
+    if (!mois || !mois.lignes || mois.lignes.length === 0) return null;
+    const lignes = mois.lignes as any[];
+    const noms = function (l: any[]): string {
+      const n = l.map(function (x: any) { return x.salarie; });
+      return n.slice(0, 3).join(", ") + (n.length > 3 ? "…" : "");
+    };
+    if (lignes.every(function (l: any) { return l.bulletin && l.bulletin.statut === "emis"; })) {
+      return "Tous les bulletins du mois sont émis. Prochaine étape : la DSN du mois (Tous les outils → Paie → DSN).";
+    }
+    if (sansBulletin.length > 0) {
+      return "Sortir " + sansBulletin.length + " brouillon(s) manquant(s) ou à refaire (" + noms(sansBulletin)
+        + ") : bouton « Sortir les brouillons » juste en dessous.";
+    }
+    const brouillons = lignes.filter(function (l: any) { return l.bulletin && l.bulletin.statut === "brouillon" && l.controle; });
+    const rouges = brouillons.filter(function (l: any) { return l.controle.couleur === "rouge" && !l.bulletin.levee_motif; });
+    if (rouges.length > 0) {
+      return "Traiter " + rouges.length + " point(s) rouge(s) (" + noms(rouges) + ") : corriger la saisie, joindre la pièce "
+        + "ou l'avis d'arrêt, ou lever le rouge avec un motif.";
+    }
+    const oranges = brouillons.filter(function (l: any) {
+      return l.controle.couleur === "orange" && !l.bulletin.justification && !l.bulletin.levee_motif;
+    });
+    if (oranges.length > 0) {
+      return "Justifier " + oranges.length + " point(s) orange (" + noms(oranges) + ") : écrire la raison sur la ligne, "
+        + "puis « justifier ».";
+    }
+    const aValider = brouillons.filter(function (l: any) { return l.bulletin.validation === "a_valider"; });
+    if (aValider.length > 0) {
+      return aValider.length + " bulletin(s) attendent la validation d'un associé (" + noms(aValider) + ").";
+    }
+    if (!mois.recap) return "Envoyer le récapitulatif au client : son adresse, puis « Envoyer le récapitulatif ».";
+    if (mois.recap.statut === "envoye") return "Attendre la confirmation du client, ou lever l'attente avec un motif.";
+    if (mois.recap.statut === "conteste") return "Le client signale une erreur : corriger la paie, puis renvoyer le récapitulatif.";
+    if (mois.recap.statut === "confirme" && !mois.recap.a_jour) {
+      return "La paie a changé depuis la confirmation du client : renvoyer le récapitulatif.";
+    }
+    if (prets.length > 0) return "Émettre les " + prets.length + " bulletin(s) prêt(s).";
+    return null;
+  })();
+
+  // 🆕 29/09 — LES AVERTISSEMENTS COMMUNS UNE SEULE FOIS. Le meme avertissement
+  // (la mutuelle absente) etait ecrit en entier sur chaque ligne : il noyait
+  // ce qui est propre a chacun. On l affiche une fois, en tete de liste.
+  const alertesCommunes: any[] = (function () {
+    if (!mois || !mois.lignes) return [];
+    const avec = (mois.lignes as any[]).filter(function (l: any) {
+      return l.controle && l.bulletin && l.bulletin.statut === "brouillon";
+    });
+    if (avec.length < 2) return [];
+    return avec[0].controle.alertes.filter(function (a: any) {
+      return a.niveau !== "info" && avec.every(function (l: any) {
+        return l.controle.alertes.some(function (x: any) { return x.texte === a.texte; });
+      });
+    });
+  })();
+  const estCommune = function (a: any): boolean {
+    return alertesCommunes.some(function (x: any) { return x.texte === a.texte; });
+  };
 
   async function genererBulletin() {
     // ⚠️ ON PREVIENT AVANT D OUVRIR UN RECTIFICATIF : ce n est pas le meme
@@ -2370,8 +2460,8 @@ export default function PagePaie() {
                           pièce ✓
                         </button>
                       ) : (
-                        <label style={{ ...LIEN, color: OR, marginLeft: "10px",
-                          cursor: "pointer", fontSize: "12px", ...cache(droitsIci.preparer) }}>
+                        <label style={{ ...GESTE(OR), marginLeft: "10px", padding: "4px 10px",
+                          fontSize: "12.5px", display: "inline-block", ...cache(droitsIci.preparer) }}>
                           {occupe === "piece" ? "…" : "joindre une pièce"}
                           <input type="file" accept="image/*,application/pdf"
                             style={{ display: "none" }}
@@ -2489,6 +2579,15 @@ export default function PagePaie() {
                     {occupe === "valider" ? "…" : "Soumettre à validation"}
                   </button>
                 ) : null}
+                {/* 🆕 29/09 — RESSORTIR LE BROUILLON SANS CALCULER D ABORD. Le bouton
+                    « Refaire le PDF » n apparaissait qu apres « Calculer le bulletin » :
+                    il fallait le savoir. Il est maintenant la, a cote du brouillon. */}
+                {droitsIci.preparer && (
+                  <button onClick={genererBulletin} disabled={occupe !== ""}
+                    style={{ ...GESTE(OR), marginLeft: "10px", padding: "5px 12px", fontSize: "12.5px" }}>
+                    {occupe === "bulletin" ? "…" : "Ressortir ce brouillon"}
+                  </button>
+                )}
                 <span style={{ display: "block", marginTop: "6px", fontSize: "12px",
                   color: "rgba(255,255,255,0.55)" }}>
                   Avant l&apos;émission : les contrôles et le récapitulatif client, dans
@@ -2508,11 +2607,11 @@ export default function PagePaie() {
             <div style={CADRE}>
               <div style={{ display: "flex", justifyContent: "space-between",
                 alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
-                <h3 style={{ color: OR, fontSize: "16px", margin: 0 }}>
-                  Validation du mois
+                <h3 style={{ color: OR, fontSize: "19px", margin: 0 }}>
+                  Validation du mois — {libelleMois(periode)}
                 </h3>
                 <button onClick={() => chargerMois()} disabled={occupe !== ""}
-                  style={{ ...LIEN, color: OR }}>
+                  style={{ ...GESTE(OR), padding: "4px 10px", fontSize: "12px" }}>
                   actualiser
                 </button>
               </div>
@@ -2525,6 +2624,15 @@ export default function PagePaie() {
                 <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>Lecture…</p>
               ) : (
                 <>
+                  {prochaine && (
+                    <div style={{ margin: "0 0 12px", padding: "10px 14px", borderRadius: "8px",
+                      border: "1px solid " + OR, background: "rgba(200,169,110,0.08)",
+                      fontSize: "14px", lineHeight: 1.55 }}>
+                      <span style={{ color: OR, fontSize: "11px", letterSpacing: "2px", display: "block",
+                        marginBottom: "3px" }}>PROCHAINE ÉTAPE</span>
+                      {prochaine}
+                    </div>
+                  )}
                   <div style={{ padding: "10px 12px", borderRadius: "8px", border: BORD,
                     marginBottom: "12px", fontSize: "13px", lineHeight: 1.6 }}>
                     <strong style={{ color: OR }}>Récapitulatif client</strong>
@@ -2595,6 +2703,22 @@ export default function PagePaie() {
                       Aucun salarié en poste ce mois-ci dans ce dossier.
                     </p>
                   )}
+                  {alertesCommunes.length > 0 && (
+                    <div style={{ margin: "0 0 10px", padding: "8px 12px", borderRadius: "8px",
+                      border: "1px solid rgba(240,168,96,0.35)" }}>
+                      <p style={{ margin: "0 0 4px", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                        Pour tous les bulletins du mois :
+                      </p>
+                      {alertesCommunes.map(function (a: any, i: number) {
+                        return (
+                          <p key={i} style={{ margin: "2px 0", fontSize: "12.5px", lineHeight: 1.5,
+                            color: a.niveau === "rouge" ? ROUGE : ORANGE }}>
+                            ● {a.texte}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  )}
                   {mois.lignes.map(function (l: any) {
                     const b = l.bulletin;
                     const ctl = l.controle;
@@ -2618,9 +2742,9 @@ export default function PagePaie() {
                                 + (coul === "rouge" && b.levee_motif ? " · rouge levé" : "")}
                           </span>
                         </div>
-                        {ctl && ctl.alertes.length > 0 && (
+                        {ctl && ctl.alertes.filter(function (a: any) { return !estCommune(a); }).length > 0 && (
                           <div style={{ marginTop: "6px" }}>
-                            {ctl.alertes.map(function (a: any, i: number) {
+                            {ctl.alertes.filter(function (a: any) { return !estCommune(a); }).map(function (a: any, i: number) {
                               return (
                                 <p key={i} style={{ margin: "3px 0", fontSize: "12.5px", lineHeight: 1.5,
                                   color: a.niveau === "rouge" ? ROUGE
@@ -2655,22 +2779,22 @@ export default function PagePaie() {
                               onChange={(ev) => setMotifs({ ...motifs, ["m_" + b.id]: ev.target.value })} />
                             {droitsIci.preparer && coul === "orange" && (
                               <button onClick={() => geste("justifier", b)} disabled={occupe !== ""}
-                                style={{ ...LIEN, color: ORANGE }}>justifier</button>
+                                style={GESTE(ORANGE)}>justifier</button>
                             )}
                             {droitsIci.preparer && b.validation !== "a_valider" && (
                               <button onClick={() => soumettre(l.contrat_id, b.id)} disabled={occupe !== ""}
-                                style={{ ...LIEN, color: OR }}>soumettre</button>
+                                style={GESTE(OR)}>soumettre</button>
                             )}
                             {droitsIci.emettre && droitsIci.carte_blanche && (
                               <>
                                 <button onClick={() => geste("renvoyer", b)} disabled={occupe !== ""}
-                                  style={{ ...LIEN, color: ROUGE }}>renvoyer</button>
+                                  style={GESTE(ROUGE)}>renvoyer</button>
                                 {coul === "rouge" && !b.levee_motif && (
                                   <button onClick={() => geste("lever", b)} disabled={occupe !== ""}
-                                    style={{ ...LIEN, color: ROUGE }}>lever le rouge</button>
+                                    style={GESTE(ROUGE)}>lever le rouge</button>
                                 )}
                                 <button onClick={() => emettre(b)} disabled={occupe !== ""}
-                                  style={{ ...LIEN, color: VERT }}>émettre</button>
+                                  style={GESTE(VERT)}>émettre</button>
                               </>
                             )}
                           </div>
@@ -2681,8 +2805,11 @@ export default function PagePaie() {
 
                   {profil && profil.gerer_equipe && (
                     <div style={{ marginTop: "14px", borderTop: BORD, paddingTop: "10px" }}>
+                      <p style={{ color: OR, fontSize: "11px", letterSpacing: "2px", margin: "0 0 8px" }}>
+                        OUTILS DU CABINET
+                      </p>
                       <button onClick={chargerMesure} disabled={occupe !== ""}
-                        style={{ ...LIEN, color: OR }}>
+                        style={GESTE(OR)}>
                         {occupe === "mesure" ? "…" : "Suivi des corrections par personne (six mois)"}
                       </button>
                       {mesure && (mesure.personnes.length === 0 ? (
@@ -2706,7 +2833,7 @@ export default function PagePaie() {
 
                       {/* 🆕 28/09 — LES SEUILS DU CABINET */}
                       <button onClick={() => seuilsVus ? setSeuilsVus(null) : chargerSeuils()}
-                        disabled={occupe !== ""} style={{ ...LIEN, color: OR, marginTop: "12px", display: "block" }}>
+                        disabled={occupe !== ""} style={{ ...GESTE(OR), marginTop: "12px", display: "block" }}>
                         {occupe === "seuils" ? "…" : seuilsVus ? "Fermer les seuils des contrôles" : "Régler les seuils des contrôles"}
                       </button>
                       {seuilsVus && (
@@ -3539,8 +3666,8 @@ export default function PagePaie() {
                                 avis d&apos;arrêt ✓
                               </button>
                             ) : (
-                              <label style={{ ...LIEN, color: ORANGE, marginLeft: "10px",
-                                cursor: "pointer", fontSize: "12px", ...cache(droitsIci.preparer) }}>
+                              <label style={{ ...GESTE(ORANGE), marginLeft: "10px", padding: "4px 10px",
+                                fontSize: "12.5px", display: "inline-block", ...cache(droitsIci.preparer) }}>
                                 {occupe === "piece" ? "…" : "joindre l'avis d'arrêt"}
                                 <input type="file" accept="image/*,application/pdf"
                                   style={{ display: "none" }}
