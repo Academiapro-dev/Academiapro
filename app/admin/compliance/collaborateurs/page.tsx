@@ -209,12 +209,16 @@ export default function PageCollaborateurs() {
         {message && <p style={{ color: "#4caf50", fontSize: "15px", fontWeight: "bold" }}>{message}</p>}
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.7" }}>{erreur}</p>}
 
+        {/* 🆕 29/09 — le bouton ne s affiche qu a qui gere l equipe : la liste
+            n est rendue qu a eux, et l ajout leur est reserve. */}
+        {d && (
         <button
           onClick={() => setFormulaire(!formulaire)}
           style={{ ...BOUTON, background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? BOUTON.border : "none", fontWeight: "bold", padding: "11px 22px", fontSize: "14px", marginBottom: "16px" }}
         >
           {formulaire ? "Annuler" : "Ajouter un collaborateur"}
         </button>
+        )}
 
         {formulaire && d && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
