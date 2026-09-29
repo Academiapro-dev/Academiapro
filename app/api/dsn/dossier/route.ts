@@ -1308,6 +1308,19 @@ export async function POST(req: NextRequest) {
 
   const res = await traiter(req, c, action, ctx);
 
+  // 🆕 29/09 — UN REGLAGE QUI CHANGE LA PAIE PERIME LES BROUILLONS. Le taux
+  // accident du travail, la mutuelle et le versement mobilite entrent dans le
+  // calcul du bulletin : un brouillon sorti avant leur changement serait faux
+  // sans que rien ne le dise. Comme pour toute saisie de paie, on le marque
+  // perime : il repasse au rouge et doit etre ressorti avant l emission.
+  if (["taux_at", "garantie", "garantie_fin", "urssaf"].indexOf(action) >= 0
+    && res.status < 400 && cible.societeId) {
+    const { error: eP } = await supabase.from("paie_bulletins")
+      .update({ controle: { perime: true, depuis: new Date().toISOString(), par: "dsn." + action } })
+      .eq("societe_id", cible.societeId).eq("statut", "brouillon");
+    if (eP) console.error("[dsn/dossier] peremption :", eP.message);
+  }
+
   if (regle.ecrit && res.status < 400) {
     await journal(cible.societeId, ctx, "dsn." + action, regle.cible, cible.reference, pourJournal(c));
   }
