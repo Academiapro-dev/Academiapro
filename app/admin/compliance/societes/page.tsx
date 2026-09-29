@@ -1,7 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 
-const FAMILLES = [
+// 🆕 30/09 — LES OUTILS RANGES EN CHAPITRES (decision de Jacques).
+// Une rangee de chapitres ; on en touche un, ses outils se deroulent,
+// par ordre alphabetique. « Controler » et « Arreter » ne font plus qu un
+// chapitre : c est le meme travail de fin d exercice.
+const CHAPITRES = [
   {
     titre: "Tenir",
     portes: [
@@ -23,18 +27,13 @@ const FAMILLES = [
     ],
   },
   {
-    titre: "Contrôler",
+    titre: "Contrôler et arrêter",
     portes: [
       ["/admin/compliance/revision", "Révision"],
       ["/admin/compliance/balance", "Balance et journal"],
       ["/admin/compliance/liasse-2033", "Liasse 2033"],
       ["/admin/compliance/liasse-2050", "Liasse 2050"],
       ["/admin/compliance/annexes", "Annexes"],
-    ],
-  },
-  {
-    titre: "Arrêter",
-    portes: [
       ["/admin/compliance/immobilisations", "Immobilisations"],
       ["/admin/compliance/provisions", "Provisions"],
       ["/admin/compliance/cloture", "Clôture"],
@@ -49,15 +48,15 @@ const FAMILLES = [
       ["/admin/compliance/das2", "DAS2"],
     ],
   },
-  {
-    titre: "Administrer",
-    portes: [["/admin/compliance/collaborateurs", "Collaborateurs"]],
-  },
 ];
 
-const TOUTES = FAMILLES.reduce(function (a: any[], f: any) {
-  return a.concat(f.portes);
-}, []);
+// L ordre alphabetique a l interieur d un chapitre (accents compris :
+// « Écriture » se range a E).
+function trier(portes: any[]) {
+  return portes.slice().sort(function (a: any, b: any) {
+    return String(a[1]).localeCompare(String(b[1]), "fr", { sensitivity: "base" });
+  });
+}
 
 const EXPORTS = [
   ["balance", "Balance"],
@@ -82,6 +81,7 @@ export default function PageSocietes() {
   const [formulaire, setFormulaire] = useState(false);
   const [ouvert, setOuvert] = useState<any>({});
   const [fiche, setFiche] = useState<any>({});
+  const [deroule, setDeroule] = useState<any>({});
 
   const [neuf, setNeuf] = useState<any>({
     code: "", raison_sociale: "", siren: "", forme: "", pays: "FR",
@@ -164,6 +164,47 @@ export default function PageSocietes() {
   const LIBELLE: any = { display: "block", color: "#c8a96e", fontSize: "13px", marginBottom: "5px" };
   const LIEN: any = { color: "#c8a96e", fontSize: "12.5px", textDecoration: "none", border: "1px solid rgba(200,169,110,0.35)", padding: "6px 13px", borderRadius: "20px" };
 
+  const CHAPITRE: any = { background: "none", color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "9px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "14px", fontFamily: "Georgia,serif" };
+  const CHAPITRE_ACTIF: any = { ...CHAPITRE, background: "#c8a96e", color: "#050508", border: "1px solid #c8a96e", fontWeight: "bold" };
+  const PANNEAU: any = { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "6px", marginTop: "10px", padding: "10px", border: "1px solid rgba(200,169,110,0.35)", borderRadius: "10px", background: "rgba(200,169,110,0.05)" };
+  const OUTIL: any = { display: "block", color: "#fff", fontSize: "14px", textDecoration: "none", padding: "11px 14px", borderRadius: "8px", background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" };
+
+  // Une rangee de chapitres ; le chapitre touche se deroule dessous, un seul
+  // a la fois. « cle » distingue le haut de page et chaque carte de dossier.
+  function rangeeChapitres(cle: string, liste: any[], apres?: any) {
+    const actif = deroule[cle] || "";
+    const choisi = liste.find(function (c: any) { return c.titre === actif; });
+    return (
+      <div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          {liste.map(function (c: any) {
+            const estActif = c.titre === actif;
+            return (
+              <button
+                key={c.titre}
+                type="button"
+                aria-expanded={estActif}
+                onClick={() => setDeroule({ ...deroule, [cle]: estActif ? "" : c.titre })}
+                style={estActif ? CHAPITRE_ACTIF : CHAPITRE}
+              >
+                {c.titre}
+                <span aria-hidden="true" style={{ fontSize: "11px", marginLeft: "7px" }}>{estActif ? "▴" : "▾"}</span>
+              </button>
+            );
+          })}
+          {apres}
+        </div>
+        {choisi && (
+          <div style={PANNEAU}>
+            {trier(choisi.portes).map(function (p: any) {
+              return <a key={p[0]} href={p[0]} style={OUTIL}>{p[1]}</a>;
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function ch(id: string, cle: string) { return (fiche[id] && fiche[id][cle]) || ""; }
   function poser(id: string, cle: string, v: string) {
     setFiche({ ...fiche, [id]: { ...(fiche[id] || {}), [cle]: v } });
@@ -223,6 +264,13 @@ export default function PageSocietes() {
 
   return (
     <div style={CADRE}>
+      {/* Sur iPad, un champ date garde une largeur minimale propre et deborde
+          de sa colonne : on la leve, et on aligne la date a gauche comme les
+          autres champs. */}
+      <style>{`
+        .mc-date { -webkit-appearance: none; appearance: none; min-width: 0; min-height: 41px; display: block; color-scheme: dark; }
+        .mc-date::-webkit-date-and-time-value { text-align: left; margin: 0; }
+      `}</style>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
         <a href="/admin/compliance/tableau-de-bord" style={{ color: "#c8a96e", fontSize: "14px", textDecoration: "none" }}>
           ← Tableau de bord
@@ -244,24 +292,15 @@ export default function PageSocietes() {
         </a>
 
         <div style={{ margin: "16px 0" }}>
-          {FAMILLES.map(function (f: any) {
-            return (
-              <div key={f.titre} style={{ marginBottom: "16px" }}>
-                <p style={{ color: "#c8a96e", fontSize: "11.5px", letterSpacing: "2px", margin: "0 0 8px", textTransform: "uppercase" }}>
-                  {f.titre}
-                </p>
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  {f.portes.map(function (p: any) {
-                    return <a key={p[0]} href={p[0]} style={{ ...LIEN, fontSize: "13.5px", padding: "10px 18px" }}>{p[1]} →</a>;
-                  })}
-                </div>
-              </div>
-            );
-          })}
+          {rangeeChapitres(
+            "haut",
+            CHAPITRES,
+            <a href="/admin/compliance/collaborateurs" style={{ ...CHAPITRE, textDecoration: "none", display: "inline-block" }}>Collaborateurs</a>
+          )}
 
           <button
             onClick={() => setFormulaire(!formulaire)}
-            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "10px 20px", borderRadius: "20px", cursor: "pointer", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: "bold", marginTop: "6px" }}
+            style={{ background: formulaire ? "none" : "#c8a96e", color: formulaire ? "#c8a96e" : "#050508", border: formulaire ? "1px solid rgba(200,169,110,0.45)" : "none", padding: "10px 20px", borderRadius: "20px", cursor: "pointer", fontSize: "13.5px", fontFamily: "Georgia,serif", fontWeight: "bold", marginTop: "18px" }}
           >
             {formulaire ? "Annuler" : "Ouvrir un dossier"}
           </button>
@@ -313,13 +352,13 @@ export default function PageSocietes() {
                   })}
                 </select>
               </div>
-              <div style={{ flex: "1 1 150px" }}>
+              <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                 <span style={LIBELLE}>Ouverture</span>
-                <input type="date" value={neuf.exercice_debut} onChange={(e) => setNeuf({ ...neuf, exercice_debut: e.target.value })} style={CHAMP} />
+                <input type="date" className="mc-date" value={neuf.exercice_debut} onChange={(e) => setNeuf({ ...neuf, exercice_debut: e.target.value })} style={{ ...CHAMP, minWidth: 0 }} />
               </div>
-              <div style={{ flex: "1 1 150px" }}>
+              <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                 <span style={LIBELLE}>Clôture</span>
-                <input type="date" value={neuf.exercice_fin} onChange={(e) => setNeuf({ ...neuf, exercice_fin: e.target.value })} style={CHAMP} />
+                <input type="date" className="mc-date" value={neuf.exercice_fin} onChange={(e) => setNeuf({ ...neuf, exercice_fin: e.target.value })} style={{ ...CHAMP, minWidth: 0 }} />
               </div>
             </div>
 
@@ -385,6 +424,12 @@ export default function PageSocietes() {
                           {s.exercice_debut ? " · du " + new Date(s.exercice_debut).toLocaleDateString("fr-FR") : ""}
                           {s.exercice_fin ? " au " + new Date(s.exercice_fin).toLocaleDateString("fr-FR") : ""}
                         </p>
+                        <div style={{ display: "flex", gap: "7px", marginTop: "10px", flexWrap: "wrap" }}>
+                          <button onClick={() => setOuvert({ ...ouvert, [s.id]: !estOuvert })} style={{ ...LIEN, background: "none", cursor: "pointer", fontFamily: "Georgia,serif" }}>
+                            {estOuvert ? "Fermer la fiche" : "Sa fiche"}
+                          </button>
+                          <a href={"/admin/compliance/collaborateurs" + q} style={LIEN}>Collaborateurs</a>
+                        </div>
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 2px" }}>{s.lignes}</p>
@@ -398,25 +443,18 @@ export default function PageSocietes() {
                       </p>
                     )}
 
-                    <div style={{ display: "flex", gap: "7px", alignItems: "center", marginTop: "14px", flexWrap: "wrap" }}>
-                      <button onClick={() => setOuvert({ ...ouvert, [s.id]: !estOuvert })} style={{ ...LIEN, background: "none", cursor: "pointer", fontFamily: "Georgia,serif" }}>
-                        {estOuvert ? "Fermer" : "Sa fiche"}
-                      </button>
-                      {TOUTES.map(function (p: any) {
-                        return <a key={p[0]} href={p[0] + q} style={LIEN}>{p[1]}</a>;
-                      })}
-                    </div>
-
-                    <div style={{ display: "flex", gap: "7px", alignItems: "center", marginTop: "10px", flexWrap: "wrap" }}>
-                      <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>Exporter :</span>
-                      {EXPORTS.map(function (x: any) {
-                        return (
-                          <a key={x[0]} href={"/api/compliance/export?societe_id=" + s.id + "&quoi=" + x[0]} style={LIEN}>
-                            {x[1]}
-                          </a>
-                        );
-                      })}
-                      <a href={"/api/compliance/fec?societe=" + s.code} style={LIEN}>FEC</a>
+                    <div style={{ marginTop: "16px" }}>
+                      {rangeeChapitres(
+                        s.id,
+                        CHAPITRES.map(function (c: any) {
+                          return { titre: c.titre, portes: c.portes.map(function (p: any) { return [p[0] + q, p[1]]; }) };
+                        }).concat([{
+                          titre: "Exporter",
+                          portes: EXPORTS.map(function (x: any) {
+                            return ["/api/compliance/export?societe_id=" + s.id + "&quoi=" + x[0], x[1]];
+                          }).concat([["/api/compliance/fec?societe=" + s.code, "FEC"]]),
+                        }])
+                      )}
                     </div>
 
                     {estOuvert && (
@@ -460,13 +498,13 @@ export default function PageSocietes() {
                               })}
                             </select>
                           </div>
-                          <div style={{ flex: "1 1 150px" }}>
+                          <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                             <span style={LIBELLE}>Ouverture</span>
-                            <input type="date" value={ch(s.id, "exercice_debut")} onChange={(e) => poser(s.id, "exercice_debut", e.target.value)} style={CHAMP} />
+                            <input type="date" className="mc-date" value={ch(s.id, "exercice_debut")} onChange={(e) => poser(s.id, "exercice_debut", e.target.value)} style={{ ...CHAMP, minWidth: 0 }} />
                           </div>
-                          <div style={{ flex: "1 1 150px" }}>
+                          <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                             <span style={LIBELLE}>Clôture</span>
-                            <input type="date" value={ch(s.id, "exercice_fin")} onChange={(e) => poser(s.id, "exercice_fin", e.target.value)} style={CHAMP} />
+                            <input type="date" className="mc-date" value={ch(s.id, "exercice_fin")} onChange={(e) => poser(s.id, "exercice_fin", e.target.value)} style={{ ...CHAMP, minWidth: 0 }} />
                           </div>
                         </div>
 
