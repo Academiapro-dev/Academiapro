@@ -1036,6 +1036,9 @@ export default function PagePaie() {
     const b = l.bulletin;
     const ctl = l.controle;
     if (!b || b.statut !== "brouillon" || !ctl) return false;
+    // 🆕 29/09 — renvoye pour correction : il n est pas pret tant qu il n est
+    // pas corrige et soumis de nouveau.
+    if (b.validation === "renvoye") return false;
     if (ctl.couleur === "rouge" && !b.levee_motif) return false;
     if (ctl.couleur === "orange" && !b.justification) return false;
     return true;
@@ -1071,8 +1074,13 @@ export default function PagePaie() {
       return "Traiter " + rouges.length + " point(s) rouge(s) (" + noms(rouges) + ") : corriger la saisie, joindre la pièce "
         + "ou l'avis d'arrêt, ou lever le rouge avec un motif.";
     }
+    const renvoyes = brouillons.filter(function (l: any) { return l.bulletin.validation === "renvoye"; });
+    if (renvoyes.length > 0) {
+      return renvoyes.length + " bulletin(s) renvoyé(s) pour correction (" + noms(renvoyes) + ") : corriger, "
+        + "puis soumettre de nouveau.";
+    }
     const oranges = brouillons.filter(function (l: any) {
-      return l.controle.couleur === "orange" && !l.bulletin.justification && !l.bulletin.levee_motif;
+      return l.controle.couleur === "orange" && !l.bulletin.justification;
     });
     if (oranges.length > 0) {
       return "Justifier " + oranges.length + " point(s) orange (" + noms(oranges) + ") : écrire la raison sur la ligne, "
@@ -1095,17 +1103,25 @@ export default function PagePaie() {
   // 🆕 29/09 — LES AVERTISSEMENTS COMMUNS UNE SEULE FOIS. Le meme avertissement
   // (la mutuelle absente) etait ecrit en entier sur chaque ligne : il noyait
   // ce qui est propre a chacun. On l affiche une fois, en tete de liste.
+  // Regroupe tout avertissement partage par AU MOINS DEUX salaries (la
+  // mutuelle ne touche pas un stagiaire ni un mandataire : il ne faut donc
+  // pas exiger qu il touche tout le monde), en les nommant une fois.
   const alertesCommunes: any[] = (function () {
     if (!mois || !mois.lignes) return [];
     const avec = (mois.lignes as any[]).filter(function (l: any) {
       return l.controle && l.bulletin && l.bulletin.statut === "brouillon";
     });
-    if (avec.length < 2) return [];
-    return avec[0].controle.alertes.filter(function (a: any) {
-      return a.niveau !== "info" && avec.every(function (l: any) {
-        return l.controle.alertes.some(function (x: any) { return x.texte === a.texte; });
-      });
-    });
+    const parTexte: any = {};
+    const ordre: string[] = [];
+    for (const l of avec) {
+      for (const a of (l.controle.alertes || [])) {
+        if (a.niveau === "info") continue;
+        if (!parTexte[a.texte]) { parTexte[a.texte] = { texte: a.texte, niveau: a.niveau, salaries: [] }; ordre.push(a.texte); }
+        if (parTexte[a.texte].salaries.indexOf(l.salarie) < 0) parTexte[a.texte].salaries.push(l.salarie);
+      }
+    }
+    return ordre.map(function (t: string) { return parTexte[t]; })
+      .filter(function (x: any) { return x.salaries.length >= 2; });
   })();
   const estCommune = function (a: any): boolean {
     return alertesCommunes.some(function (x: any) { return x.texte === a.texte; });
@@ -2706,15 +2722,17 @@ export default function PagePaie() {
                   {alertesCommunes.length > 0 && (
                     <div style={{ margin: "0 0 10px", padding: "8px 12px", borderRadius: "8px",
                       border: "1px solid rgba(240,168,96,0.35)" }}>
-                      <p style={{ margin: "0 0 4px", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
-                        Pour tous les bulletins du mois :
-                      </p>
                       {alertesCommunes.map(function (a: any, i: number) {
                         return (
-                          <p key={i} style={{ margin: "2px 0", fontSize: "12.5px", lineHeight: 1.5,
-                            color: a.niveau === "rouge" ? ROUGE : ORANGE }}>
-                            ● {a.texte}
-                          </p>
+                          <div key={i} style={{ margin: i === 0 ? "0" : "8px 0 0" }}>
+                            <p style={{ margin: "0 0 2px", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                              Pour {a.salaries.length} salariés ({a.salaries.join(", ")}) :
+                            </p>
+                            <p style={{ margin: 0, fontSize: "12.5px", lineHeight: 1.5,
+                              color: a.niveau === "rouge" ? ROUGE : ORANGE }}>
+                              ● {a.texte}
+                            </p>
+                          </div>
                         );
                       })}
                     </div>
