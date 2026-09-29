@@ -884,6 +884,11 @@ export default function PagePaie() {
     const d = await appeler({ action: "elements", contrat_id: choisi.id, periode: p });
     if (d.success) setElements(d.elements);
     setMois(null);
+    // 🆕 29/09 — le destinataire du recapitulatif est propre a chaque mois :
+    // le champ gardait l adresse du mois precedent, et un envoi est parti a
+    // la mauvaise adresse. On le vide ; chargerMois y remet l adresse
+    // proposee pour ce mois (la derniere utilisee, sinon celle de la fiche).
+    setRecapDest("");
     chargerMois(choisi, p);
   }
 
