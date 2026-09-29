@@ -273,6 +273,16 @@ export default function PageDsn() {
       vues[m.societe_id] = true;
       liste.push({ id: m.societe_id, nom: m.societe, siret: m.siret });
     }
+    // 🆕 29/09 — UN DOSSIER NEUF SE REGLE AVANT SA PREMIERE PAIE. Une societe
+    // n apparaissait ici qu une fois un bulletin sorti : impossible de regler
+    // son URSSAF, son taux AT ou sa mutuelle avant le premier bulletin, qui
+    // en a pourtant besoin. Toute societe qui porte un SIRET est maintenant
+    // listee, bulletins ou non.
+    for (const s of (societes || [])) {
+      if (!s || !s.siret || vues[s.id]) continue;
+      vues[s.id] = true;
+      liste.push({ id: s.id, nom: s.raison_sociale, siret: s.siret });
+    }
     return liste;
   }
 
