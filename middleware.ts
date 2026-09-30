@@ -238,7 +238,13 @@ export async function middleware(request: NextRequest) {
     // se connectant sur mrlms.fr tomberait sur « page introuvable » juste
     // apres avoir saisi son mot de passe. C est exactement l incident que
     // /compliance a evite le 01/09 pour MysterLLC.
-    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/mrlms', '/mrcrm', '/organisme', '/compliance', '/of', '/maintenance', '/_next'];
+    // 🚨 /desinscription AJOUTE AUX RESERVES LE 30/09. Le lien de
+    // desinscription des campagnes pointe sur le domaine du produit
+    // (mrcomptable.fr/desinscription...). Sans cette reserve, il partait vers
+    // /comptable/desinscription, /mrcrm/desinscription... qui n existent pas :
+    // PAGE INTROUVABLE sur quatre domaines sur cinq, dans des courriels de
+    // prospection ou la loi exige un moyen de s opposer qui fonctionne.
+    const RESERVES = ['/admin', '/api', '/connexion', '/comptable', '/mysterllc', '/mrlms', '/mrcrm', '/organisme', '/compliance', '/of', '/maintenance', '/_next', '/desinscription'];
     const estFichier = chemin.lastIndexOf('.') > chemin.lastIndexOf('/');
     if (!estFichier && !correspond(chemin, RESERVES)) {
       const url = request.nextUrl.clone();
