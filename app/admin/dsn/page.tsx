@@ -101,7 +101,7 @@ const CHAMP: any = {
   boxSizing: "border-box",
 };
 const LIB: any = {
-  display: "block", fontSize: "12px", color: "rgba(255,255,255,0.55)",
+  display: "block", fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
   marginBottom: "4px",
 };
 const BOUTON: any = {
@@ -109,9 +109,12 @@ const BOUTON: any = {
   background: OR, color: "#0b0b10", fontSize: "13.5px", fontWeight: "bold",
   fontFamily: "Georgia,serif", cursor: "pointer",
 };
+// 🆕 30/09 — LES BOUTONS SECONDAIRES SE VOIENT (remarque de Jacques : « l écriture
+// grise sur fond noir, pas terrible, la preuve j ai eu du mal à trouver » le
+// bouton du taux AT). Fond doré léger, texte plus grand, textes gris éclaircis.
 const SECOND: any = {
-  ...BOUTON, background: "transparent", color: OR,
-  border: "1px solid " + OR, fontWeight: "normal",
+  ...BOUTON, background: "rgba(200,169,110,0.12)", color: OR,
+  border: "1px solid " + OR, fontWeight: "bold",
 };
 
 // Les boutons de la grille des URSSAF : meme allure que les outils des
@@ -127,7 +130,7 @@ const URS_ACTIF: any = {
   fontWeight: "bold",
 };
 const SOUS: any = {
-  display: "block", fontSize: "11.5px", color: "rgba(255,255,255,0.45)",
+  display: "block", fontSize: "12.5px", color: "rgba(255,255,255,0.72)",
   margin: "12px 0 6px",
 };
 
@@ -777,7 +780,7 @@ export default function PageDsn() {
           <h1 style={{ color: OR, fontSize: "24px", marginBottom: "6px" }}>
             Déclaration sociale nominative
           </h1>
-          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px",
+          <p style={{ color: "rgba(255,255,255,0.76)", fontSize: "14px",
             lineHeight: "1.6", marginBottom: "22px" }}>
             Un fichier par mois et par établissement.
           </p>
@@ -792,10 +795,10 @@ export default function PageDsn() {
                   textDecoration: "none" }}>Se connecter</a>
               </>
             ) : (
-              <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.6)" }}>Lecture…</p>
+              <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.8)" }}>Lecture…</p>
             )}
           </div>
-          {err && <p style={{ color: ROUGE, fontSize: "13px" }}>{err}</p>}
+          {err && <p style={{ color: ROUGE, fontSize: "14px" }}>{err}</p>}
         </div>
       </div>
     );
@@ -811,21 +814,21 @@ export default function PageDsn() {
         </h1>
         <div style={{ display: "flex", alignItems: "baseline", gap: "14px",
           flexWrap: "wrap", marginBottom: "10px" }}>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
+          <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px", margin: 0 }}>
             {mois.length} mois avec des bulletins
           </p>
           {/* ⚠️ RECHARGER SANS QUITTER L ECRAN : un bulletin emis dans
               l autre onglet ne se voit pas tout seul. */}
           <button onClick={() => charger()} disabled={occupe !== ""}
             style={{ background: "none", border: "none", color: OR,
-              cursor: "pointer", fontSize: "12.5px", padding: 0 }}>
+              cursor: "pointer", fontSize: "13.5px", padding: 0 }}>
             {occupe === "charger" ? "…" : "recharger"}
           </button>
         </div>
 
         {/* 🚨 LE RAPPEL QUI EVITE LA PENALITE. */}
         <div style={{ ...CADRE, borderLeft: "3px solid " + OR }}>
-          <p style={{ margin: 0, fontSize: "13px", lineHeight: "1.65",
+          <p style={{ margin: 0, fontSize: "14px", lineHeight: "1.65",
             color: "rgba(255,255,255,0.7)" }}>
             La DSN se dépose <strong>le 5 du mois suivant</strong> pour les
             entreprises de 50 salariés et plus, <strong>le 15</strong> pour
@@ -847,7 +850,7 @@ export default function PageDsn() {
             {err || msg}
             <button onClick={() => { setMsg(""); setErr(""); }} aria-label="fermer"
               style={{ position: "absolute", top: "6px", right: "10px", background: "none",
-                border: "none", color: "rgba(255,255,255,0.6)", fontSize: "20px", cursor: "pointer" }}>
+                border: "none", color: "rgba(255,255,255,0.8)", fontSize: "20px", cursor: "pointer" }}>
               ×
             </button>
           </div>
@@ -869,8 +872,8 @@ export default function PageDsn() {
             <h3 style={{ color: OR, fontSize: "15px", margin: "0 0 4px" }}>
               Accès à net-entreprises
             </h3>
-            <p style={{ fontSize: "12.5px", lineHeight: "1.6", margin: "0 0 14px",
-              color: "rgba(255,255,255,0.5)" }}>
+            <p style={{ fontSize: "13.5px", lineHeight: "1.6", margin: "0 0 14px",
+              color: "rgba(255,255,255,0.72)" }}>
               Les identifiants de connexion du déclarant, ceux de
               net-entreprises.fr. Ils permettent de déposer la DSN sans
               quitter cet écran. Le mot de passe est chiffré : il ne
@@ -891,10 +894,10 @@ export default function PageDsn() {
                         <strong style={{ fontSize: "14.5px" }}>
                           {soc.nom || soc.siret}
                         </strong>
-                        <span style={{ fontSize: "12px", marginLeft: "10px",
+                        <span style={{ fontSize: "13.5px", marginLeft: "10px",
                           color: a.enregistre
                             ? (a.derniere_verification_reussie ? VERT : OR)
-                            : "rgba(255,255,255,0.45)" }}>
+                            : "rgba(255,255,255,0.72)" }}>
                           {!a.enregistre ? "aucun accès enregistré"
                             : a.derniere_verification_reussie
                               ? "vérifié le " + quand(a.derniere_verification_reussie)
@@ -905,12 +908,12 @@ export default function PageDsn() {
                         {a.enregistre && (
                           <button onClick={() => testerAcces(soc)} disabled={occupe !== ""}
                             style={{ ...SECOND, color: BLEU, borderColor: BLEU,
-                              padding: "6px 12px", fontSize: "12.5px", ...cache(dr(soc.id).deposer) }}>
+                              padding: "6px 12px", fontSize: "13.5px", ...cache(dr(soc.id).deposer) }}>
                             {occupe === "tester" + soc.id ? "…" : "Tester mes accès"}
                           </button>
                         )}
                         <button onClick={() => setOuvert(deplie ? "" : soc.id)}
-                          style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px", ...cache(dr(soc.id).deposer) }}>
+                          style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).deposer) }}>
                           {deplie ? "annuler" : a.enregistre ? "remplacer" : "enregistrer"}
                         </button>
                       </div>
@@ -920,7 +923,7 @@ export default function PageDsn() {
                         pas s il faut changer le mot de passe, debloquer le
                         compte ou attendre l inscription. */}
                     {a.enregistre && a.dernier_echec && (
-                      <p style={{ margin: "8px 0 0", fontSize: "12px", color: ROUGE,
+                      <p style={{ margin: "8px 0 0", fontSize: "13.5px", color: ROUGE,
                         lineHeight: "1.55" }}>
                         {a.dernier_echec}
                       </p>
@@ -958,8 +961,8 @@ export default function PageDsn() {
                           </div>
                         </div>
 
-                        <p style={{ margin: "10px 0 0", fontSize: "11.5px",
-                          lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                        <p style={{ margin: "10px 0 0", fontSize: "12.5px",
+                          lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
                           Le nom et le prénom sont ceux du compte net-entreprises,
                           pas ceux du dirigeant s&apos;ils diffèrent. Le SIRET est
                           celui qui sert à se connecter.
@@ -997,8 +1000,8 @@ export default function PageDsn() {
             <h3 style={{ color: OR, fontSize: "15px", margin: "0 0 4px" }}>
               Recouvrement URSSAF
             </h3>
-            <p style={{ fontSize: "12.5px", lineHeight: "1.6", margin: "0 0 14px",
-              color: "rgba(255,255,255,0.5)" }}>
+            <p style={{ fontSize: "13.5px", lineHeight: "1.6", margin: "0 0 14px",
+              color: "rgba(255,255,255,0.72)" }}>
               L&apos;URSSAF dont dépend la société, et le compte sur lequel
               elle prélève. L&apos;organisme figure sur les courriers de
               l&apos;URSSAF ; il ne se déduit pas du département.
@@ -1007,7 +1010,7 @@ export default function PageDsn() {
             {/* ⚠️ UNE LISTE VIDE DOIT DIRE POURQUOI ELLE EST VIDE, plutot
                 que de laisser un choix impossible. */}
             {organismes.length === 0 && (
-              <p style={{ fontSize: "12.5px", color: ROUGE, margin: "0 0 12px",
+              <p style={{ fontSize: "13.5px", color: ROUGE, margin: "0 0 12px",
                 lineHeight: "1.6" }}>
                 La table des URSSAF est vide ou illisible : aucun organisme
                 ne peut être choisi. Elle s&apos;importe par
@@ -1054,10 +1057,10 @@ export default function PageDsn() {
                         <strong style={{ fontSize: "14.5px" }}>
                           {soc.nom || soc.siret}
                         </strong>
-                        <span style={{ fontSize: "12px", marginLeft: "10px",
+                        <span style={{ fontSize: "13.5px", marginLeft: "10px",
                           color: v.urssaf_codification
                             ? (v.iban_prelevement ? VERT : OR)
-                            : "rgba(255,255,255,0.45)" }}>
+                            : "rgba(255,255,255,0.72)" }}>
                           {!v.urssaf_codification
                             ? "aucune URSSAF renseignée"
                             : urssafNom(v.urssaf_codification, v.urssaf_denomination).long
@@ -1067,7 +1070,7 @@ export default function PageDsn() {
                         </span>
                       </div>
                       <button onClick={() => setUrssafOuvert(deplie ? "" : soc.id)}
-                        style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px", ...cache(dr(soc.id).contrats) }}>
+                        style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
                         {deplie ? "annuler"
                           : v.urssaf_codification ? "modifier" : "renseigner"}
                       </button>
@@ -1075,16 +1078,16 @@ export default function PageDsn() {
 
                     {/* ⚠️ DIRE LA CONSEQUENCE, PAS SEULEMENT L ETAT. */}
                     {!v.urssaf_codification && (
-                      <p style={{ margin: "8px 0 0", fontSize: "12px",
-                        color: "rgba(255,255,255,0.45)", lineHeight: "1.6" }}>
+                      <p style={{ margin: "8px 0 0", fontSize: "13.5px",
+                        color: "rgba(255,255,255,0.72)", lineHeight: "1.6" }}>
                         Tant que l&apos;organisme manque, la DSN part sans son
                         bordereau : les cotisations ne sont pas déclarées à
                         l&apos;URSSAF.
                       </p>
                     )}
                     {v.urssaf_codification && !v.iban_prelevement && (
-                      <p style={{ margin: "8px 0 0", fontSize: "12px",
-                        color: "rgba(255,255,255,0.45)", lineHeight: "1.6" }}>
+                      <p style={{ margin: "8px 0 0", fontSize: "13.5px",
+                        color: "rgba(255,255,255,0.72)", lineHeight: "1.6" }}>
                         Le bordereau est déclaré, mais aucun prélèvement
                         n&apos;est demandé : le paiement reste à faire par un
                         autre moyen.
@@ -1095,10 +1098,10 @@ export default function PageDsn() {
                         ⚠️ SANS REPONSE, LA COTISATION VAUT ZERO SUR CHAQUE
                         BULLETIN, et rien ne le signale sur le bulletin
                         lui-meme : une ligne absente ne se remarque pas. */}
-                    <p style={{ margin: "8px 0 0", fontSize: "12px",
+                    <p style={{ margin: "8px 0 0", fontSize: "13.5px",
                       lineHeight: "1.6",
                       color: v.vm_assujetti === null ? OR
-                        : "rgba(255,255,255,0.45)" }}>
+                        : "rgba(255,255,255,0.72)" }}>
                       Versement mobilité :{" "}
                       {v.vm_assujetti === true
                         ? "assujettie — le taux est lu dans la table des communes"
@@ -1118,8 +1121,8 @@ export default function PageDsn() {
                     <div style={{ margin: "8px 0 0", display: "flex",
                       justifyContent: "space-between", alignItems: "baseline",
                       flexWrap: "wrap", gap: "8px" }}>
-                      <p style={{ margin: 0, fontSize: "12px", lineHeight: "1.6",
-                        color: v.at ? "rgba(255,255,255,0.45)" : ROUGE }}>
+                      <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                        color: v.at ? "rgba(255,255,255,0.72)" : ROUGE }}>
                         Taux accidents du travail :{" "}
                         {v.at
                           ? Number(v.at.taux).toLocaleString("fr-FR",
@@ -1131,7 +1134,7 @@ export default function PageDsn() {
                           : "aucun, la cotisation vaut zéro sur tous les bulletins"}
                       </p>
                       <button onClick={() => setAtOuvert(atOuvert === soc.id ? "" : soc.id)}
-                        style={{ ...SECOND, padding: "4px 10px", fontSize: "12px", ...cache(dr(soc.id).contrats) }}>
+                        style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
                         {atOuvert === soc.id ? "annuler"
                           : v.at ? "nouveau taux" : "saisir le taux"}
                       </button>
@@ -1165,8 +1168,8 @@ export default function PageDsn() {
                                   [soc.id]: { ...fa, notifie_le: ev.target.value } })} />
                             </div>
                           </div>
-                          <p style={{ margin: "6px 0 0", fontSize: "11.5px",
-                            lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                          <p style={{ margin: "6px 0 0", fontSize: "12.5px",
+                            lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
                             Le taux figure sur la notification annuelle de la
                             CARSAT, ou sur le compte AT/MP de net-entreprises.
                             Il s&apos;applique aux bulletins du mois indiqué et
@@ -1198,21 +1201,21 @@ export default function PageDsn() {
                         <div style={{ marginTop: "10px" }}>
                           <div style={{ display: "flex", justifyContent: "space-between",
                             alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
-                            <p style={{ margin: 0, fontSize: "12px", lineHeight: "1.6",
-                              color: aSante ? "rgba(255,255,255,0.45)" : ROUGE }}>
+                            <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                              color: aSante ? "rgba(255,255,255,0.72)" : ROUGE }}>
                               Mutuelle et prévoyance : {liste.length === 0
                                 ? "aucune — la complémentaire santé est obligatoire"
                                 : liste.length + " contrat(s)"}
                             </p>
                             <button onClick={() => { setGarOuvert(garOuvert === soc.id ? "" : soc.id); setGarSaisie({}); }}
-                              style={{ ...SECOND, padding: "4px 10px", fontSize: "12px", ...cache(dr(soc.id).contrats) }}>
+                              style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
                               {garOuvert === soc.id ? "annuler" : "ajouter"}
                             </button>
                           </div>
                           {liste.map(function (g: any) {
                             return (
-                              <div key={g.id} style={{ fontSize: "12px", lineHeight: "1.6",
-                                color: "rgba(255,255,255,0.55)", display: "flex",
+                              <div key={g.id} style={{ fontSize: "13.5px", lineHeight: "1.6",
+                                color: "rgba(255,255,255,0.76)", display: "flex",
                                 justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                                 <span>
                                   {g.nature === "sante" ? "Santé" : "Prévoyance"}
@@ -1229,11 +1232,11 @@ export default function PageDsn() {
                                     <input type="date" value={garFin.date} style={{ ...CHAMP, width: "auto", padding: "4px 6px" }}
                                       onChange={(ev) => setGarFin({ id: g.id, date: ev.target.value })} />
                                     <button onClick={arreterGarantie} disabled={occupe !== "" || !garFin.date}
-                                      style={{ ...SECOND, padding: "4px 10px", fontSize: "12px" }}>confirmer</button>
+                                      style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px" }}>confirmer</button>
                                   </span>
                                 ) : (
                                   <button onClick={() => setGarFin({ id: g.id, date: "" })}
-                                    style={{ ...SECOND, padding: "2px 8px", fontSize: "11.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
+                                    style={{ ...SECOND, padding: "7px 14px", fontSize: "12.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
                                 )}
                               </div>
                             );
@@ -1301,8 +1304,8 @@ export default function PageDsn() {
                                     onChange={(ev) => setGarSaisie({ ...f, date_effet: ev.target.value })} />
                                 </div>
                               </div>
-                              <p style={{ margin: "6px 0 0", fontSize: "11.5px", lineHeight: "1.6",
-                                color: "rgba(255,255,255,0.42)" }}>
+                              <p style={{ margin: "6px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                                color: "rgba(255,255,255,0.72)" }}>
                                 La cotisation figure sur le contrat collectif ou l&apos;appel de cotisation de
                                 l&apos;organisme : indiquez le total, part du salarié et part de l&apos;employeur
                                 comprises. L&apos;employeur paie au moins 50 % de la complémentaire santé.
@@ -1352,9 +1355,9 @@ export default function PageDsn() {
                           return (
                             <div style={{ marginBottom: "10px" }}>
                               <span style={LIB}>URSSAF de rattachement</span>
-                              <p style={{ margin: "0 0 4px", fontSize: "12.5px",
+                              <p style={{ margin: "0 0 4px", fontSize: "13.5px",
                                 lineHeight: "1.6",
-                                color: choisi ? VERT : "rgba(255,255,255,0.5)" }}>
+                                color: choisi ? VERT : "rgba(255,255,255,0.72)" }}>
                                 {choisi ? "Choisie : " + choisi.long
                                   : "Touchez la région qui figure sur les courriers de l'URSSAF."}
                                 {choisi && (
@@ -1363,7 +1366,7 @@ export default function PageDsn() {
                                       [soc.id]: { ...f, codification: "" } })}
                                     style={{ background: "none", border: "none", color: OR,
                                       textDecoration: "underline", cursor: "pointer",
-                                      fontSize: "12px", fontFamily: "Georgia,serif",
+                                      fontSize: "13.5px", fontFamily: "Georgia,serif",
                                       marginLeft: "10px", padding: 0 }}>
                                     retirer
                                   </button>
@@ -1385,7 +1388,7 @@ export default function PageDsn() {
                                   <button type="button" aria-expanded={montrerAutres}
                                     onClick={() => setUrssafAutres({ ...urssafAutres,
                                       [soc.id]: !montrerAutres })}
-                                    style={{ ...SECOND, padding: "6px 12px", fontSize: "12.5px" }}>
+                                    style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px" }}>
                                     Grandes entreprises et cas particuliers {montrerAutres ? "▴" : "▾"}
                                   </button>
                                   {montrerAutres && (
@@ -1451,8 +1454,8 @@ export default function PageDsn() {
                             <option value="oui">Oui</option>
                             <option value="non">Non</option>
                           </select>
-                          <p style={{ margin: "6px 0 0", fontSize: "11.5px",
-                            lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                          <p style={{ margin: "6px 0 0", fontSize: "12.5px",
+                            lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
                             Due à partir de 11 salariés dans une zone où elle
                             est instituée. L&apos;effectif retenu est la moyenne
                             de l&apos;année précédente, et le seuil doit être
@@ -1466,28 +1469,28 @@ export default function PageDsn() {
                             explication fait perdre plus de temps qu un refus
                             au moment du clic. */}
                         {cleFausse && (
-                          <p style={{ margin: "10px 0 0", fontSize: "12px",
+                          <p style={{ margin: "10px 0 0", fontSize: "13.5px",
                             color: ROUGE, lineHeight: "1.55" }}>
                             La clé de contrôle de cet IBAN est fausse : il y a
                             une erreur de saisie. Recopiez-le depuis un relevé.
                           </p>
                         )}
                         {bicFaux && (
-                          <p style={{ margin: "10px 0 0", fontSize: "12px",
+                          <p style={{ margin: "10px 0 0", fontSize: "13.5px",
                             color: ROUGE, lineHeight: "1.55" }}>
                             Le BIC doit compter 8 ou 11 caractères.
                           </p>
                         )}
                         {depareille && !cleFausse && !bicFaux && (
-                          <p style={{ margin: "10px 0 0", fontSize: "12px",
+                          <p style={{ margin: "10px 0 0", fontSize: "13.5px",
                             color: ROUGE, lineHeight: "1.55" }}>
                             L&apos;IBAN et le BIC se déclarent ensemble : il
                             faut les deux, ou aucun des deux.
                           </p>
                         )}
 
-                        <p style={{ margin: "10px 0 0", fontSize: "11.5px",
-                          lineHeight: "1.6", color: "rgba(255,255,255,0.42)" }}>
+                        <p style={{ margin: "10px 0 0", fontSize: "12.5px",
+                          lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
                           Ce qui est à l&apos;écran est ce qui sera enregistré :
                           vider un champ l&apos;efface. Une DSN déjà générée ne
                           change pas — il faut la regénérer pour que le
@@ -1515,7 +1518,7 @@ export default function PageDsn() {
             <h3 style={{ color: BLEU, fontSize: "15px", marginTop: 0 }}>
               {detail.fichier}
             </h3>
-            <p style={{ fontSize: "13px", margin: "0 0 8px",
+            <p style={{ fontSize: "14px", margin: "0 0 8px",
               color: "rgba(255,255,255,0.7)" }}>
               {detail.nb_individus} salarié(s) · {detail.nb_lignes} lignes ·
               brut {euros(detail.total_brut)} € ·
@@ -1527,13 +1530,13 @@ export default function PageDsn() {
 
             {(detail.anomalies || []).length > 0 && (
               <div style={{ marginTop: "10px" }}>
-                <p style={{ fontSize: "12px", color: ROUGE, margin: "0 0 5px" }}>
+                <p style={{ fontSize: "13.5px", color: ROUGE, margin: "0 0 5px" }}>
                   {detail.anomalies.length} anomalie(s) à corriger
                 </p>
                 {detail.anomalies.map(function (a: string, i: number) {
                   return (
-                    <p key={i} style={{ fontSize: "12px", lineHeight: "1.55",
-                      color: "rgba(255,255,255,0.6)", margin: "0 0 3px" }}>
+                    <p key={i} style={{ fontSize: "13.5px", lineHeight: "1.55",
+                      color: "rgba(255,255,255,0.8)", margin: "0 0 3px" }}>
                       {a}
                     </p>
                   );
@@ -1545,13 +1548,13 @@ export default function PageDsn() {
             {(detail.avant_depot || []).length > 0 && (
               <div style={{ marginTop: "12px", paddingTop: "10px",
                 borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                <p style={{ fontSize: "12px", color: OR, margin: "0 0 5px" }}>
+                <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 5px" }}>
                   Avant tout dépôt réel
                 </p>
                 {detail.avant_depot.map(function (a: string, i: number) {
                   return (
-                    <p key={i} style={{ fontSize: "11.5px", lineHeight: "1.6",
-                      color: "rgba(255,255,255,0.45)", margin: "0 0 3px" }}>
+                    <p key={i} style={{ fontSize: "12.5px", lineHeight: "1.6",
+                      color: "rgba(255,255,255,0.72)", margin: "0 0 3px" }}>
                       {a}
                     </p>
                   );
@@ -1571,11 +1574,11 @@ export default function PageDsn() {
               </h3>
               <button onClick={() => setContenu(null)}
                 style={{ background: "none", border: "none", color: OR,
-                  cursor: "pointer", fontSize: "12.5px" }}>
+                  cursor: "pointer", fontSize: "13.5px" }}>
                 fermer
               </button>
             </div>
-            <pre style={{ fontSize: "11px", lineHeight: "1.5",
+            <pre style={{ fontSize: "12.5px", lineHeight: "1.5",
               color: "rgba(255,255,255,0.75)", background: "rgba(0,0,0,0.35)",
               padding: "12px", borderRadius: "6px", overflow: "auto",
               maxHeight: "400px", fontFamily: "Menlo,monospace", margin: 0 }}>
@@ -1596,14 +1599,14 @@ export default function PageDsn() {
             ═══════════════════════════════════════════════════════════════ */}
         {mois.length === 0 && !occupe && (
           <div style={CADRE}>
-            <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.55)",
+            <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.76)",
               margin: "0 0 10px", lineHeight: "1.6" }}>
               Aucun mois à déclarer. La DSN se construit à partir des
               bulletins <strong>émis</strong> — un brouillon n&apos;a pas été
               remis au salarié, et un bulletin annulé ne compte plus.
             </p>
             {diag && (
-              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+              <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
                 margin: 0, lineHeight: "1.7" }}>
                 Ce que la lecture a rendu : <strong>{diag.bulletins_lus}</strong> bulletin(s)
                 lu(s), dont <strong>{diag.annules_ignores}</strong> annulé(s) écarté(s) ·
@@ -1613,7 +1616,7 @@ export default function PageDsn() {
               </p>
             )}
             {!diag && (
-              <p style={{ fontSize: "12px", color: ROUGE, margin: 0 }}>
+              <p style={{ fontSize: "13.5px", color: ROUGE, margin: 0 }}>
                 La route n&apos;a rendu aucun compte de lecture : elle n&apos;est
                 pas à jour.
               </p>
@@ -1638,13 +1641,13 @@ export default function PageDsn() {
                 alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
                 <div>
                   <strong style={{ fontSize: "16px" }}>{moisLisible(m.periode)}</strong>
-                  <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
+                  <span style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px",
                     marginLeft: "10px" }}>
                     {m.societe}
                   </span>
                 </div>
                 {d && (
-                  <span style={{ fontSize: "12px",
+                  <span style={{ fontSize: "13.5px",
                     color: d.statut === "deposee" || d.statut === "acceptee" ? VERT
                       : d.statut === "rejetee" ? ROUGE : OR }}>
                     {d.statut === "brouillon" ? "brouillon"
@@ -1657,8 +1660,8 @@ export default function PageDsn() {
                 )}
               </div>
 
-              <p style={{ margin: "6px 0 0", fontSize: "12.5px",
-                color: "rgba(255,255,255,0.5)" }}>
+              <p style={{ margin: "6px 0 0", fontSize: "13.5px",
+                color: "rgba(255,255,255,0.72)" }}>
                 {m.bulletins} bulletin(s) · {m.emis} émis
                 {m.brouillons > 0 && (
                   <span style={{ color: OR }}> · {m.brouillons} en brouillon</span>
@@ -1671,7 +1674,7 @@ export default function PageDsn() {
                   l identifiant de l etablissement declarant. Autant le dire
                   avant le clic plutot qu apres. */}
               {!m.siret && (
-                <p style={{ margin: "8px 0 0", fontSize: "12.5px", color: ROUGE,
+                <p style={{ margin: "8px 0 0", fontSize: "13.5px", color: ROUGE,
                   lineHeight: "1.6" }}>
                   Cette société n&apos;a pas de SIRET : la DSN ne peut pas être
                   générée. Une société étrangère ne peut pas être établissement
@@ -1681,7 +1684,7 @@ export default function PageDsn() {
 
               {/* ⛔ LA DSN NE PREND QUE LES BULLETINS EMIS. */}
               {m.emis === 0 && (
-                <p style={{ margin: "8px 0 0", fontSize: "12.5px", color: ROUGE }}>
+                <p style={{ margin: "8px 0 0", fontSize: "13.5px", color: ROUGE }}>
                   Aucun bulletin émis : la DSN ne peut pas être générée. Un
                   brouillon n&apos;a pas été remis au salarié.
                 </p>
@@ -1753,8 +1756,8 @@ export default function PageDsn() {
                   POURQUOI plutot que de laisser un bouton absent sans
                   explication. */}
               {d && d.statut === "controlee" && !a.enregistre && (
-                <p style={{ margin: "10px 0 0", fontSize: "12px",
-                  color: "rgba(255,255,255,0.45)", lineHeight: "1.6" }}>
+                <p style={{ margin: "10px 0 0", fontSize: "13.5px",
+                  color: "rgba(255,255,255,0.72)", lineHeight: "1.6" }}>
                   Le dépôt en ligne demande les identifiants net-entreprises de
                   cette société : ils s&apos;enregistrent en haut de l&apos;écran.
                   Sans eux, le fichier se télécharge et se dépose à la main.
@@ -1766,7 +1769,7 @@ export default function PageDsn() {
               {rep && (
                 <div style={{ marginTop: "12px", paddingTop: "10px",
                   borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                  <p style={{ fontSize: "12.5px", margin: "0 0 6px",
+                  <p style={{ fontSize: "13.5px", margin: "0 0 6px",
                     color: rep.success ? VERT : ROUGE }}>
                     {rep.success
                       ? "Accusé d'enregistrement reçu"
@@ -1775,7 +1778,7 @@ export default function PageDsn() {
                     {rep.type_envoi ? " · envoi " + rep.type_envoi : ""}
                   </p>
                   {rep.retour_extrait && (
-                    <pre style={{ fontSize: "10.5px", lineHeight: "1.5",
+                    <pre style={{ fontSize: "12px", lineHeight: "1.5",
                       color: "rgba(255,255,255,0.7)", background: "rgba(0,0,0,0.35)",
                       padding: "10px", borderRadius: "6px", overflow: "auto",
                       maxHeight: "220px", fontFamily: "Menlo,monospace", margin: 0,
@@ -1783,15 +1786,15 @@ export default function PageDsn() {
                       {rep.retour_extrait}
                     </pre>
                   )}
-                  <p style={{ margin: "6px 0 0", fontSize: "11px",
-                    color: "rgba(255,255,255,0.40)" }}>
+                  <p style={{ margin: "6px 0 0", fontSize: "12.5px",
+                    color: "rgba(255,255,255,0.72)" }}>
                     Le retour complet est conservé dans la base.
                   </p>
                 </div>
               )}
 
               {d && d.notes && (
-                <p style={{ margin: "10px 0 0", fontSize: "11.5px",
+                <p style={{ margin: "10px 0 0", fontSize: "12.5px",
                   lineHeight: "1.55", color: ROUGE }}>
                   {d.notes}
                 </p>
