@@ -419,11 +419,15 @@ export default function PageDsn() {
   }
   function cache(ok: any): any { return ok ? {} : { display: "none" }; }
 
-  async function charger() {
-    setErr(""); setOccupe("charger");
+  // 🆕 30/09 — `garder` : appele juste apres un enregistrement, le rechargement
+  // laisse le bouton sur « … » jusqu au bout. Sans cela, le bouton redevenait
+  // « Enregistrer » pendant plusieurs secondes sans que rien ne change a
+  // l ecran : on croit que rien ne s est passe (vu sur la prise du taux AT).
+  async function charger(garder?: boolean) {
+    setErr(""); if (!garder) setOccupe("charger");
     const d = await appeler({ action: "etat" });
     setPret(true);
-    if (d.connexion) { setConnexionRequise(true); setOccupe(""); return; }
+    if (d.connexion) { setConnexionRequise(true); if (!garder) setOccupe(""); return; }
     if (d.success) {
       setMois(d.mois); setSocietes(d.societes);
       setProfil(d.profil || null);
@@ -450,7 +454,7 @@ export default function PageDsn() {
       setErr((d.erreur || "chargement impossible")
         + (d.ou ? " (table : " + d.ou + ")" : ""));
     }
-    setOccupe("");
+    if (!garder) setOccupe("");
   }
 
   // 🆕 18/09 — CE QUI EST ENREGISTRE, SANS RIEN REVELER.
@@ -549,7 +553,7 @@ export default function PageDsn() {
     if (d.success) {
       // 🆕 30/09 — LE MESSAGE APRES LE RECHARGEMENT, PAS AVANT : sinon « Enregistré »
       // s affiche a cote d une ligne encore vide pendant deux ou trois secondes.
-      await charger();
+      await charger(true);
       setAtOuvert("");
       setAtSaisie({ ...atSaisie, [soc.id]: {} });
       setMsg(d.message || "Enregistré.");
@@ -570,7 +574,7 @@ export default function PageDsn() {
       part_patronale_pct: f.part_patronale_pct === undefined || f.part_patronale_pct === "" ? "50" : f.part_patronale_pct,
       organisme: f.organisme || "", date_effet: f.date_effet || (new Date().toISOString().slice(0, 7) + "-01"),
     });
-    if (d.success) { await charger(); setGarOuvert(""); setGarSaisie({}); setMsg(d.message || "Enregistré."); }
+    if (d.success) { await charger(true); setGarOuvert(""); setGarSaisie({}); setMsg(d.message || "Enregistré."); }
     else setErr(d.erreur || "enregistrement impossible");
     setOccupe("");
   }
@@ -578,7 +582,7 @@ export default function PageDsn() {
     if (!garFin.id || !garFin.date) return;
     setErr(""); setMsg(""); setOccupe("garfin");
     const d = await appeler({ action: "garantie_fin", id: garFin.id, date_fin: garFin.date });
-    if (d.success) { await charger(); setGarFin({ id: "", date: "" }); setMsg(d.message || "Arrêtée."); }
+    if (d.success) { await charger(true); setGarFin({ id: "", date: "" }); setMsg(d.message || "Arrêtée."); }
     else setErr(d.erreur || "enregistrement impossible");
     setOccupe("");
   }
@@ -628,7 +632,7 @@ export default function PageDsn() {
       // 🆕 30/09 — LE RECHARGEMENT D ABORD, LE MESSAGE ENSUITE. Le message
       // « Enregistré » s affichait deux a trois secondes avant que la ligne
       // montre la nouvelle URSSAF (vu sur la prise filmee du 30/09).
-      await charger();
+      await charger(true);
       setUrssafOuvert("");
       // La saisie est oubliee : ce qui fait foi est ce que la base rend.
       setUrssafSaisie({ ...urssafSaisie, [soc.id]: {} });
@@ -702,7 +706,7 @@ export default function PageDsn() {
     }
 
     setRetour({ ...retour, [d.id]: rep });
-    await charger();
+    await charger(true);
     if (rep.success) setMsg(rep.message || "Dépôt accepté.");
     else setErr(rep.erreur || rep.message || "dépôt impossible");
 
@@ -713,7 +717,7 @@ export default function PageDsn() {
     setErr(""); setMsg(""); setOccupe("generer" + m.periode);
     const d = await appeler({ action: "generer", societe_id: m.societe_id, periode: m.periode });
     if (d.success) {
-      await charger();
+      await charger(true);
       setDetail(d);
       setMsg(d.message);
     } else setErr(d.erreur || "génération impossible");
@@ -745,7 +749,7 @@ export default function PageDsn() {
 
     setOccupe("controlee");
     const d = await appeler({ action: "controlee", id: id });
-    if (d.success) { await charger(); setMsg(d.message); }
+    if (d.success) { await charger(true); setMsg(d.message); }
     else setErr(d.erreur || "impossible");
     setOccupe("");
   }
@@ -764,7 +768,7 @@ export default function PageDsn() {
         d = await appeler({ action: "deposee", id: id, confirmer_ecarts: true });
       } else { setOccupe(""); return; }
     }
-    if (d.success) { await charger(); setMsg(d.message); }
+    if (d.success) { await charger(true); setMsg(d.message); }
     else setErr(d.erreur || "impossible");
     setOccupe("");
   }
