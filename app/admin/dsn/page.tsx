@@ -544,10 +544,12 @@ export default function PageDsn() {
       notifie_le: f.notifie_le || "",
     });
     if (d.success) {
-      setMsg(d.message || "Enregistré.");
+      // 🆕 30/09 — LE MESSAGE APRES LE RECHARGEMENT, PAS AVANT : sinon « Enregistré »
+      // s affiche a cote d une ligne encore vide pendant deux ou trois secondes.
+      await charger();
       setAtOuvert("");
       setAtSaisie({ ...atSaisie, [soc.id]: {} });
-      await charger();
+      setMsg(d.message || "Enregistré.");
     } else {
       setErr(d.erreur || "enregistrement impossible");
     }
@@ -565,7 +567,7 @@ export default function PageDsn() {
       part_patronale_pct: f.part_patronale_pct === undefined || f.part_patronale_pct === "" ? "50" : f.part_patronale_pct,
       organisme: f.organisme || "", date_effet: f.date_effet || (new Date().toISOString().slice(0, 7) + "-01"),
     });
-    if (d.success) { setMsg(d.message || "Enregistré."); setGarOuvert(""); setGarSaisie({}); await charger(); }
+    if (d.success) { await charger(); setGarOuvert(""); setGarSaisie({}); setMsg(d.message || "Enregistré."); }
     else setErr(d.erreur || "enregistrement impossible");
     setOccupe("");
   }
@@ -573,7 +575,7 @@ export default function PageDsn() {
     if (!garFin.id || !garFin.date) return;
     setErr(""); setMsg(""); setOccupe("garfin");
     const d = await appeler({ action: "garantie_fin", id: garFin.id, date_fin: garFin.date });
-    if (d.success) { setMsg(d.message || "Arrêtée."); setGarFin({ id: "", date: "" }); await charger(); }
+    if (d.success) { await charger(); setGarFin({ id: "", date: "" }); setMsg(d.message || "Arrêtée."); }
     else setErr(d.erreur || "enregistrement impossible");
     setOccupe("");
   }
@@ -620,11 +622,14 @@ export default function PageDsn() {
       if ((d.avertissements || []).length > 0) {
         m = m + " " + d.avertissements.join(" ");
       }
-      setMsg(m);
+      // 🆕 30/09 — LE RECHARGEMENT D ABORD, LE MESSAGE ENSUITE. Le message
+      // « Enregistré » s affichait deux a trois secondes avant que la ligne
+      // montre la nouvelle URSSAF (vu sur la prise filmee du 30/09).
+      await charger();
       setUrssafOuvert("");
       // La saisie est oubliee : ce qui fait foi est ce que la base rend.
       setUrssafSaisie({ ...urssafSaisie, [soc.id]: {} });
-      await charger();
+      setMsg(m);
     } else {
       setErr(d.erreur || "enregistrement impossible");
     }
@@ -694,10 +699,10 @@ export default function PageDsn() {
     }
 
     setRetour({ ...retour, [d.id]: rep });
+    await charger();
     if (rep.success) setMsg(rep.message || "Dépôt accepté.");
     else setErr(rep.erreur || rep.message || "dépôt impossible");
 
-    await charger();
     setOccupe("");
   }
 
@@ -705,9 +710,9 @@ export default function PageDsn() {
     setErr(""); setMsg(""); setOccupe("generer" + m.periode);
     const d = await appeler({ action: "generer", societe_id: m.societe_id, periode: m.periode });
     if (d.success) {
-      setMsg(d.message);
-      setDetail(d);
       await charger();
+      setDetail(d);
+      setMsg(d.message);
     } else setErr(d.erreur || "génération impossible");
     setOccupe("");
   }
@@ -737,7 +742,7 @@ export default function PageDsn() {
 
     setOccupe("controlee");
     const d = await appeler({ action: "controlee", id: id });
-    if (d.success) { setMsg(d.message); await charger(); }
+    if (d.success) { await charger(); setMsg(d.message); }
     else setErr(d.erreur || "impossible");
     setOccupe("");
   }
@@ -756,7 +761,7 @@ export default function PageDsn() {
         d = await appeler({ action: "deposee", id: id, confirmer_ecarts: true });
       } else { setOccupe(""); return; }
     }
-    if (d.success) { setMsg(d.message); await charger(); }
+    if (d.success) { await charger(); setMsg(d.message); }
     else setErr(d.erreur || "impossible");
     setOccupe("");
   }
