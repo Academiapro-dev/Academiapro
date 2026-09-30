@@ -61,6 +61,26 @@
       "schedule": "0 8 * * 1,2,3,4,5"
     },
     {
+      "path": "/api/campagne-cabinets",
+      "schedule": "10 8 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-mysterllc",
+      "schedule": "20 8 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-lms",
+      "schedule": "30 8 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-crm-organismes",
+      "schedule": "40 8 * * 1,2,3,4,5"
+    },
+    {
+      "path": "/api/campagne-immobilier",
+      "schedule": "50 8 * * 1,2,3,4,5"
+    },
+    {
       "path": "/api/dsn/retours",
       "schedule": "17 * * * *"
     },
