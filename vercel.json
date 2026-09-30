@@ -81,6 +81,10 @@
       "schedule": "50 8 * * 1,2,3,4,5"
     },
     {
+      "path": "/api/campagne-avocats",
+      "schedule": "0 9 * * 1,2,3,4,5"
+    },
+    {
       "path": "/api/dsn/retours",
       "schedule": "17 * * * *"
     },
