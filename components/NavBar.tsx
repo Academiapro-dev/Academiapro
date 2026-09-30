@@ -430,6 +430,14 @@ export default function NavBar() {
   // seule chose a faire : lire sa paie, puis confirmer ou signaler.
   if (chemin.indexOf("/compliance/recap-paie/") === 0) return null;
 
+  // 🆕 30/09 — LA PAGE DE DESINSCRIPTION N A PAS DE BARRE, SUR AUCUN DOMAINE.
+  // Elle s adresse a un prospect qui arrive par le lien d un courriel : une
+  // seule chose a faire, confirmer. Sur mysterllc.com, mrcrm.fr ou mrlms.fr,
+  // il aurait vu la barre de l espace client ; sur academiapro.fr, tout le
+  // menu du site. Le middleware la sert sur les cinq domaines depuis le
+  // meme jour (reserve /desinscription).
+  if (chemin === "/desinscription") return null;
+
   const barre = {
     display: "flex",
     justifyContent: "space-between",
