@@ -70,7 +70,9 @@ const SITE_LMS = "https://www.mrlms.fr";
 // 🚨 PASSAGE A 20 LE 15/09, demande de Jacques. Le domaine
 // contact-pro.academiapro.fr envoie depuis le 13 aout sans un seul echec.
 // C est le palier prevu : 5, 10, 20, 50 — on ne saute jamais.
-const LOT_PAR_DEFAUT = 20;
+// 30/09 : 40 PAR JOUR POUR TOUTES LES CAMPAGNES, decision de Jacques.
+// Elle remplace la regle des paliers ci-dessus.
+const LOT_PAR_DEFAUT = 40;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
 //
@@ -277,8 +279,8 @@ function messageQuatriemeVague(o: any, nbFormations: number): string {
 // cette route. Les vagues 2 et 3 sont portees par campagne-lms et
 // campagne-crm-organismes : elles n ont pas de sujet ici.
 const SUJETS: any = {
-  1: "Votre BPF de l'an prochain se prepare cette annee",
-  4: "La demande que vous avez du refuser le mois dernier",
+  1: "Votre BPF de l'an prochain se prépare cette année",
+  4: "La demande que vous avez dû refuser le mois dernier",
 };
 
 function messageDe(o: any, vague: number, nbFormations: number): string {
