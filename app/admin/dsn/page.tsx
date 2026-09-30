@@ -807,6 +807,15 @@ export default function PageDsn() {
   return (
     <div style={{ background: FOND, minHeight: "100vh", color: "#fff",
       fontFamily: "Georgia,serif", padding: "30px 20px" }}>
+      {/* 🆕 30/09 — SUR iPAD, UN CHAMP DATE GARDE UNE LARGEUR MINIMALE PROPRE et
+          deborde de sa colonne (vu dans le formulaire du taux AT : la case
+          « Notifie le » sortait du cadre). Meme correction que la fiche des
+          dossiers : largeur minimale levee, date alignee a gauche, meme
+          hauteur que les autres champs. */}
+      <style>{`
+        .mc-date { -webkit-appearance: none; appearance: none; min-width: 0; min-height: 41px; display: block; color-scheme: dark; }
+        .mc-date::-webkit-date-and-time-value { text-align: left; margin: 0; }
+      `}</style>
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
 
         <h1 style={{ color: OR, fontSize: "26px", marginBottom: "4px" }}>
@@ -1146,23 +1155,23 @@ export default function PageDsn() {
                       return (
                         <div style={{ marginTop: "10px" }}>
                           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-                            <div style={{ flex: "1 1 120px" }}>
+                            <div style={{ flex: "1 1 120px", minWidth: 0 }}>
                               <span style={LIB}>Taux notifié (%)</span>
                               <input style={CHAMP} inputMode="decimal"
                                 placeholder="ex. 2,10" value={fa.taux || ""}
                                 onChange={(ev) => setAtSaisie({ ...atSaisie,
                                   [soc.id]: { ...fa, taux: ev.target.value } })} />
                             </div>
-                            <div style={{ flex: "1 1 150px" }}>
+                            <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                               <span style={LIB}>À compter du</span>
-                              <input style={CHAMP} type="date"
+                              <input style={{ ...CHAMP, minWidth: 0 }} className="mc-date" type="date"
                                 value={fa.date_effet || (annee + "-01-01")}
                                 onChange={(ev) => setAtSaisie({ ...atSaisie,
                                   [soc.id]: { ...fa, date_effet: ev.target.value } })} />
                             </div>
-                            <div style={{ flex: "1 1 150px" }}>
+                            <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                               <span style={LIB}>Notifié le (facultatif)</span>
-                              <input style={CHAMP} type="date"
+                              <input style={{ ...CHAMP, minWidth: 0 }} className="mc-date" type="date"
                                 value={fa.notifie_le || ""}
                                 onChange={(ev) => setAtSaisie({ ...atSaisie,
                                   [soc.id]: { ...fa, notifie_le: ev.target.value } })} />
@@ -1229,14 +1238,14 @@ export default function PageDsn() {
                                 </span>
                                 {garFin.id === g.id ? (
                                   <span style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                                    <input type="date" value={garFin.date} style={{ ...CHAMP, width: "auto", padding: "4px 6px" }}
+                                    <input type="date" className="mc-date" value={garFin.date} style={{ ...CHAMP, width: "160px", minWidth: 0 }}
                                       onChange={(ev) => setGarFin({ id: g.id, date: ev.target.value })} />
                                     <button onClick={arreterGarantie} disabled={occupe !== "" || !garFin.date}
                                       style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px" }}>confirmer</button>
                                   </span>
                                 ) : (
                                   <button onClick={() => setGarFin({ id: g.id, date: "" })}
-                                    style={{ ...SECOND, padding: "7px 14px", fontSize: "12.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
+                                    style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
                                 )}
                               </div>
                             );
@@ -1297,9 +1306,9 @@ export default function PageDsn() {
                                   <input style={CHAMP} value={f.organisme || ""}
                                     onChange={(ev) => setGarSaisie({ ...f, organisme: ev.target.value })} />
                                 </div>
-                                <div style={{ flex: "1 1 150px" }}>
+                                <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                                   <span style={LIB}>À compter du</span>
-                                  <input style={CHAMP} type="date"
+                                  <input style={{ ...CHAMP, minWidth: 0 }} className="mc-date" type="date"
                                     value={f.date_effet || (new Date().toISOString().slice(0, 7) + "-01")}
                                     onChange={(ev) => setGarSaisie({ ...f, date_effet: ev.target.value })} />
                                 </div>
