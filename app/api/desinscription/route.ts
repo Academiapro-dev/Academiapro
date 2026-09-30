@@ -31,8 +31,9 @@ function jetonAttendu(email: string): string {
 // de LLC qui cliquait restait `desabonne = false` dans SA table, et les
 // campagnes Mr. Comptable, Mr. CRM ou MysterLLC lui auraient ecrit encore.
 //
-// LES HUIT TABLES portent toutes `email` et `desabonne` (verifie par SQL le
-// 30/09). Chaque campagne exclut `desabonne = true` avant d envoyer.
+// LES NEUF TABLES portent toutes `email` et `desabonne` (verifie par SQL le
+// 30/09 ; prospects_avocats creee le meme soir). Chaque campagne exclut
+// `desabonne = true` avant d envoyer.
 const TABLES_PROSPECTS = [
   "prospects_organismes",
   "prospects_cabinets",
@@ -42,6 +43,9 @@ const TABLES_PROSPECTS = [
   "prospects_interim",
   "prospects_llc",
   "prospects_qualiopi",
+  // 🆕 30/09 — la table des avocats (annuaire du CNB + Dropcontact), portee
+  // par campagne-avocats (MysterLLC puis Mr. CRM).
+  "prospects_avocats",
 ];
 
 // 🚨 30/09 — LA CASSE DE L ADRESSE NE DOIT PAS FAIRE ECHOUER L OPPOSITION.
