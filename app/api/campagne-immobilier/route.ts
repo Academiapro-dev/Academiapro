@@ -57,7 +57,9 @@ const SITE = "https://www.mrcrm.fr";
 // sont restes a zero.
 // ⚠️ ACADEMIA A MIS DOUZE JOURS A PASSER DE 5 A 10, avec 42 messages
 // partis et aucun echec. C est la mesure qui autorise, pas l envie.
-const LOT_PAR_DEFAUT = 5;
+// 30/09 : 40 PAR JOUR POUR TOUTES LES CAMPAGNES, decision de Jacques.
+// Elle remplace la regle des paliers ci-dessus.
+const LOT_PAR_DEFAUT = 40;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
 const PLAFOND_ENVOIS = 2;
@@ -233,11 +235,11 @@ function messageSecondeVague(o: any): string {
   return habillage(o, texte);
 }
 
-// ⚠️ LES SUJETS SONT EN ASCII PUR — les accents dans un objet de courriel
-// passent par un encodage que certains filtres notent mal.
+// 30/09 — LES SUJETS AVEC LEURS ACCENTS : ils sont lus par le destinataire
+// (regle de Jacques : tout texte destine a un tiers s ecrit accentue).
 const SUJETS: any = {
-  1: "Vos mandats, vos acquereurs et vos relances au meme endroit",
-  2: "Ce qu un controle regarde en premier",
+  1: "Vos mandats, vos acquéreurs et vos relances au même endroit",
+  2: "Ce qu'un contrôle regarde en premier",
 };
 
 function messageDe(o: any, vague: number): string {
