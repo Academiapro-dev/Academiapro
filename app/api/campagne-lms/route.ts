@@ -43,7 +43,9 @@ const SITE = "https://www.mrlms.fr";
 
 // PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
 // Le domaine contact-pro.mrcomptable.fr n a JAMAIS envoye : on demarre bas.
-const LOT_PAR_DEFAUT = 5;
+// 30/09 : 40 PAR JOUR POUR TOUTES LES CAMPAGNES, decision de Jacques.
+// Elle remplace la regle des paliers ci-dessus.
+const LOT_PAR_DEFAUT = 40;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
 const PLAFOND_ENVOIS = 2;
@@ -199,11 +201,11 @@ function messageSecondeVague(o: any): string {
   return messagePremiereVague(o);
 }
 
-// ⚠️ LES SUJETS SONT EN ASCII PUR — les accents dans un objet de courriel
-// passent par un encodage que certains filtres notent mal.
+// 30/09 — LES SUJETS AVEC LEURS ACCENTS : ils sont lus par le destinataire
+// (regle de Jacques : tout texte destine a un tiers s ecrit accentue).
 const SUJETS: any = {
-  1: "Et si vos formations sont deja les votres",
-  2: "Et si vos formations sont deja les votres",
+  1: "Et si vos formations sont déjà les vôtres",
+  2: "Et si vos formations sont déjà les vôtres",
 };
 
 function messageDe(o: any, vague: number): string {
