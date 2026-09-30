@@ -35,7 +35,9 @@ const SITE = "https://www.mysterllc.com";
 
 // PALIERS : 5 par jour, puis 10, 20, 50. Modifier ce chiffre suffit.
 // Le domaine contact-pro.mrcomptable.fr n a JAMAIS envoye : on demarre bas.
-const LOT_PAR_DEFAUT = 5;
+// 30/09 : 40 PAR JOUR POUR TOUTES LES CAMPAGNES, decision de Jacques.
+// Elle remplace la regle des paliers ci-dessus.
+const LOT_PAR_DEFAUT = 40;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
 const PLAFOND_ENVOIS = 2;
