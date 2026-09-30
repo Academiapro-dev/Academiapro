@@ -62,7 +62,9 @@ const SITE = "https://mrcomptable.fr";
 // Le domaine contact-pro.mrcomptable.fr n a JAMAIS envoye : on demarre bas.
 // 🚨 PASSAGE A 10 LE 15/09, demande de Jacques. contact-pro.mrcomptable.fr
 // envoie sans incident ; c est le palier suivant, jamais saute.
-const LOT_PAR_DEFAUT = 10;
+// 30/09 : 40 PAR JOUR POUR TOUTES LES CAMPAGNES, decision de Jacques.
+// Elle remplace la regle des paliers ci-dessus.
+const LOT_PAR_DEFAUT = 40;
 
 // LE NOMBRE MAXIMUM DE SOLLICITATIONS PAR PROSPECT.
 // 🚨 PORTE A TROIS LE 15/09 : la sequence cabinets compte trois vagues.
@@ -282,7 +284,7 @@ function messageTroisiemeVague(o: any): string {
 // ⚠️ LA VAGUE 2 EST PORTEE PAR campagne-mysterllc : elle n a pas de sujet
 // ici.
 const SUJETS: any = {
-  1: "La corvee que personne ne facture",
+  1: "La corvée que personne ne facture",
   3: "Les heures que votre cabinet ne facture pas",
 };
 
