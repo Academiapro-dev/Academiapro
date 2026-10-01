@@ -94,7 +94,8 @@ const MAX_DOMAINES_OUVERTS = 4;
 // LES PAGES OU CHERCHER LE SIREN QUAND L ACCUEIL NE LE PORTE PAS.
 // 🆕 01/10 — ET LA PAGE CONTACT : la ville y est presque toujours, meme
 // quand l accueil ne la donne pas.
-const PAGES_MENTIONS = ["/mentions-legales", "/mentions-legales/", "/mentions-legales.html", "/mentions_legales", "/contact", "/nous-contacter"];
+const PAGES_MENTIONS = ["/mentions-legales", "/mentions-legales/", "/mentions-legales.html", "/mentions_legales",
+  "/mentions", "/informations-legales", "/contact", "/contact.html", "/nous-contacter", "/contactez-nous"];
 
 // ⚠️ LES FORMES JURIDIQUES ET LES PETITS MOTS NE FONT PAS UN NOM DE DOMAINE.
 // « SELARL DUPONT ET ASSOCIES » donne « dupont », et aussi « dupont-associes ».
@@ -225,10 +226,8 @@ function candidats(l: any, metier: string): string[] {
   // presente sous « ETC » : son site ne porte aucun des trois mots. Le sigle
   // se forme sur les mots du nom (y compris les mots du metier), sans les
   // petits mots ni la forme juridique.
-  const PETITS = ["et", "de", "du", "des", "la", "le", "les", "en", "l", "d", "a", "au", "aux"];
-  const pourSigle = raison.filter(function (m) { return PETITS.indexOf(m) < 0; });
-  if (pourSigle.length >= 3 && pourSigle.length <= 6) {
-    const sigle = pourSigle.map(function (m) { return m[0]; }).join("");
+  const sigle = sigleDe(l.raison_sociale);
+  if (sigle) {
     if (metier === "avocat") {
       ajouter(sigle + "-avocats"); ajouter("cabinet-" + sigle); ajouter(sigle + "avocats");
     } else {
@@ -374,8 +373,65 @@ function contientMot(t: string, m: string): boolean {
   return (" " + t + " ").indexOf(" " + m + " ") >= 0;
 }
 
+// 🆕 01/10 (quatrieme essai) — LE SIGLE DU NOM, partage entre la
+// fabrication des adresses et la verification.
+const PETITS = ["et", "de", "du", "des", "la", "le", "les", "en", "l", "d", "a", "au", "aux"];
+function sigleDe(raisonSociale: any): string | null {
+  const raison = mots(raisonSociale).filter(function (m) { return FORMES.indexOf(m) < 0; });
+  const pourSigle = raison.filter(function (m) { return PETITS.indexOf(m) < 0; });
+  if (pourSigle.length < 3 || pourSigle.length > 6) return null;
+  return pourSigle.map(function (m) { return m[0]; }).join("");
+}
+
+// LE LIEU. 🆕 01/10 — LE DEPARTEMENT SUFFIT DESORMAIS. Le quatrieme essai
+// a montre trois sites tres probables refuses pour « ville absente » :
+// FIDUCIE CONSULTANTS AGEN, inscrit a Boe (commune voisine d Agen), dont
+// le site parle d Agen ; LDS 39, inscrit a Foucherans, a cote de Dole ;
+// AUDIT GESTION CONSEIL, a Saint-Apollinaire, a cote de Dijon. Les petits
+// cabinets donnent la grande ville voisine, pas leur commune. Un code
+// postal du meme departement sur la page vaut donc lieu.
+function lieuDe(brut: string, t: string, l: any): string | null {
+  const ville = plat(l.ville);
+  const cp = String(l.code_postal || "").replace(/\D/g, "");
+  if (ville.length >= 3 && (" " + t + " ").indexOf(" " + ville + " ") >= 0) return "ville";
+  if (cp.length === 5 && brut.indexOf(cp) >= 0) return "code postal";
+  if (cp.length === 5) {
+    const dep = cp.slice(0, 2);
+    const motif = new RegExp("(^|[^0-9])" + dep + "[0-9]{3}([^0-9]|$)");
+    if (motif.test(brut)) return "departement";
+  }
+  return null;
+}
+
+// L IDENTITE : c est bien CE cabinet.
+// 🆕 01/10 — DEUX PREUVES DE PLUS : le nom complet du cabinet ecrit tel
+// quel (« Audit Gestion Conseil » : trois mots generiques, donc aucun mot
+// distinctif, et pourtant c est son nom) ; et le sigle, quand le domaine
+// est forme sur ce sigle ET que la page l ecrit (agcexpertise.fr qui ecrit
+// « AGC »).
+function identiteDe(t: string, l: any, domaine: string): string | null {
+  const nom = mots(l.dirigeant_nom).filter(function (m) { return m.length >= 3; });
+  if (nom.length > 0 && nom.every(function (m) { return contientMot(t, m); })) return "nom";
+
+  const raison = mots(l.raison_sociale).filter(function (m) { return FORMES.indexOf(m) < 0; });
+  const coeur = raison
+    .filter(function (m) { return GENERIQUES.indexOf(m) < 0; })
+    .filter(function (m) { return m.length >= 3; });
+  if (coeur.length > 0 && coeur.every(function (m) { return contientMot(t, m); })) return "cabinet";
+
+  if (raison.length >= 2 && (" " + t + " ").indexOf(" " + raison.join(" ") + " ") >= 0) return "nom complet du cabinet";
+
+  const sigle = sigleDe(l.raison_sociale);
+  if (sigle && sigle.length >= 3 && domaine.replace(/[^a-z0-9]/g, "").indexOf(sigle) >= 0 && contientMot(t, sigle)) {
+    return "sigle";
+  }
+  return null;
+}
+
 // 🚨 LA VERIFICATION. Rend la preuve trouvee, ou null.
-function verifier(html: string, l: any, metier: string): string | null {
+// La regle ne change pas : SIREN, ou bien METIER + LIEU + IDENTITE. Seuls
+// le lieu (departement admis) et l identite (nom complet, sigle) s elargissent.
+function verifier(html: string, l: any, metier: string, domaine: string): string | null {
   const brut = texteDe(html);
   if (porteSiren(brut, l.siren)) return "siren";
 
@@ -388,29 +444,19 @@ function verifier(html: string, l: any, metier: string): string | null {
   });
   if (!metierOk) return null;
 
-  const ville = plat(l.ville);
-  const cp = String(l.code_postal || "").replace(/\D/g, "");
-  const lieuOk = (ville.length >= 3 && (" " + t + " ").indexOf(" " + ville + " ") >= 0)
-    || (cp.length === 5 && brut.indexOf(cp) >= 0);
-  if (!lieuOk) return null;
+  const lieu = lieuDe(brut, t, l);
+  if (!lieu) return null;
 
-  // Le dirigeant : tous les morceaux de son nom (3 lettres et plus).
-  const nom = mots(l.dirigeant_nom).filter(function (m) { return m.length >= 3; });
-  if (nom.length > 0 && nom.every(function (m) { return contientMot(t, m); })) return "nom+ville";
+  const identite = identiteDe(t, l, domaine);
+  if (!identite) return null;
 
-  // Le cabinet : tous les mots distinctifs de son nom.
-  const coeur = mots(l.raison_sociale)
-    .filter(function (m) { return FORMES.indexOf(m) < 0 && GENERIQUES.indexOf(m) < 0; })
-    .filter(function (m) { return m.length >= 3; });
-  if (coeur.length > 0 && coeur.every(function (m) { return contientMot(t, m); })) return "cabinet+ville";
-
-  return null;
+  return identite + " + " + lieu;
 }
 
 // 🆕 01/10 — POURQUOI UNE PAGE A ETE REFUSEE (mode essai seulement).
 // Le premier essai a montre 11 cabinets sur 30 dont un domaine devine
 // existait sans etre retenu : sans la raison, on reglerait a l aveugle.
-function pourquoiRefuse(html: string, l: any, metier: string): string {
+function pourquoiRefuse(html: string, l: any, metier: string, domaine: string): string {
   const brut = texteDe(html);
   if (plat(brut).length < 200) return "page presque vide (site en construction, redirection, ou lecture bloquee)";
   const t = plat(brut + " " + html.slice(0, 200000));
@@ -418,12 +464,9 @@ function pourquoiRefuse(html: string, l: any, metier: string): string {
     return t.indexOf(plat(p)) >= 0;
   });
   if (!metierOk) return "metier absent de la page";
-  const ville = plat(l.ville);
-  const cp = String(l.code_postal || "").replace(/\D/g, "");
-  const lieuOk = (ville.length >= 3 && (" " + t + " ").indexOf(" " + ville + " ") >= 0)
-    || (cp.length === 5 && brut.indexOf(cp) >= 0);
-  if (!lieuOk) return "ville et code postal absents";
-  return "ni le nom du dirigeant ni celui du cabinet";
+  if (!lieuDe(brut, t, l)) return "ni la ville, ni le code postal, ni le departement";
+  if (!identiteDe(t, l, domaine)) return "ni le nom du dirigeant, ni celui du cabinet, ni son sigle";
+  return "refus sans raison connue";
 }
 
 // 🆕 LE LIEN LINKEDIN AFFICHE SUR LE SITE (meme regle que lire-sites : on
@@ -481,7 +524,7 @@ async function chercher(l: any, metier: string): Promise<any> {
     if (!estPage(ouvert)) { journal.push({ domaine: d, refus: "page illisible : " + ouvert.erreur }); continue; }
     const page = ouvert;
 
-    let preuve = verifier(page.html, l, metier);
+    let preuve = verifier(page.html, l, metier, d);
     // ⚠️ L ACCUEIL NE PORTE PAS TOUJOURS LE SIREN : les mentions legales,
     // oui. On ne les ouvre que si l accueil parle deja du metier — sinon,
     // c est un autre site, inutile de chercher plus loin.
@@ -493,13 +536,18 @@ async function chercher(l: any, metier: string): Promise<any> {
       if (parleMetier) {
         let origineMentions = "";
         try { origineMentions = new URL(page.finale).origin; } catch { origineMentions = "https://" + d; }
+        // ⚠️ AU PLUS TROIS PAGES ANNEXES LUES : au-dela, une ligne muette
+        // couterait trop cher au passage.
+        let annexesLues = 0;
         for (const chemin of PAGES_MENTIONS) {
+          if (annexesLues >= 3) break;
           const m = await lire(origineMentions + chemin);
           if (!estPage(m)) continue;
+          annexesLues++;
           if (porteSiren(texteDe(m.html), l.siren)) { preuve = "siren"; break; }
           // 🆕 LA PAGE ANNEXE COMPLETE L ACCUEIL : le metier et le nom peuvent
           // etre sur l accueil, la ville sur la page contact.
-          const v = verifier(page.html + " " + m.html, l, metier);
+          const v = verifier(page.html + " " + m.html, l, metier, d);
           if (v) { preuve = v; break; }
         }
       }
@@ -507,7 +555,7 @@ async function chercher(l: any, metier: string): Promise<any> {
     if (!preuve) {
       let finale = d;
       try { finale = new URL(page.finale).hostname; } catch { finale = d; }
-      journal.push({ domaine: d, arrive_sur: finale, refus: pourquoiRefuse(page.html, l, metier) });
+      journal.push({ domaine: d, arrive_sur: finale, refus: pourquoiRefuse(page.html, l, metier, d) });
     }
     if (preuve) {
       let origine = "";
