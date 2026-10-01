@@ -91,6 +91,14 @@
     {
       "path": "/api/cron/relances-paie",
       "schedule": "15 8 * * *"
+    },
+    {
+      "path": "/api/trouver-sites",
+      "schedule": "25 * * * *"
+    },
+    {
+      "path": "/api/lire-sites",
+      "schedule": "55 * * * *"
     }
   ]
 }
