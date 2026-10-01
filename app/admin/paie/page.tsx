@@ -369,8 +369,19 @@ function lisible(m: any): string {
 
   // 3. LE RESTE PASSE, MAIS SANS DEBORDER. Un message metier tient en deux
   //    lignes ; au-dela, c est une trace technique qu on n a pas reconnue.
-  if (t.length > 400) return t.slice(0, 400) + " […]";
-  return t;
+  if (t.length > 400) return majuscule(t.slice(0, 400) + " […]");
+  return majuscule(t);
+}
+
+// 🆕 01/10 — UN MESSAGE COMMENCE PAR UNE MAJUSCULE. Les refus de la route
+// sont ecrits en minuscule (« le numéro de sécurité sociale… », « la clé… »)
+// parce qu ils servent aussi au milieu d une phrase ; affiches seuls, en
+// bas de l ecran, ils doivent commencer comme une phrase (vu a l ecran le
+// 01/10, pendant le tournage de la video de la paie).
+function majuscule(m: any): string {
+  const t = String(m || "");
+  if (!t) return "";
+  return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -1658,7 +1669,7 @@ export default function PagePaie() {
             border: "1px solid " + (err ? ROUGE : VERT), borderRadius: "10px",
             padding: "12px 44px 12px 16px", boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
             fontSize: "14px", lineHeight: 1.6, color: err ? ROUGE : VERT }}>
-            {err ? lisible(err) : msg}
+            {err ? lisible(err) : majuscule(msg)}
             <button onClick={() => { setMsg(""); setErr(""); }} aria-label="fermer"
               style={{ position: "absolute", top: "6px", right: "10px", background: "none",
                 border: "none", color: "rgba(255,255,255,0.8)", fontSize: "20px", cursor: "pointer" }}>
