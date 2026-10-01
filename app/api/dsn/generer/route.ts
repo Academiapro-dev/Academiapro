@@ -888,17 +888,29 @@ export async function POST(req: NextRequest) {
   // ---- LE NUMERO D ORDRE ----
   // ⚠️ IL S INCREMENTE A CHAQUE DEPOT DU MEME MOIS : c est lui qui dit
   // quelle version fait foi.
+  // 🆕🚨 01/10 — IL COMPTE LES DEPOTS, PAS LES GENERATIONS. Il comptait
+  // chaque generation : regenerer un brouillon jamais depose donnait le
+  // numero 2, donc le type « 03 — annule et remplace » (vu sur la DSN de
+  // demonstration d ATELIER HORIZON SAS, le 01/10). Or on ne peut annuler
+  // et remplacer qu une declaration DEJA DEPOSEE : net-entreprises n aurait
+  // rien a remplacer. Meme regle que les signalements depuis le 20/09.
+  // Une declaration compte comme deposee quand elle est « deposee » ou
+  // « acceptee » ; un brouillon (ou un fichier seulement passe dans
+  // dsn-val) est remplace par la nouvelle generation, sous le meme numero.
   const { data: precedentes } = await supabase
     .from("dsn_declarations")
-    .select("numero_ordre")
+    .select("numero_ordre, statut")
     .eq("societe_id", societeId)
     .eq("periode", periode)
     .eq("nature", "01")
-    .order("numero_ordre", { ascending: false })
-    .limit(1);
+    .order("numero_ordre", { ascending: false });
 
-  const ordre = precedentes && precedentes[0]
-    ? Number(precedentes[0].numero_ordre) + 1 : 1;
+  const deposees = (precedentes || []).filter(function (x: any) {
+    return x.statut === "deposee" || x.statut === "acceptee";
+  });
+  const ordre = deposees.length > 0
+    ? Math.max.apply(null, deposees.map(function (x: any) { return Number(x.numero_ordre) || 0; })) + 1
+    : 1;
 
   // 🚨🚨 LE TYPE DE LA DECLARATION — LA CAUSE RACINE DE LA MOITIE DES
   // ANOMALIES DU 16/09.
@@ -916,7 +928,7 @@ export async function POST(req: NextRequest) {
   // donc « le sous-groupe S21.G00.30 est interdit pour cette nature de
   // declaration », « rubrique inconnue », et ignorait des blocs entiers.
   // Une seule valeur fausse invalidait tout le reste.
-  const typeDeclaration = ordre > 1 ? "03" : "01";
+  const typeDeclaration = deposees.length > 0 ? "03" : "01";
 
   // ---- L ECRITURE DU FICHIER ----
   const L: string[] = [];
@@ -3578,6 +3590,24 @@ export async function POST(req: NextRequest) {
 
   if (eUp) {
     return NextResponse.json({ erreur: "archivage impossible : " + eUp.message }, { status: 500 });
+  }
+
+  // 🆕 01/10 — LES GENERATIONS NON DEPOSEES DU MEME MOIS SONT REMPLACEES :
+  // la nouvelle porte le meme numero et prend leur place. On ne touche
+  // jamais a une declaration deposee ou acceptee.
+  // ⚠️ APRES l archivage du nouveau fichier, et juste avant de l enregistrer :
+  // si la generation echouait plus haut, l ancien brouillon resterait.
+  const { error: eRemp } = await supabase
+    .from("dsn_declarations")
+    .delete()
+    .eq("societe_id", societeId)
+    .eq("periode", periode)
+    .eq("nature", "01")
+    .in("statut", ["brouillon", "controlee"])
+    .gte("numero_ordre", ordre);
+  if (eRemp) {
+    return NextResponse.json({ erreur: "le nouveau fichier est archivé (" + chemin
+      + "), mais l'ancien brouillon du mois n'a pas pu être remplacé : " + eRemp.message }, { status: 500 });
   }
 
   // 🚨 L INSERT EST VERIFIE — lecon du 15/09 : un insert Supabase non
