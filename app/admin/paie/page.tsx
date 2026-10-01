@@ -64,13 +64,15 @@ const CADRE: any = {
   padding: "18px", marginBottom: "18px",
 };
 const CHAMP: any = {
-  width: "100%", padding: "9px 11px", borderRadius: "7px",
+  // 🆕 01/10 — minWidth 0 : sur iPad, un champ date garde sinon une largeur
+  // minimale propre et deborde de sa case (meme defaut que l ecran DSN).
+  width: "100%", minWidth: 0, padding: "9px 11px", borderRadius: "7px",
   border: "1px solid rgba(255,255,255,0.16)", background: "rgba(0,0,0,0.30)",
   color: "#fff", fontSize: "14px", fontFamily: "Georgia,serif",
   boxSizing: "border-box",
 };
 const LIB: any = {
-  display: "block", fontSize: "12px", color: "rgba(255,255,255,0.55)",
+  display: "block", fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
   marginBottom: "4px",
 };
 const BOUTON: any = {
@@ -78,12 +80,15 @@ const BOUTON: any = {
   background: OR, color: "#0b0b10", fontSize: "14px", fontWeight: "bold",
   fontFamily: "Georgia,serif", cursor: "pointer",
 };
+// 🆕 01/10 — LES BOUTONS SECONDAIRES SE VOIENT, comme sur l ecran DSN depuis
+// le 30/09 (remarque de Jacques : « l ecriture grise sur fond noir, pas
+// terrible, la preuve j ai eu du mal a trouver »). Fond dore leger, gras.
 const SECOND: any = {
-  ...BOUTON, background: "transparent", color: OR,
-  border: "1px solid " + OR, fontWeight: "normal",
+  ...BOUTON, background: "rgba(200,169,110,0.12)", color: OR,
+  border: "1px solid " + OR, fontWeight: "bold",
 };
 const LIEN: any = {
-  background: "none", border: "none", cursor: "pointer", fontSize: "12.5px",
+  background: "none", border: "none", cursor: "pointer", fontSize: "13.5px",
   fontFamily: "Georgia,serif", padding: 0,
 };
 
@@ -257,7 +262,7 @@ function libelleMois(p: string): string {
 }
 function GESTE(couleur: string): any {
   return { background: "transparent", border: "1px solid " + couleur, color: couleur,
-    borderRadius: "7px", padding: "6px 12px", fontSize: "13px", cursor: "pointer",
+    borderRadius: "7px", padding: "6px 12px", fontSize: "14px", cursor: "pointer",
     fontFamily: "Georgia,serif", lineHeight: 1.2 };
 }
 
@@ -629,8 +634,11 @@ export default function PagePaie() {
     setOccupe("");
   }
 
-  async function charger() {
-    setErr(""); setOccupe("charger");
+  // 🆕 01/10 — `garder` : rechargement demande par un enregistrement, qui
+  // garde son bouton sur « … » jusqu au bout.
+  async function charger(garder?: any) {
+    const garde = garder === true;
+    setErr(""); if (!garde) setOccupe("charger");
     const d = await appeler({ action: "contrats" });
     if (d.success) {
       setContrats(d.contrats); setSocietes(d.societes);
@@ -640,7 +648,7 @@ export default function PagePaie() {
       setConnexionRequise(true);
     } else setErr(d.erreur || "chargement impossible");
     setPret(true);
-    setOccupe("");
+    if (!garde) setOccupe("");
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -677,13 +685,14 @@ export default function PagePaie() {
     const just = bulletinId ? String(motifs["m_" + bulletinId] || "").trim() : "";
     const d = await appeler({ action: "soumettre", contrat_id: contratId, periode: periode,
       justification: just || undefined });
-    setOccupe("");
-    if (d && d.success) setMsg(d.message); else setErr((d && d.erreur) || "soumission impossible");
+    // 🆕 01/10 — ON RECHARGE D ABORD, LE MESSAGE ENSUITE (voir plus haut).
     if (choisi) {
       const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (b.success) setBulletins(b.bulletins);
     }
     await chargerMois();
+    setOccupe("");
+    if (d && d.success) setMsg(d.message); else setErr((d && d.erreur) || "soumission impossible");
   }
 
   // justifier (orange), renvoyer (motif), lever (rouge, motif)
@@ -696,12 +705,11 @@ export default function PagePaie() {
     const d = await appeler(action === "justifier"
       ? { action: action, id: b.id, texte: texte }
       : { action: action, id: b.id, motif: texte });
-    setOccupe("");
-    if (d && d.success) {
-      setMsg(d.message);
-      setMotifs({ ...motifs, ["m_" + b.id]: "" });
-    } else setErr((d && d.erreur) || "enregistrement impossible");
+    if (d && d.success) setMotifs({ ...motifs, ["m_" + b.id]: "" });
     await chargerMois();
+    setOccupe("");
+    if (d && d.success) setMsg(d.message);
+    else setErr((d && d.erreur) || "enregistrement impossible");
   }
 
   async function envoyerRecap() {
@@ -711,9 +719,9 @@ export default function PagePaie() {
     setErr(""); setMsg(""); setOccupe("recap");
     const d = await appeler({ action: "envoyer_recap", societe_id: choisi.societe_id,
       periode: periode, destinataire: recapDest });
+    await chargerMois();
     setOccupe("");
     if (d && d.success) setMsg(d.message); else setErr((d && d.erreur) || "envoi impossible");
-    await chargerMois();
   }
 
   async function leverRecap() {
@@ -722,10 +730,11 @@ export default function PagePaie() {
     setErr(""); setMsg(""); setOccupe("recap");
     const d = await appeler({ action: "lever_recap", societe_id: choisi.societe_id,
       periode: periode, motif: String(motifs.recap || "").trim() });
-    setOccupe("");
-    if (d && d.success) { setMsg(d.message); setMotifs({ ...motifs, recap: "" }); }
-    else setErr((d && d.erreur) || "levée impossible");
+    if (d && d.success) setMotifs({ ...motifs, recap: "" });
     await chargerMois();
+    setOccupe("");
+    if (d && d.success) setMsg(d.message);
+    else setErr((d && d.erreur) || "levée impossible");
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -797,12 +806,15 @@ export default function PagePaie() {
     if (!choisi) return;
     setErr(""); setMsg(""); setOccupe("seuils");
     const d = await appeler({ action: "regler_seuils", societe_id: choisi.societe_id, valeurs: seuilsSaisie });
-    setOccupe("");
     if (d && d.success) {
-      setMsg(d.message || "Seuils enregistrés.");
       setSeuilsVus(d.seuils);
       await chargerMois();
-    } else setErr((d && d.erreur) || "enregistrement impossible");
+      setOccupe("");
+      setMsg(d.message || "Seuils enregistrés.");
+    } else {
+      setOccupe("");
+      setErr((d && d.erreur) || "enregistrement impossible");
+    }
   }
 
   async function chargerMesure() {
@@ -819,10 +831,10 @@ export default function PagePaie() {
       const d = await appeler({ action: "joindre_preuve", id: el.id, nom: fichier.name,
         type: prep.type, contenu: prep.base64 });
       if (d && d.success) {
-        setMsg(d.message);
         const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
         if (l.success) setElements(l.elements);
         await chargerMois();
+        setMsg(d.message);
       } else setErr((d && d.erreur) || "dépôt impossible");
     } catch (e: any) {
       setErr("pièce non envoyée : " + String(e && e.message ? e.message : e));
@@ -838,9 +850,9 @@ export default function PagePaie() {
       const d = await appeler({ action: "joindre_avis", id: x.id, nom: fichier.name,
         type: prep.type, contenu: prep.base64 });
       if (d && d.success) {
-        setMsg(d.message);
-        if (choisi) chargerEvenements(choisi.id);
+        if (choisi) await chargerEvenements(choisi.id);
         await chargerMois();
+        setMsg(d.message);
       } else setErrEv((d && d.erreur) || "dépôt impossible");
     } catch (e: any) {
       setErrEv("avis non envoyé : " + String(e && e.message ? e.message : e));
@@ -973,7 +985,7 @@ export default function PagePaie() {
       setCalcul(null);
       const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
       if (l.success) setElements(l.elements);
-      chargerMois();
+      await chargerMois();
     } else setErr(d.erreur || "ajout impossible");
     setOccupe("");
   }
@@ -985,7 +997,7 @@ export default function PagePaie() {
     setCalcul(null);
     const l = await appeler({ action: "elements", contrat_id: choisi.id, periode: periode });
     if (l.success) setElements(l.elements);
-    chargerMois();
+    await chargerMois();
     setOccupe("");
   }
 
@@ -1145,13 +1157,18 @@ export default function PagePaie() {
     // un brouillon ressorti repart de zero (il faudra le resoumettre).
     const d: any = await appeler({ action: "sortir_bulletin", contrat_id: choisi.id, periode: periode });
     if (d && d.success) {
-      setMsg(d.message);
+      // ⚠️ LE PDF S OUVRE AUSSITOT : apres d autres attentes, le navigateur
+      // pourrait bloquer la nouvelle fenetre.
       if (d.url) window.open(d.url, "_blank");
       const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (b.success) setBulletins(b.bulletins);
-      chargerMois();
-    } else setErr((d && d.erreur) || "génération impossible");
-    setOccupe("");
+      await chargerMois();
+      setOccupe("");
+      setMsg(d.message);
+    } else {
+      setOccupe("");
+      setErr((d && d.erreur) || "génération impossible");
+    }
   }
 
   async function voir(id: string) {
@@ -1261,11 +1278,14 @@ export default function PagePaie() {
       }
     }
 
-    setOccupe("");
-    setMsg(message);
+    // 🆕 01/10 — la liste des signalements et la validation du mois se
+    // rechargent AVANT le message (un arret change les feux du mois).
     setEv(Object.assign({}, EV_VIDE));
     setModifie(null);
-    chargerEvenements(choisi.id);
+    await chargerEvenements(choisi.id);
+    await chargerMois();
+    setOccupe("");
+    setMsg(message);
   }
 
   // 🆕 REPRENDRE UN SIGNALEMENT DANS LE FORMULAIRE.
@@ -1503,21 +1523,20 @@ export default function PagePaie() {
       periode: periode,
       jours: j,
     });
-    setOccupe("");
-    if (!d) return;
-    if (d.erreur) { setErr(d.erreur); return; }
-    setMsg(d.message);
+    if (!d) { setOccupe(""); return; }
+    if (d.erreur) { setOccupe(""); setErr(d.erreur); return; }
     setJoursPris("");
-    chargerConges(choisi.id);
+    await chargerConges(choisi.id);
+    setOccupe("");
+    setMsg(d.message);
   }
 
   async function retirerPrise(id: string) {
     if (!confirm("Retirer cette prise de congés ?")) return;
     setOccupe("conges");
     const d = await appeler({ action: "supprimer_conges", id: id });
-    setOccupe("");
-    if (d && d.success) { setMsg(d.message); chargerConges(choisi.id); }
-    else if (d && d.erreur) setErr(d.erreur);
+    if (d && d.success) { await chargerConges(choisi.id); setOccupe(""); setMsg(d.message); }
+    else { setOccupe(""); if (d && d.erreur) setErr(d.erreur); }
   }
 
   async function emettre(b: any) {
@@ -1534,9 +1553,8 @@ export default function PagePaie() {
     // 🆕 28/09 — la justification des points orange part avec l emission.
     const just = String(motifs["m_" + b.id] || "").trim();
     const d = await appeler({ action: "emettre", id: b.id, justification: just || undefined });
-    chargerMois();
+    await chargerMois();
     if (d.success) {
-      setMsg(d.message);
       const l = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (l.success) setBulletins(l.bulletins);
       // 🆕🚨 22/09 — RECHARGER AUSSI LES CONGES.
@@ -1545,20 +1563,31 @@ export default function PagePaie() {
       // l ancien solde et il fallait recharger la page a la main pour voir
       // les jours arriver — on croyait le calcul rate alors qu il etait bon.
       if (choisi.type_contrat === "cdi"
-        || choisi.type_contrat === "apprentissage" || choisi.type_contrat === "professionnalisation") chargerConges(choisi.id);
-    } else setErr(d.erreur || "émission impossible");
-    setOccupe("");
+        || choisi.type_contrat === "apprentissage" || choisi.type_contrat === "professionnalisation") await chargerConges(choisi.id);
+      setOccupe("");
+      setMsg(d.message);
+    } else {
+      setOccupe("");
+      setErr(d.erreur || "émission impossible");
+    }
   }
 
   async function creer() {
     setErr(""); setOccupe("creer");
     const d = await appeler({ action: "nouveau", ...f });
     if (d.success) {
-      setMsg(d.message); setNouveau(false);
+      // 🆕 01/10 — LA LISTE SE RECHARGE D ABORD, le formulaire reste sur
+      // « … » ; il se ferme quand le nouveau salarie est dans la liste, et
+      // le message vient a ce moment-la.
+      await charger(true);
+      setNouveau(false);
       setF({ type_contrat: "mission", categorie: "non_cadre", duree_hebdo: 35 });
-      await charger();
-    } else setErr(d.erreur || "création impossible");
-    setOccupe("");
+      setOccupe("");
+      setMsg(d.message);
+    } else {
+      setOccupe("");
+      setErr(d.erreur || "création impossible");
+    }
   }
 
   // ---- L ECRAN D ENTREE ----
@@ -1573,7 +1602,7 @@ export default function PagePaie() {
         fontFamily: "Georgia,serif", padding: "40px 20px" }}>
         <div style={{ maxWidth: "420px", margin: "60px auto" }}>
           <h1 style={{ color: OR, fontSize: "24px", marginBottom: "6px" }}>Paie</h1>
-          <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "14px",
+          <p style={{ color: "rgba(255,255,255,0.76)", fontSize: "14px",
             lineHeight: "1.6", marginBottom: "22px" }}>
             Bulletins de paie et déclarations sociales.
           </p>
@@ -1590,12 +1619,12 @@ export default function PagePaie() {
                 </a>
               </>
             ) : (
-              <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.6)" }}>
+              <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.8)" }}>
                 Lecture…
               </p>
             )}
           </div>
-          {err && <p style={{ color: ROUGE, fontSize: "13px" }}>{lisible(err)}</p>}
+          {err && <p style={{ color: ROUGE, fontSize: "14px" }}>{lisible(err)}</p>}
         </div>
       </div>
     );
@@ -1604,10 +1633,17 @@ export default function PagePaie() {
   return (
     <div style={{ background: FOND, minHeight: "100vh", color: "#fff",
       fontFamily: "Georgia,serif", padding: "30px 20px" }}>
+      {/* 🆕 01/10 — LES CHAMPS DATE SUR iPAD (meme correction que l ecran DSN
+          et la fiche des dossiers) : sans elle, la date deborde de sa case,
+          une bordure traine et la case est plus haute que les autres. */}
+      <style>{`
+        .mc-date { -webkit-appearance: none; appearance: none; min-width: 0; min-height: 41px; display: block; color-scheme: dark; }
+        .mc-date::-webkit-date-and-time-value { text-align: left; margin: 0; }
+      `}</style>
       <div style={{ maxWidth: "980px", margin: "0 auto" }}>
 
         <h1 style={{ color: OR, fontSize: "26px", marginBottom: "4px" }}>Paie</h1>
-        <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
+        <p style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px",
           marginBottom: "22px" }}>
           {contrats.length} contrat{contrats.length > 1 ? "s" : ""} en cours
         </p>
@@ -1625,7 +1661,7 @@ export default function PagePaie() {
             {err ? lisible(err) : msg}
             <button onClick={() => { setMsg(""); setErr(""); }} aria-label="fermer"
               style={{ position: "absolute", top: "6px", right: "10px", background: "none",
-                border: "none", color: "rgba(255,255,255,0.6)", fontSize: "20px", cursor: "pointer" }}>
+                border: "none", color: "rgba(255,255,255,0.8)", fontSize: "20px", cursor: "pointer" }}>
               ×
             </button>
           </div>
@@ -1645,7 +1681,10 @@ export default function PagePaie() {
                 <h2 style={{ color: OR, fontSize: "17px", marginTop: 0 }}>
                   Un salarié et son contrat
                 </h2>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+                {/* 🆕 01/10 — LES CASES D UNE MEME RANGEE S ALIGNENT EN BAS : un
+                    libelle sur deux lignes (« Numéro de sécurité sociale… »)
+                    poussait sa case plus bas que ses voisines. */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end" }}>
                   <div style={{ flex: "1 1 100%" }}>
                     <span style={LIB}>Société qui emploie</span>
                     <select value={f.societe_id || ""} style={CHAMP}
@@ -1688,10 +1727,11 @@ export default function PagePaie() {
                       ═══════════════════════════════════════════════════ */}
                   <div style={{ flex: "1 1 160px" }}>
                     <span style={LIB}>Date de naissance (obligatoire en DSN)</span>
-                    <input type="date" value={f.date_naissance || ""} style={CHAMP}
+                    <input type="date" className="mc-date" value={f.date_naissance || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, date_naissance: ev.target.value })} />
                   </div>
-                  <div style={{ flex: "0 1 130px" }}>
+                  {/* 🆕 01/10 — assez large pour lire « Depuis le n° sécu » en entier. */}
+                  <div style={{ flex: "0 1 185px" }}>
                     {/* ⚠️ LE SEXE SE DEDUIT DU PREMIER CHIFFRE DU NUMERO DE
                         SECURITE SOCIALE (1 homme, 2 femme). Le champ n est
                         la que pour les cas ou les deux different. */}
@@ -1759,12 +1799,12 @@ export default function PagePaie() {
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
                     <span style={LIB}>Début</span>
-                    <input type="date" value={f.date_debut || ""} style={CHAMP}
+                    <input type="date" className="mc-date" value={f.date_debut || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, date_debut: ev.target.value })} />
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
                     <span style={LIB}>Fin</span>
-                    <input type="date" value={f.date_fin || ""} style={CHAMP}
+                    <input type="date" className="mc-date" value={f.date_fin || ""} style={CHAMP}
                       onChange={(ev) => setF({ ...f, date_fin: ev.target.value })} />
                   </div>
                   <div style={{ flex: "1 1 200px" }}>
@@ -1836,8 +1876,8 @@ export default function PagePaie() {
                 {(f.categorie === "cadre" || f.forfait_jours_annuel) && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
                     borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <p style={{ fontSize: "12.5px",
-                      color: "rgba(255,255,255,0.55)", marginTop: 0,
+                    <p style={{ fontSize: "13.5px",
+                      color: "rgba(255,255,255,0.76)", marginTop: 0,
                       lineHeight: "1.6" }}>
                       Forfait en jours : à ne remplir que si le contrat en
                       prévoit un. Le salarié n&apos;a alors pas d&apos;horaire,
@@ -1864,7 +1904,7 @@ export default function PagePaie() {
                 {/* 🆕 28/09 — la qualification a l entree du contrat de
                     professionnalisation : elle releve le minimum legal. */}
                 {f.type_contrat === "professionnalisation" && (
-                  <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", fontSize: "13px" }}>
+                  <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", fontSize: "14px" }}>
                     <input type="checkbox" checked={!!f.qualification_niveau4}
                       onChange={(ev) => setF({ ...f, qualification_niveau4: ev.target.checked })} />
                     Titulaire d'un bac professionnel (ou d'un titre de même niveau) ou plus — laisser le salaire
@@ -1874,7 +1914,7 @@ export default function PagePaie() {
                 {/* 🆕 28/09 — l apprenti d un employeur public : Ircantec et
                     exonerations propres. */}
                 {f.type_contrat === "apprentissage" && (
-                  <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", fontSize: "13px" }}>
+                  <label style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "12px", fontSize: "14px" }}>
                     <input type="checkbox" checked={!!f.apprenti_public}
                       onChange={(ev) => setF({ ...f, apprenti_public: ev.target.checked })} />
                     Employeur du secteur public (État, collectivité, hôpital) : retraite complémentaire Ircantec
@@ -1883,14 +1923,14 @@ export default function PagePaie() {
                 {f.type_contrat === "apprentissage" && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
                     borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <p style={{ fontSize: "12.5px", color: OR,
+                    <p style={{ fontSize: "13.5px", color: OR,
                       marginTop: 0, lineHeight: "1.6" }}>
                       Le niveau de diplôme préparé est obligatoire en DSN pour
                       un apprenti : sans lui, la déclaration est rejetée. Il
                       figure sur le contrat signé avec le CFA.
                     </p>
-                    <p style={{ fontSize: "12.5px",
-                      color: "rgba(255,255,255,0.55)", lineHeight: "1.6" }}>
+                    <p style={{ fontSize: "13.5px",
+                      color: "rgba(255,255,255,0.76)", lineHeight: "1.6" }}>
                       Laisser le salaire mensuel vide : le barème légal
                       s&apos;applique tout seul (article D6222-26), en
                       pourcentage du SMIC selon l&apos;âge et l&apos;année
@@ -1918,7 +1958,7 @@ export default function PagePaie() {
                 {f.type_contrat === "mission" && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
                     borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.55)",
+                    <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
                       marginTop: 0, lineHeight: "1.6" }}>
                       L&apos;entreprise utilisatrice et le motif de recours sont
                       obligatoires. Sans eux, le contrat peut être requalifié en CDI.
@@ -1971,12 +2011,12 @@ export default function PagePaie() {
                       <strong style={{ fontSize: "16px" }}>
                         {s.prenom} {s.nom}
                       </strong>
-                      <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px",
+                      <span style={{ color: "rgba(255,255,255,0.72)", fontSize: "14px",
                         marginLeft: "10px" }}>
                         {c.intitule_poste}
                       </span>
                     </div>
-                    <span style={{ fontSize: "12px", color: OR }}>
+                    <span style={{ fontSize: "13.5px", color: OR }}>
                       {c.type_contrat === "mission" ? "Contrat de mission"
                         : c.type_contrat === "apprentissage" ? "Apprentissage"
                         : c.type_contrat === "mandat_social" ? "Mandat social"
@@ -1986,8 +2026,8 @@ export default function PagePaie() {
                     </span>
                   </div>
                   {c.eu_raison_sociale && (
-                    <p style={{ margin: "6px 0 0", fontSize: "12.5px",
-                      color: "rgba(255,255,255,0.5)" }}>
+                    <p style={{ margin: "6px 0 0", fontSize: "13.5px",
+                      color: "rgba(255,255,255,0.72)" }}>
                       Chez {c.eu_raison_sociale}
                     </p>
                   )}
@@ -2010,7 +2050,7 @@ export default function PagePaie() {
                 {choisi.paie_salaries ? choisi.paie_salaries.prenom + " "
                   + choisi.paie_salaries.nom : ""}
               </h2>
-              <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>
+              <p style={{ margin: 0, fontSize: "14px", color: "rgba(255,255,255,0.76)" }}>
                 {choisi.intitule_poste}
                 {choisi.salaire_horaire ? " · " + euros(choisi.salaire_horaire) + " € de l'heure" : ""}
                 {choisi.eu_raison_sociale ? " · chez " + choisi.eu_raison_sociale : ""}
@@ -2067,8 +2107,8 @@ export default function PagePaie() {
                   <div style={{ marginTop: "14px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between",
                       alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
-                      <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.6",
-                        color: "rgba(255,255,255,0.55)" }}>
+                      <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.76)" }}>
                         Contrat : {morceaux.join(" · ")}
                       </p>
                       <button onClick={ouvrirContrat} style={{ ...LIEN, color: OR, ...cache(droitsIci.contrats) }}>
@@ -2100,7 +2140,7 @@ export default function PagePaie() {
                           {champ("lieu_travail_insee", "Lieu de travail (code INSEE)", "170px", { placeholder: "ex. 69382" })}
                           {champ("code_risque_at", "Code risque AT (CARSAT)", "140px", { placeholder: "ex. 745BD" })}
                           {choisi.type_contrat === "apprentissage" && (
-                            <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" }}>
+                            <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "14px" }}>
                               <input type="checkbox" checked={!!cs.apprenti_public}
                                 onChange={(ev) => setContratSaisie({ ...cs, apprenti_public: ev.target.checked })} />
                               Employeur du secteur public : retraite complémentaire Ircantec
@@ -2115,7 +2155,7 @@ export default function PagePaie() {
                           {cs.categorie === "cadre" && choisi.type_contrat !== "mandat_social"
                             && Number(String(cs.forfait_jours_annuel || "").replace(",", ".")) > 0
                             && Number(String(cs.forfait_jours_annuel || "").replace(",", ".")) < 218 && (
-                            <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "13px" }}>
+                            <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "14px" }}>
                               <input type="checkbox" checked={!!cs.plafond_reduit_forfait}
                                 onChange={(ev) => setContratSaisie({ ...cs, plafond_reduit_forfait: ev.target.checked })} />
                               Plafond de Sécurité sociale réduit dans le même rapport (le salarié y a consenti)
@@ -2123,7 +2163,7 @@ export default function PagePaie() {
                           )}
                           <div style={{ flex: "1 1 150px" }}>
                             <span style={LIB}>Fin prévue</span>
-                            <input type="date" value={cs.date_fin || ""} style={CHAMP}
+                            <input type="date" className="mc-date" value={cs.date_fin || ""} style={CHAMP}
                               onChange={(ev) => setContratSaisie({ ...cs, date_fin: ev.target.value })} />
                             {/* 🆕 28/09 — l iPad ne sait pas vider un champ date. */}
                             {cs.date_fin && (
@@ -2135,10 +2175,10 @@ export default function PagePaie() {
                         {/* 🆕 28/09 — LE VEHICULE DE FONCTION : l avantage en
                             nature se calcule seul chaque mois (forfait de
                             l arrete du 25 fevrier 2025). */}
-                        <p style={{ margin: "14px 0 6px", fontSize: "12.5px", color: OR }}>
+                        <p style={{ margin: "14px 0 6px", fontSize: "13.5px", color: OR }}>
                           Véhicule de fonction (usage privé)
                         </p>
-                        <label style={{ fontSize: "13px", display: "flex", gap: "8px", alignItems: "center" }}>
+                        <label style={{ fontSize: "14px", display: "flex", gap: "8px", alignItems: "center" }}>
                           <input type="checkbox" checked={!!cs.vehicule}
                             onChange={(ev) => setContratSaisie({ ...cs, vehicule: ev.target.checked
                               ? { mode: "achat", valeur: "", achat_le: "", mis_a_disposition_le: "", fin: "",
@@ -2168,17 +2208,17 @@ export default function PagePaie() {
                               {vv.mode === "achat" && (
                                 <div style={{ flex: "1 1 140px" }}>
                                   <span style={LIB}>Date d'achat</span>
-                                  <input type="date" value={vv.achat_le || ""} style={CHAMP} onChange={(ev) => majV("achat_le", ev.target.value)} />
+                                  <input type="date" className="mc-date" value={vv.achat_le || ""} style={CHAMP} onChange={(ev) => majV("achat_le", ev.target.value)} />
                                 </div>
                               )}
                               <div style={{ flex: "1 1 140px" }}>
                                 <span style={LIB}>Mis à disposition le</span>
-                                <input type="date" value={vv.mis_a_disposition_le || ""} style={CHAMP}
+                                <input type="date" className="mc-date" value={vv.mis_a_disposition_le || ""} style={CHAMP}
                                   onChange={(ev) => majV("mis_a_disposition_le", ev.target.value)} />
                               </div>
                               <div style={{ flex: "1 1 140px" }}>
                                 <span style={LIB}>Restitué le (vide sinon)</span>
-                                <input type="date" value={vv.fin || ""} style={CHAMP} onChange={(ev) => majV("fin", ev.target.value)} />
+                                <input type="date" className="mc-date" value={vv.fin || ""} style={CHAMP} onChange={(ev) => majV("fin", ev.target.value)} />
                                 {vv.fin && (
                                   <button onClick={() => majV("fin", "")} style={{ ...LIEN, color: OR, marginTop: "4px" }}>
                                     effacer la date
@@ -2190,7 +2230,7 @@ export default function PagePaie() {
                                 <input value={vv.participation || ""} style={CHAMP} placeholder="0"
                                   onChange={(ev) => majV("participation", ev.target.value)} />
                               </div>
-                              <div style={{ flex: "1 1 100%", display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "13px" }}>
+                              <div style={{ flex: "1 1 100%", display: "flex", gap: "16px", flexWrap: "wrap", fontSize: "14px" }}>
                                 <label style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                   <input type="checkbox" checked={!!vv.electrique} onChange={(ev) => majV("electrique", ev.target.checked)} />
                                   100 % électrique
@@ -2211,14 +2251,14 @@ export default function PagePaie() {
                           );
                         })()}
 
-                        <p style={{ margin: "14px 0 6px", fontSize: "12.5px", color: OR }}>
+                        <p style={{ margin: "14px 0 6px", fontSize: "13.5px", color: OR }}>
                           {choisi.type_contrat === "mandat_social" ? "Fin du mandat" : "Rupture du contrat"}
                         </p>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: "10px" }}>
                           <div style={{ flex: "1 1 170px" }}>
                             <span style={LIB}>{choisi.type_contrat === "mandat_social"
                               ? "Fin du mandat le" : "Date de rupture (dernier jour du contrat)"}</span>
-                            <input type="date" value={cs.rompu_le || ""} style={CHAMP}
+                            <input type="date" className="mc-date" value={cs.rompu_le || ""} style={CHAMP}
                               onChange={(ev) => setContratSaisie({ ...cs, rompu_le: ev.target.value })} />
                             {/* 🆕 28/09 — ANNULER LA RUPTURE : l iPad ne vide pas un
                                 champ date (essai 2 du 28/09). Vide la date et le
@@ -2244,8 +2284,8 @@ export default function PagePaie() {
                             </div>
                           )}
                         </div>
-                        <p style={{ margin: "10px 0 0", fontSize: "11.5px", lineHeight: "1.6",
-                          color: "rgba(255,255,255,0.42)" }}>
+                        <p style={{ margin: "10px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.72)" }}>
                           Les bulletins déjà émis ne changent pas : les calculs à venir utilisent
                           ces valeurs. Pour annuler une rupture, vider sa date et enregistrer.
                         </p>
@@ -2277,8 +2317,8 @@ export default function PagePaie() {
                   <div style={{ marginTop: "14px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between",
                       alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
-                      <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.6",
-                        color: "rgba(255,255,255,0.55)" }}>
+                      <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.76)" }}>
                         Jours travaillés dans la semaine :{" "}
                         {actuels.map(function (j) { return nomsLongs[j]; }).join(", ")}
                         {auForfait ? " — forfait en jours, sans effet sur le calcul"
@@ -2301,7 +2341,7 @@ export default function PagePaie() {
                                 onClick={() => setJoursSaisie(coche
                                   ? joursSaisie.filter(function (x) { return x !== j; })
                                   : joursSaisie.concat([j]))}
-                                style={{ ...SECOND, padding: "6px 10px", fontSize: "13px",
+                                style={{ ...SECOND, padding: "6px 10px", fontSize: "14px",
                                   background: coche ? OR : "transparent",
                                   color: coche ? "#0b0b10" : OR }}>
                                 {noms[j]}
@@ -2309,8 +2349,8 @@ export default function PagePaie() {
                             );
                           })}
                         </div>
-                        <p style={{ margin: "8px 0 0", fontSize: "11.5px", lineHeight: "1.6",
-                          color: "rgba(255,255,255,0.42)" }}>
+                        <p style={{ margin: "8px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.72)" }}>
                           {joursSaisie.length > 0 && !auForfait
                             ? hebdo.toLocaleString("fr-FR") + " h réparties sur "
                               + joursSaisie.length + " jour(s), soit "
@@ -2344,8 +2384,8 @@ export default function PagePaie() {
                   <div style={{ marginTop: "10px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between",
                       alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
-                      <p style={{ margin: 0, fontSize: "12.5px", lineHeight: "1.6",
-                        color: "rgba(255,255,255,0.55)" }}>
+                      <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.76)" }}>
                         Prélèvement à la source :{" "}
                         {perso
                           ? "taux personnalisé " + Number(sal.taux_pas).toLocaleString("fr-FR") + " %"
@@ -2372,7 +2412,7 @@ export default function PagePaie() {
                           </div>
                           <div style={{ flex: "1 1 150px" }}>
                             <span style={LIB}>À compter du</span>
-                            <input style={CHAMP} type="date" value={pasSaisie.date_effet}
+                            <input style={CHAMP} type="date" className="mc-date" value={pasSaisie.date_effet}
                               onChange={(ev) => setPasSaisie({ ...pasSaisie, date_effet: ev.target.value })} />
                           </div>
                           <div style={{ flex: "1 1 180px" }}>
@@ -2381,8 +2421,8 @@ export default function PagePaie() {
                               onChange={(ev) => setPasSaisie({ ...pasSaisie, identifiant_crm: ev.target.value })} />
                           </div>
                         </div>
-                        <p style={{ margin: "6px 0 0", fontSize: "11.5px", lineHeight: "1.6",
-                          color: "rgba(255,255,255,0.42)" }}>
+                        <p style={{ margin: "6px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.72)" }}>
                           Le taux figure dans le compte rendu de la DSN, ou sur le tableau de
                           bord net-entreprises. Il s&apos;applique aux prochains calculs ; un
                           bulletin déjà émis ne change pas.
@@ -2410,7 +2450,7 @@ export default function PagePaie() {
                   avant tout clic. Un seul bulletin par mois : autant dire
                   tout de suite lequel c est. */}
               {emisDuMois && (
-                <p style={{ margin: "12px 0 0", fontSize: "12.5px", color: VERT,
+                <p style={{ margin: "12px 0 0", fontSize: "13.5px", color: VERT,
                   lineHeight: "1.6" }}>
                   Le bulletin {emisDuMois.numero} de ce mois est déjà émis. Les
                   éléments ne peuvent plus être modifiés — une correction passe
@@ -2418,7 +2458,7 @@ export default function PagePaie() {
                 </p>
               )}
               {brouillonDuMois && (
-                <p style={{ margin: "12px 0 0", fontSize: "12.5px", color: OR,
+                <p style={{ margin: "12px 0 0", fontSize: "13.5px", color: OR,
                   lineHeight: "1.6" }}>
                   Un brouillon existe pour ce mois ({brouillonDuMois.numero}) :
                   le recalcul le remplacera.
@@ -2431,7 +2471,7 @@ export default function PagePaie() {
               <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                 Ce qui s&apos;est passé ce mois-ci
               </h3>
-              <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.5)",
+              <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
                 lineHeight: "1.6", marginTop: 0 }}>
                 {/* 🚨 LE TEXTE SUIT LE CONTRAT. Il annoncait « depuis le taux
                     horaire » a un salarie paye au mois : celui qui lit croit
@@ -2444,7 +2484,7 @@ export default function PagePaie() {
               </p>
 
               {elements.length === 0 ? (
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.4)" }}>
+                <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.72)" }}>
                   Rien pour l&apos;instant.
                 </p>
               ) : elements.map(function (el: any) {
@@ -2455,7 +2495,7 @@ export default function PagePaie() {
                     <span style={{ fontSize: "13.5px" }}>
                       {el.libelle}
                       {el.soumis_cotisations === false && (
-                        <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "11.5px",
+                        <span style={{ color: "rgba(255,255,255,0.72)", fontSize: "12.5px",
                           marginLeft: "8px" }}>non soumis</span>
                       )}
                     </span>
@@ -2465,7 +2505,7 @@ export default function PagePaie() {
                       </span>
                       <button onClick={() => retirer(el.id)}
                         style={{ background: "none", border: "none", color: ROUGE,
-                          cursor: "pointer", fontSize: "12px", ...cache(droitsIci.preparer) }}>
+                          cursor: "pointer", fontSize: "13.5px", ...cache(droitsIci.preparer) }}>
                         retirer
                       </button>
                       {/* 🆕 28/09 — LA PIECE JUSTIFICATIVE. Exigee a partir
@@ -2477,7 +2517,7 @@ export default function PagePaie() {
                         </button>
                       ) : (
                         <label style={{ ...GESTE(OR), marginLeft: "10px", padding: "4px 10px",
-                          fontSize: "12.5px", display: "inline-block", ...cache(droitsIci.preparer) }}>
+                          fontSize: "13.5px", display: "inline-block", ...cache(droitsIci.preparer) }}>
                           {occupe === "piece" ? "…" : "joindre une pièce"}
                           <input type="file" accept="image/*,application/pdf"
                             style={{ display: "none" }}
@@ -2533,7 +2573,7 @@ export default function PagePaie() {
               </div>
 
               {AIDE_ELEMENT[e.type_element] && (
-                <p style={{ fontSize: "12px", color: OR, margin: "10px 0 0",
+                <p style={{ fontSize: "13.5px", color: OR, margin: "10px 0 0",
                   lineHeight: "1.6" }}>
                   {AIDE_ELEMENT[e.type_element]}
                 </p>
@@ -2568,7 +2608,7 @@ export default function PagePaie() {
             {brouillonDuMois && (
               <div style={{ marginTop: "14px", padding: "12px 14px",
                 border: "1px solid rgba(212,175,110,0.35)", borderRadius: "8px",
-                background: "rgba(212,175,110,0.06)", fontSize: "13px",
+                background: "rgba(212,175,110,0.06)", fontSize: "14px",
                 lineHeight: 1.55 }}>
                 <strong style={{ color: OR }}>Ce bulletin est encore un brouillon.</strong>
                 {" "}Il peut être recalculé autant que nécessaire. Tant qu&apos;il
@@ -2583,7 +2623,7 @@ export default function PagePaie() {
                     disabled={occupe !== ""}
                     style={{ marginLeft: "12px", background: "none",
                       border: "1px solid " + VERT, color: VERT, borderRadius: "6px",
-                      padding: "5px 12px", cursor: "pointer", fontSize: "12.5px" }}>
+                      padding: "5px 12px", cursor: "pointer", fontSize: "13.5px" }}>
                     {occupe === "emettre" ? "…" : "Émettre ce bulletin"}
                   </button>
                 ) : droitsIci.preparer ? (
@@ -2591,7 +2631,7 @@ export default function PagePaie() {
                     disabled={occupe !== ""}
                     style={{ marginLeft: "12px", background: "none",
                       border: "1px solid " + OR, color: OR, borderRadius: "6px",
-                      padding: "5px 12px", cursor: "pointer", fontSize: "12.5px" }}>
+                      padding: "5px 12px", cursor: "pointer", fontSize: "13.5px" }}>
                     {occupe === "valider" ? "…" : "Soumettre à validation"}
                   </button>
                 ) : null}
@@ -2600,12 +2640,12 @@ export default function PagePaie() {
                     il fallait le savoir. Il est maintenant la, a cote du brouillon. */}
                 {droitsIci.preparer && (
                   <button onClick={genererBulletin} disabled={occupe !== ""}
-                    style={{ ...GESTE(OR), marginLeft: "10px", padding: "5px 12px", fontSize: "12.5px" }}>
+                    style={{ ...GESTE(OR), marginLeft: "10px", padding: "5px 12px", fontSize: "13.5px" }}>
                     {occupe === "bulletin" ? "…" : "Ressortir ce brouillon"}
                   </button>
                 )}
-                <span style={{ display: "block", marginTop: "6px", fontSize: "12px",
-                  color: "rgba(255,255,255,0.55)" }}>
+                <span style={{ display: "block", marginTop: "6px", fontSize: "13.5px",
+                  color: "rgba(255,255,255,0.76)" }}>
                   Avant l&apos;émission : les contrôles et le récapitulatif client, dans
                   « Validation du mois » ci-dessous.
                 </span>
@@ -2627,30 +2667,30 @@ export default function PagePaie() {
                   Validation du mois — {libelleMois(periode)}
                 </h3>
                 <button onClick={() => chargerMois()} disabled={occupe !== ""}
-                  style={{ ...GESTE(OR), padding: "4px 10px", fontSize: "12px" }}>
+                  style={{ ...GESTE(OR), padding: "4px 10px", fontSize: "13.5px" }}>
                   actualiser
                 </button>
               </div>
-              <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.55)",
+              <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
                 margin: "6px 0 12px", lineHeight: 1.6 }}>
                 Vos droits sur ce dossier : {texteDroits(droitsIci)}.
               </p>
 
               {!mois ? (
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>Lecture…</p>
+                <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.72)" }}>Lecture…</p>
               ) : (
                 <>
                   {prochaine && (
                     <div style={{ margin: "0 0 12px", padding: "10px 14px", borderRadius: "8px",
                       border: "1px solid " + OR, background: "rgba(200,169,110,0.08)",
                       fontSize: "14px", lineHeight: 1.55 }}>
-                      <span style={{ color: OR, fontSize: "11px", letterSpacing: "2px", display: "block",
+                      <span style={{ color: OR, fontSize: "12px", letterSpacing: "2px", display: "block",
                         marginBottom: "3px" }}>PROCHAINE ÉTAPE</span>
                       {prochaine}
                     </div>
                   )}
                   <div style={{ padding: "10px 12px", borderRadius: "8px", border: BORD,
-                    marginBottom: "12px", fontSize: "13px", lineHeight: 1.6 }}>
+                    marginBottom: "12px", fontSize: "14px", lineHeight: 1.6 }}>
                     <strong style={{ color: OR }}>Récapitulatif client</strong>
                     {" — "}{texteRecap(mois.recap)}
                     {mois.recap_manquants && mois.recap_manquants.length > 0 && (
@@ -2707,7 +2747,7 @@ export default function PagePaie() {
                         </button>
                       )}
                       {prets.length > 0 && droitsIci.emettre && droitsIci.carte_blanche && !recapOk && (
-                        <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", alignSelf: "center" }}>
+                        <span style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)", alignSelf: "center" }}>
                           en attente du récapitulatif confirmé par le client
                         </span>
                       )}
@@ -2715,7 +2755,7 @@ export default function PagePaie() {
                   ) : null}
 
                   {mois.lignes.length === 0 && (
-                    <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.45)" }}>
+                    <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.72)" }}>
                       Aucun salarié en poste ce mois-ci dans ce dossier.
                     </p>
                   )}
@@ -2725,10 +2765,10 @@ export default function PagePaie() {
                       {alertesCommunes.map(function (a: any, i: number) {
                         return (
                           <div key={i} style={{ margin: i === 0 ? "0" : "8px 0 0" }}>
-                            <p style={{ margin: "0 0 2px", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                            <p style={{ margin: "0 0 2px", fontSize: "13.5px", color: "rgba(255,255,255,0.8)" }}>
                               Pour {a.salaries.length} salariés ({a.salaries.join(", ")}) :
                             </p>
-                            <p style={{ margin: 0, fontSize: "12.5px", lineHeight: 1.5,
+                            <p style={{ margin: 0, fontSize: "13.5px", lineHeight: 1.5,
                               color: a.niveau === "rouge" ? ROUGE : ORANGE }}>
                               ● {a.texte}
                             </p>
@@ -2753,7 +2793,7 @@ export default function PagePaie() {
                             {l.salarie}
                             {choisi && l.contrat_id === choisi.id ? " (ouvert)" : ""}
                           </span>
-                          <span style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.65)" }}>
+                          <span style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.82)" }}>
                             {!b ? "pas encore de bulletin"
                               : b.numero + " · net " + euros(b.net_a_payer) + " € · " + etatValidation(b)
                                 + (coul === "orange" && b.justification ? " · justifié" : "")
@@ -2764,9 +2804,9 @@ export default function PagePaie() {
                           <div style={{ marginTop: "6px" }}>
                             {ctl.alertes.filter(function (a: any) { return !estCommune(a); }).map(function (a: any, i: number) {
                               return (
-                                <p key={i} style={{ margin: "3px 0", fontSize: "12.5px", lineHeight: 1.5,
+                                <p key={i} style={{ margin: "3px 0", fontSize: "13.5px", lineHeight: 1.5,
                                   color: a.niveau === "rouge" ? ROUGE
-                                    : a.niveau === "orange" ? ORANGE : "rgba(255,255,255,0.5)" }}>
+                                    : a.niveau === "orange" ? ORANGE : "rgba(255,255,255,0.72)" }}>
                                   {a.niveau === "info" ? "○ " : "● "}{a.texte}
                                 </p>
                               );
@@ -2774,17 +2814,17 @@ export default function PagePaie() {
                           </div>
                         )}
                         {b && b.justification && (
-                          <p style={{ margin: "4px 0", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                          <p style={{ margin: "4px 0", fontSize: "13.5px", color: "rgba(255,255,255,0.8)" }}>
                             Justification : {b.justification}
                           </p>
                         )}
                         {b && b.levee_motif && (
-                          <p style={{ margin: "4px 0", fontSize: "12px", color: "rgba(255,255,255,0.6)" }}>
+                          <p style={{ margin: "4px 0", fontSize: "13.5px", color: "rgba(255,255,255,0.8)" }}>
                             Point rouge levé par {b.levee_par || "?"} : {b.levee_motif}
                           </p>
                         )}
                         {b && b.validation === "renvoye" && b.renvoi_motif && (
-                          <p style={{ margin: "4px 0", fontSize: "12.5px", color: ROUGE }}>
+                          <p style={{ margin: "4px 0", fontSize: "13.5px", color: ROUGE }}>
                             Renvoyé pour correction : {b.renvoi_motif}
                           </p>
                         )}
@@ -2823,7 +2863,7 @@ export default function PagePaie() {
 
                   {profil && profil.gerer_equipe && (
                     <div style={{ marginTop: "14px", borderTop: BORD, paddingTop: "10px" }}>
-                      <p style={{ color: OR, fontSize: "11px", letterSpacing: "2px", margin: "0 0 8px" }}>
+                      <p style={{ color: OR, fontSize: "12px", letterSpacing: "2px", margin: "0 0 8px" }}>
                         OUTILS DU CABINET
                       </p>
                       <button onClick={chargerMesure} disabled={occupe !== ""}
@@ -2831,12 +2871,12 @@ export default function PagePaie() {
                         {occupe === "mesure" ? "…" : "Suivi des corrections par personne (six mois)"}
                       </button>
                       {mesure && (mesure.personnes.length === 0 ? (
-                        <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.5)", margin: "6px 0 0" }}>
+                        <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)", margin: "6px 0 0" }}>
                           Aucune soumission sur la période.
                         </p>
                       ) : mesure.personnes.map(function (p: any) {
                         return (
-                          <p key={p.email} style={{ fontSize: "12.5px", margin: "5px 0 0", lineHeight: 1.5 }}>
+                          <p key={p.email} style={{ fontSize: "13.5px", margin: "5px 0 0", lineHeight: 1.5 }}>
                             {p.email} : {p.soumis} soumis, {p.renvoyes} renvoyé(s), {p.leves} levée(s),
                             {" "}{p.emis} émis
                             {p.taux_corrections !== null
@@ -2844,7 +2884,7 @@ export default function PagePaie() {
                           </p>
                         );
                       }))}
-                      <p style={{ fontSize: "11.5px", color: "rgba(255,255,255,0.4)", margin: "8px 0 0" }}>
+                      <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.72)", margin: "8px 0 0" }}>
                         La carte blanche se donne dossier par dossier, dans l&apos;écran des{" "}
                         <a href="/admin/compliance/collaborateurs" style={{ color: OR }}>collaborateurs</a>.
                       </p>
@@ -2856,22 +2896,22 @@ export default function PagePaie() {
                       </button>
                       {seuilsVus && (
                         <div style={{ marginTop: "8px" }}>
-                          <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)", lineHeight: 1.6, margin: "0 0 8px" }}>
+                          <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)", lineHeight: 1.6, margin: "0 0 8px" }}>
                             Ils valent pour tous les dossiers de votre cabinet. Une case vide reprend la valeur commune.
                           </p>
                           {seuilsVus.map(function (x: any) {
                             return (
                               <div key={x.code} style={{ display: "flex", gap: "10px", alignItems: "center",
                                 flexWrap: "wrap", padding: "6px 0", borderTop: "1px solid rgba(255,255,255,0.05)" }}>
-                                <span style={{ flex: "1 1 300px", fontSize: "12.5px", lineHeight: 1.5,
+                                <span style={{ flex: "1 1 300px", fontSize: "13.5px", lineHeight: 1.5,
                                   color: x.niveau === "rouge" ? ROUGE : ORANGE }}>
-                                  {x.libelle} <span style={{ color: "rgba(255,255,255,0.45)" }}>
+                                  {x.libelle} <span style={{ color: "rgba(255,255,255,0.72)" }}>
                                     (commun : {String(x.commun).replace(".", ",")} {x.unite || ""})</span>
                                 </span>
                                 <input value={seuilsSaisie[x.code] || ""} placeholder={String(x.commun).replace(".", ",")}
                                   onChange={(ev) => setSeuilsSaisie({ ...seuilsSaisie, [x.code]: ev.target.value })}
                                   style={{ ...CHAMP, width: "110px" }} />
-                                <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>{x.unite || ""}</span>
+                                <span style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>{x.unite || ""}</span>
                               </div>
                             );
                           })}
@@ -2913,8 +2953,8 @@ export default function PagePaie() {
                     <div key={"m" + i} style={{ display: "flex",
                       justifyContent: "space-between", padding: "4px 0", fontSize: "13.5px" }}>
                       <span>{l.libelle}
-                        {l.taux ? <span style={{ color: "rgba(255,255,255,0.4)",
-                          marginLeft: "8px", fontSize: "12px" }}>
+                        {l.taux ? <span style={{ color: "rgba(255,255,255,0.72)",
+                          marginLeft: "8px", fontSize: "13.5px" }}>
                           {l.taux} % de {euros(l.base)}</span> : null}
                       </span>
                       <span>{euros(l.montant)} €</span>
@@ -2967,24 +3007,24 @@ export default function PagePaie() {
 
                 {/* 🆕 27/09 — le prelevement a la source, calcule desormais. */}
                 <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "12.5px", color: "rgba(255,255,255,0.5)", gap: "12px" }}>
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)", gap: "12px" }}>
                   <span>Prélèvement à la source, déjà déduit du net à payer
                     {calcul.prelevement_mention ? " — " + calcul.prelevement_mention : ""}</span>
                   <span>{euros(calcul.prelevement_source || 0)} €</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "12.5px", color: "rgba(255,255,255,0.5)" }}>
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
                   <span>Net à payer avant impôt</span>
                   <span>{euros(calcul.net_avant_impot)} €</span>
                 </div>
 
                 <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "12.5px", color: "rgba(255,255,255,0.5)" }}>
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
                   <span>Montant net social</span>
                   <span>{euros(calcul.net_social)} €</span>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "12.5px", color: "rgba(255,255,255,0.5)" }}>
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
                   <span>Net imposable</span>
                   <span>{euros(calcul.net_imposable)} €</span>
                 </div>
@@ -2992,21 +3032,21 @@ export default function PagePaie() {
                 {/* ---- CE QUE PAIE L EMPLOYEUR, A PART ---- */}
                 <div style={{ marginTop: "16px", paddingTop: "12px",
                   borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                  <p style={{ fontSize: "12px", color: OR, margin: "0 0 6px" }}>
+                  <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 6px" }}>
                     Côté employeur
                   </p>
                   <div style={{ display: "flex", justifyContent: "space-between",
-                    padding: "3px 0", fontSize: "13px" }}>
+                    padding: "3px 0", fontSize: "14px" }}>
                     <span>Cotisations patronales</span>
                     <span>{euros(calcul.total_patronal)} €</span>
                   </div>
                   {calcul.rgdu > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between",
-                      padding: "3px 0", fontSize: "13px", color: VERT }}>
+                      padding: "3px 0", fontSize: "14px", color: VERT }}>
                       <span>Réduction générale dégressive unique
                         {calcul.rgdu_detail && calcul.rgdu_detail.coefficient ? (
-                          <span style={{ color: "rgba(255,255,255,0.4)",
-                            marginLeft: "8px", fontSize: "11.5px" }}>
+                          <span style={{ color: "rgba(255,255,255,0.72)",
+                            marginLeft: "8px", fontSize: "12.5px" }}>
                             coef. {calcul.rgdu_detail.coefficient}
                           </span>
                         ) : null}
@@ -3017,7 +3057,7 @@ export default function PagePaie() {
                   {/* 🆕 27/09 — la deduction forfaitaire sur heures supplementaires. */}
                   {calcul.deduction_hs > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between",
-                      padding: "3px 0", fontSize: "13px", color: VERT }}>
+                      padding: "3px 0", fontSize: "14px", color: VERT }}>
                       <span>Déduction forfaitaire sur heures supplémentaires</span>
                       <span>− {euros(calcul.deduction_hs)} €</span>
                     </div>
@@ -3027,7 +3067,7 @@ export default function PagePaie() {
                       le compte, la ligne le montre. */}
                   {calcul.non_soumis_employeur > 0 && (
                     <div style={{ display: "flex", justifyContent: "space-between",
-                      padding: "3px 0", fontSize: "13px" }}>
+                      padding: "3px 0", fontSize: "14px" }}>
                       <span>Indemnités et frais non soumis versés</span>
                       <span>{euros(calcul.non_soumis_employeur)} €</span>
                     </div>
@@ -3045,13 +3085,13 @@ export default function PagePaie() {
                 {(calcul.reserves || []).length > 0 && (
                   <div style={{ marginTop: "16px", paddingTop: "12px",
                     borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <p style={{ fontSize: "12px", color: OR, margin: "0 0 6px" }}>
+                    <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 6px" }}>
                       Ce que ce calcul ne fait pas encore
                     </p>
                     {calcul.reserves.map(function (r: string, i: number) {
                       return (
-                        <p key={i} style={{ fontSize: "11.5px", lineHeight: "1.6",
-                          color: "rgba(255,255,255,0.45)", margin: "0 0 3px" }}>
+                        <p key={i} style={{ fontSize: "12.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.72)", margin: "0 0 3px" }}>
                           {r}
                         </p>
                       );
@@ -3092,7 +3132,7 @@ export default function PagePaie() {
                     </strong> jour(s) ouvrable(s).
                   </p>
                 ) : (
-                  <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.55)",
+                  <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
                     marginTop: 0 }}>
                     Aucun droit acquis pour l&apos;instant. Les congés s&apos;acquièrent
                     à l&apos;émission de chaque bulletin, à raison de 2,5 jours
@@ -3124,13 +3164,13 @@ export default function PagePaie() {
                         <div key={m.id} style={{ display: "flex",
                           justifyContent: "space-between", padding: "7px 0",
                           borderTop: "1px solid rgba(255,255,255,0.07)",
-                          fontSize: "13px" }}>
+                          fontSize: "14px" }}>
                           <span>
                             <span style={{ color: prise ? ROUGE : VERT }}>
                               {prise ? "−" : "+"}{Number(m.jours).toFixed(2)} j
                             </span>
                             <span style={{ marginLeft: "10px",
-                              color: "rgba(255,255,255,0.55)" }}>
+                              color: "rgba(255,255,255,0.76)" }}>
                               {String(m.periode).slice(0, 7)}
                               {" · "}{prise ? "prise" : "acquisition"}
                             </span>
@@ -3141,7 +3181,7 @@ export default function PagePaie() {
                                 doit voir la difference sans ouvrir la base. */}
                             {!prise
                               && String(m.notes || "").indexOf("anciennete") >= 0 && (
-                              <span style={{ marginLeft: "10px", fontSize: "12px",
+                              <span style={{ marginLeft: "10px", fontSize: "13.5px",
                                 color: OR }}>
                                 ancienneté (Syntec art. 5.1)
                               </span>
@@ -3150,8 +3190,8 @@ export default function PagePaie() {
                                 seulement le resultat : c est ce qui permet
                                 de justifier le montant devant un controle. */}
                             {prise && m.valeur_retenue != null && (
-                              <span style={{ marginLeft: "10px", fontSize: "12px",
-                                color: "rgba(255,255,255,0.45)" }}>
+                              <span style={{ marginLeft: "10px", fontSize: "13.5px",
+                                color: "rgba(255,255,255,0.72)" }}>
                                 maintien {Number(m.valeur_maintien).toFixed(2)} €
                                 {" · "}dixième {Number(m.valeur_dixieme).toFixed(2)} €
                                 {" · retenu "}
@@ -3164,7 +3204,7 @@ export default function PagePaie() {
                           {prise && (
                             <button onClick={() => retirerPrise(m.id)}
                               style={{ background: "none", border: "none",
-                                color: ROUGE, cursor: "pointer", fontSize: "12px" }}>
+                                color: ROUGE, cursor: "pointer", fontSize: "13.5px" }}>
                               retirer
                             </button>
                           )}
@@ -3199,7 +3239,7 @@ export default function PagePaie() {
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Documents de fin de contrat
                 </h3>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.76)",
                   marginTop: 0, lineHeight: "1.6" }}>
                   Certificat de travail et reçu pour solde de tout compte, en un
                   PDF de deux pages. Le reçu inventorie les sommes versées :
@@ -3215,8 +3255,8 @@ export default function PagePaie() {
 
                 {finDoc && (
                   <div style={{ marginTop: "14px" }}>
-                    <p style={{ fontSize: "13px",
-                      color: "rgba(255,255,255,0.55)", margin: "0 0 10px" }}>
+                    <p style={{ fontSize: "14px",
+                      color: "rgba(255,255,255,0.76)", margin: "0 0 10px" }}>
                       {finDoc.salarie} · du {jma(finDoc.date_entree)} au{" "}
                       {jma(finDoc.date_sortie)} · inventaire du bulletin{" "}
                       {finDoc.bulletin_inventorie}
@@ -3233,7 +3273,7 @@ export default function PagePaie() {
                     {(finDoc.pour_memoire || []).map((p: any, i: number) => (
                       <div key={"m" + i} style={{ display: "flex",
                         justifyContent: "space-between", padding: "4px 0",
-                        fontSize: "12px", color: "rgba(255,255,255,0.5)" }}>
+                        fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
                         <span>{p.libelle}</span>
                         <span>{euros(p.montant)}</span>
                       </div>
@@ -3249,8 +3289,8 @@ export default function PagePaie() {
 
                     {/* 🚨 LA DATE AU-DELA DE LAQUELLE LE REÇU LIBERE : elle
                         ne court qu a compter de la SIGNATURE du salarie. */}
-                    <p style={{ fontSize: "12px",
-                      color: "rgba(255,255,255,0.5)", marginTop: "8px",
+                    <p style={{ fontSize: "13.5px",
+                      color: "rgba(255,255,255,0.72)", marginTop: "8px",
                       lineHeight: "1.6" }}>
                       Libératoire six mois après la signature du salarié, soit
                       vers le {jma(finDoc.liberatoire_le)} si elle intervient le
@@ -3267,8 +3307,8 @@ export default function PagePaie() {
                     )}
 
                     {(finDoc.anomalies || []).map((a: string, i: number) => (
-                      <p key={"a" + i} style={{ fontSize: "12px",
-                        color: "rgba(255,255,255,0.45)", margin: "6px 0",
+                      <p key={"a" + i} style={{ fontSize: "13.5px",
+                        color: "rgba(255,255,255,0.72)", margin: "6px 0",
                         lineHeight: "1.6" }}>{a}</p>
                     ))}
                   </div>
@@ -3287,7 +3327,7 @@ export default function PagePaie() {
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Prime de vacances (convention Syntec, article 31)
                 </h3>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.76)",
                   marginTop: 0, lineHeight: "1.6" }}>
                   Obligation de l&apos;entreprise, pas du bulletin : au moins
                   10 % de la masse des indemnités de congés payés de
@@ -3303,7 +3343,7 @@ export default function PagePaie() {
 
                 {prime && (
                   <div style={{ marginTop: "14px" }}>
-                    <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                    <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.76)",
                       margin: "0 0 10px" }}>
                       Exercice {prime.exercice ? prime.exercice.libelle : ""}
                     </p>
@@ -3329,7 +3369,7 @@ export default function PagePaie() {
                     </div>
                     <div style={{ display: "flex", justifyContent: "space-between",
                       padding: "6px 0", fontSize: "14px",
-                      color: "rgba(255,255,255,0.65)" }}>
+                      color: "rgba(255,255,255,0.82)" }}>
                       <span>Obligation, hors compensatrices</span>
                       <span>{euros(prime.obligation_hors_compensatrices)}</span>
                     </div>
@@ -3347,8 +3387,8 @@ export default function PagePaie() {
                     </p>
 
                     {(prime.reserves || []).map((r: string, i: number) => (
-                      <p key={i} style={{ fontSize: "12px",
-                        color: "rgba(255,255,255,0.45)", margin: "6px 0",
+                      <p key={i} style={{ fontSize: "13.5px",
+                        color: "rgba(255,255,255,0.72)", margin: "6px 0",
                         lineHeight: "1.6" }}>{r}</p>
                     ))}
                   </div>
@@ -3361,7 +3401,7 @@ export default function PagePaie() {
                 <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
                   Signalements d&apos;événement
                 </h3>
-                <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.55)",
+                <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.76)",
                   marginTop: 0 }}>
                   Arrêt de travail et fin de contrat se déposent dans les
                   cinq jours. Le premier déclenche les indemnités
@@ -3377,7 +3417,7 @@ export default function PagePaie() {
                     l on peut voir, d un coup d oeil, qu on corrige une ligne
                     existante au lieu d en creer une. */}
                 <p id="nouveau-signalement"
-                  style={{ fontSize: "13px", color: modifie ? VERT : OR,
+                  style={{ fontSize: "14px", color: modifie ? VERT : OR,
                     margin: "16px 0 0", fontWeight: "bold" }}>
                   {modifie
                     ? "Modification du signalement « "
@@ -3388,7 +3428,7 @@ export default function PagePaie() {
                     : "Nouveau signalement"}
                 </p>
                 {modifie && (
-                  <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                  <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
                     margin: "4px 0 0", lineHeight: "1.6" }}>
                     Les champs sont remplis avec ce qui a été enregistré.
                     Corrigez ce qu&apos;il faut, puis validez : l&apos;ancien
@@ -3431,7 +3471,7 @@ export default function PagePaie() {
                       {ev.type_evenement === "arret"
                         ? "Début de l'arrêt" : "Date de fin"}
                     </span>
-                    <input type="date" value={ev.date_debut} style={CHAMP}
+                    <input type="date" className="mc-date" value={ev.date_debut} style={CHAMP}
                       onChange={(x: any) => setEv(Object.assign({}, ev,
                         { date_debut: x.target.value }))} />
                   </div>
@@ -3442,7 +3482,7 @@ export default function PagePaie() {
                           salarie peut avoir travaille le matin. C est ce
                           jour qui fixe le depart du delai de carence. */}
                       <span style={LIB}>Dernier jour travaillé</span>
-                      <input type="date" value={ev.dernier_jour_travaille}
+                      <input type="date" className="mc-date" value={ev.dernier_jour_travaille}
                         style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
                           { dernier_jour_travaille: x.target.value }))} />
@@ -3457,7 +3497,7 @@ export default function PagePaie() {
                           on ne prolonge ni ne raccourcit un arret a sa
                           place. */}
                       <span style={LIB}>Fin prévisionnelle (obligatoire)</span>
-                      <input type="date" value={ev.date_fin} style={CHAMP}
+                      <input type="date" className="mc-date" value={ev.date_fin} style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
                           { date_fin: x.target.value }))} />
                     </div>
@@ -3466,7 +3506,7 @@ export default function PagePaie() {
                   {ev.type_evenement === "fin_contrat" && (
                     <div>
                       <span style={LIB}>Date de notification</span>
-                      <input type="date" value={ev.date_notification}
+                      <input type="date" className="mc-date" value={ev.date_notification}
                         style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
                           { date_notification: x.target.value }))} />
@@ -3480,7 +3520,7 @@ export default function PagePaie() {
                 {ev.type_evenement === "arret" && (
                   <div style={{ marginTop: "12px", display: "flex",
                     gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
-                    <label style={{ fontSize: "13px", display: "flex",
+                    <label style={{ fontSize: "14px", display: "flex",
                       alignItems: "center", gap: "7px", cursor: "pointer" }}>
                       <input type="checkbox" checked={ev.subrogation}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
@@ -3519,7 +3559,7 @@ export default function PagePaie() {
                               longue, c est percevoir des indemnites qui
                               reviennent au salarie. */}
                           <span style={LIB}>Fin de subrogation (obligatoire)</span>
-                          <input type="date" value={ev.subro_fin} style={CHAMP}
+                          <input type="date" className="mc-date" value={ev.subro_fin} style={CHAMP}
                             onChange={(x: any) => setEv(Object.assign({}, ev,
                               { subro_fin: x.target.value }))} />
                         </div>
@@ -3529,7 +3569,7 @@ export default function PagePaie() {
                 )}
 
                 {ev.type_evenement === "arret" && ev.subrogation && (
-                  <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                  <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
                     margin: "8px 0 0", lineHeight: "1.6" }}>
                     La fin de subrogation est la fin du maintien de salaire prévu
                     par la convention collective, pas forcément celle de
@@ -3556,7 +3596,7 @@ export default function PagePaie() {
                         pas affiche. */}
                     <div style={{ flex: "1 1 200px", maxWidth: "260px" }}>
                       <span style={LIB}>Reprise anticipée le (facultatif)</span>
-                      <input type="date" value={ev.reprise_date} style={CHAMP}
+                      <input type="date" className="mc-date" value={ev.reprise_date} style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
                           { reprise_date: x.target.value,
                             reprise_motif: x.target.value
@@ -3580,7 +3620,7 @@ export default function PagePaie() {
                     sur un formulaire vide, elle encombrait sans rien apprendre
                     — la plupart des arrets vont a leur terme. */}
                 {ev.type_evenement === "arret" && ev.reprise_date && (
-                  <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                  <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
                     margin: "8px 0 0", lineHeight: "1.6" }}>
                     La reprise se signale à part, par « générer la reprise »,
                     et seulement parce qu&apos;elle est ANTICIPÉE. Un arrêt qui
@@ -3593,7 +3633,7 @@ export default function PagePaie() {
                     « Enregistrer », rien ne bougeait sous les yeux, et il
                     fallait remonter toute la fiche pour lire le refus. */}
                 {errEv && (
-                  <p style={{ color: ROUGE, fontSize: "13px", lineHeight: "1.6",
+                  <p style={{ color: ROUGE, fontSize: "14px", lineHeight: "1.6",
                     margin: "14px 0 0", padding: "10px 12px",
                     border: "1px solid rgba(229,115,115,0.4)", borderRadius: "8px",
                     background: "rgba(229,115,115,0.07)" }}>
@@ -3611,7 +3651,7 @@ export default function PagePaie() {
                   </button>
                   {modifie && (
                     <button onClick={annulerModification} disabled={occupe !== ""}
-                      style={{ ...LIEN, color: "rgba(255,255,255,0.55)" }}>
+                      style={{ ...LIEN, color: "rgba(255,255,255,0.76)" }}>
                       annuler la modification
                     </button>
                   )}
@@ -3622,11 +3662,11 @@ export default function PagePaie() {
                     borderTop: "1px solid rgba(255,255,255,0.12)" }}>
                     {/* 🆕 LA LISTE PORTE SON NOM ELLE AUSSI, et dit que le
                         formulaire du dessus ne la modifie pas. */}
-                    <p style={{ fontSize: "13px", color: OR, margin: 0,
+                    <p style={{ fontSize: "14px", color: OR, margin: 0,
                       fontWeight: "bold" }}>
                       Signalements enregistrés
                     </p>
-                    <p style={{ fontSize: "12px", color: "rgba(255,255,255,0.45)",
+                    <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
                       margin: "4px 0 8px", lineHeight: "1.6" }}>
                       Le formulaire ci-dessus sert à en saisir un nouveau : il ne
                       modifie pas ceux de cette liste, sauf si vous touchez
@@ -3646,7 +3686,7 @@ export default function PagePaie() {
                       if (arret && x.subrogation && !x.bic) manques.push("BIC");
                       return (
                         <div key={x.id} style={{
-                          padding: "9px 0", fontSize: "13px",
+                          padding: "9px 0", fontSize: "14px",
                           borderTop: "1px solid rgba(255,255,255,0.07)",
                           display: "flex", justifyContent: "space-between",
                           gap: "10px", flexWrap: "wrap" }}>
@@ -3685,7 +3725,7 @@ export default function PagePaie() {
                               </button>
                             ) : (
                               <label style={{ ...GESTE(ORANGE), marginLeft: "10px", padding: "4px 10px",
-                                fontSize: "12.5px", display: "inline-block", ...cache(droitsIci.preparer) }}>
+                                fontSize: "13.5px", display: "inline-block", ...cache(droitsIci.preparer) }}>
                                 {occupe === "piece" ? "…" : "joindre l'avis d'arrêt"}
                                 <input type="file" accept="image/*,application/pdf"
                                   style={{ display: "none" }}
@@ -3697,7 +3737,7 @@ export default function PagePaie() {
                               </label>
                             ))}
                             <span style={{ marginLeft: "10px",
-                              color: "rgba(255,255,255,0.55)" }}>
+                              color: "rgba(255,255,255,0.76)" }}>
                               {x.motif}
                               {x.subrogation
                                 ? " · subrogation"
@@ -3720,7 +3760,7 @@ export default function PagePaie() {
                             </span>
                             {manques.length > 0 && (
                               <span style={{ display: "block", marginTop: "3px",
-                                color: ROUGE, fontSize: "12px" }}>
+                                color: ROUGE, fontSize: "13.5px" }}>
                                 Il manque : {manques.join(", ")}. La CPAM rejettera
                                 ce signalement — retirez-le et saisissez-le de
                                 nouveau.
@@ -3839,19 +3879,19 @@ export default function PagePaie() {
                         <span style={{ textDecoration: annule ? "line-through" : "none" }}>
                           {b.numero}
                         </span>
-                        <span style={{ color: "rgba(255,255,255,0.45)",
-                          marginLeft: "10px", fontSize: "12.5px" }}>
+                        <span style={{ color: "rgba(255,255,255,0.72)",
+                          marginLeft: "10px", fontSize: "13.5px" }}>
                           {String(b.periode).slice(0, 7)}
                         </span>
-                        <span style={{ marginLeft: "10px", fontSize: "11.5px",
+                        <span style={{ marginLeft: "10px", fontSize: "12.5px",
                           color: b.statut === "emis" ? VERT
                             : annule ? ROUGE : OR }}>
                           {b.statut === "emis" ? "émis"
                             : annule ? "annulé et remplacé" : "brouillon"}
                         </span>
                         {b.type_bulletin === "rectificatif" && (
-                          <span style={{ marginLeft: "10px", fontSize: "11.5px",
-                            color: "rgba(255,255,255,0.45)" }}>
+                          <span style={{ marginLeft: "10px", fontSize: "12.5px",
+                            color: "rgba(255,255,255,0.72)" }}>
                             rectificatif{b.rectifie_numero ? " du " + b.rectifie_numero : ""}
                           </span>
                         )}
@@ -3862,7 +3902,7 @@ export default function PagePaie() {
                         </span>
                         <button onClick={() => voir(b.id)}
                           style={{ background: "none", border: "none", color: OR,
-                            cursor: "pointer", fontSize: "12.5px" }}>
+                            cursor: "pointer", fontSize: "13.5px" }}>
                           ouvrir
                         </button>
                         {/* ⚠️ NI UN BULLETIN EMIS NI UN BULLETIN ANNULE NE
@@ -3874,7 +3914,7 @@ export default function PagePaie() {
                         {b.statut === "brouillon" && droitsIci.emettre && droitsIci.carte_blanche && (
                           <button onClick={() => emettre(b)}
                             style={{ background: "none", border: "none", color: VERT,
-                              cursor: "pointer", fontSize: "12.5px", marginLeft: "10px" }}>
+                              cursor: "pointer", fontSize: "13.5px", marginLeft: "10px" }}>
                             émettre
                           </button>
                         )}
