@@ -2,6 +2,8 @@
 import { useState, useEffect } from "react";
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕 01/10 — TEXTES PLUS CLAIRS ET PLUS GRANDS, comme l ecran de paie et
+// l ecran DSN (les gris a 0,45-0,6 se lisaient mal sur le fond noir).
 // 🆕🚨 28/09 — LA PAGE QUE LE CLIENT OUVRE DEPUIS LE COURRIEL
 //
 // L employeur n a pas de compte : il arrive par le lien du recapitulatif,
@@ -95,10 +97,10 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
     <div style={CADRE}>
       <div style={{ maxWidth: "680px", margin: "0 auto" }}>
         {marque && (
-          <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", margin: "0 0 12px" }}>{marque}</p>
+          <p style={{ color: OR, fontSize: "13.5px", letterSpacing: "3px", margin: "0 0 12px" }}>{marque}</p>
         )}
 
-        {!d && !erreur && <p style={{ color: "rgba(255,255,255,0.6)" }}>Lecture…</p>}
+        {!d && !erreur && <p style={{ color: "rgba(255,255,255,0.8)" }}>Lecture…</p>}
         {!d && erreur && (
           <div style={CARTE}>
             <p style={{ color: ROUGE, margin: 0, lineHeight: 1.7 }}>{erreur}</p>
@@ -108,7 +110,7 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
         {d && (
           <>
             <h1 style={{ fontSize: "24px", margin: "0 0 6px" }}>Paie de {d.mois}</h1>
-            <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0 0 18px" }}>{d.societe}</p>
+            <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "15px", margin: "0 0 18px" }}>{d.societe}</p>
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.06)" }}>
               <p style={{ margin: 0, fontSize: "14px", lineHeight: 1.7, color: "rgba(255,255,255,0.8)" }}>
@@ -132,18 +134,18 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
                   <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
                     <div>
                       <p style={{ margin: 0, fontSize: "16px", fontWeight: "bold" }}>{l.salarie}</p>
-                      {l.poste && <p style={{ margin: "2px 0 0", fontSize: "13px", color: "rgba(255,255,255,0.5)" }}>{l.poste}</p>}
+                      {l.poste && <p style={{ margin: "2px 0 0", fontSize: "14px", color: "rgba(255,255,255,0.72)" }}>{l.poste}</p>}
                     </div>
                     <div style={{ textAlign: "right" }}>
                       {/* 🆕 28/09 (essai B) — un stagiaire : la gratification, et
                           la seule part soumise en petit. */}
                       {l.gratification ? (
-                        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>
+                        <p style={{ margin: 0, fontSize: "14px", color: "rgba(255,255,255,0.76)" }}>
                           Gratification {euros(l.gratification)}
-                          <span style={{ display: "block", fontSize: "11.5px" }}>dont {euros(l.brut)} soumis</span>
+                          <span style={{ display: "block", fontSize: "12.5px" }}>dont {euros(l.brut)} soumis</span>
                         </p>
                       ) : (
-                        <p style={{ margin: 0, fontSize: "13px", color: "rgba(255,255,255,0.55)" }}>Brut {euros(l.brut)}</p>
+                        <p style={{ margin: 0, fontSize: "14px", color: "rgba(255,255,255,0.76)" }}>Brut {euros(l.brut)}</p>
                       )}
                       <p style={{ margin: "2px 0 0", fontSize: "16px", color: OR, fontWeight: "bold" }}>Net {euros(l.net)}</p>
                     </div>
@@ -155,7 +157,7 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
                     })}
                     {(!l.elements || l.elements.length === 0) ? (
                       (l.absences || []).length > 0 ? null : (
-                        <span style={{ color: "rgba(255,255,255,0.45)" }}>Aucun élément particulier ce mois-ci.</span>
+                        <span style={{ color: "rgba(255,255,255,0.72)" }}>Aucun élément particulier ce mois-ci.</span>
                       )
                     ) : l.elements.map(function (e: any, i: number) {
                       return (
