@@ -78,8 +78,13 @@ const PARALLELE = 6;
 // LE DELAI AVANT D ABANDONNER UNE PAGE, ET LE GARDE-FOU DE DUREE.
 // 🚨 MEME REGLE QUE lire-sites : un serveur qui accepte la connexion sans
 // jamais repondre bloquerait tout le passage.
-const DELAI_MS = 4000;
-const DELAI_DNS_MS = 1500;
+// 🆕 01/10 (troisieme essai) — 4 SECONDES NE SUFFISAIENT PAS : trois sites
+// tres probables (auditgestionconseil.fr, revision-et-finance-cogefor.fr,
+// europeenne.fr) etaient « delai depasse ». Et un domaine existant
+// (cabinet-camatte.fr) n etait pas vu d un essai sur l autre : le DNS
+// repondait trop tard. Delais allonges, deux tentatives DNS.
+const DELAI_MS = 7000;
+const DELAI_DNS_MS = 2500;
 const DUREE_MAX_MS = 250000;
 
 // AU PLUS, COMBIEN DE DOMAINES OUVRIR POUR UNE LIGNE.
@@ -118,7 +123,7 @@ const supabase = createClient(
 // ⚠️ ON N UTILISE PAS dns.lookup : il passe par une file de quatre fils
 // partagee par tout le processus, et vingt questions a la fois y feraient
 // la queue. Le Resolver interroge directement, en parallele.
-const resolveur = new dnsPromises.Resolver({ timeout: DELAI_DNS_MS, tries: 1 });
+const resolveur = new dnsPromises.Resolver({ timeout: DELAI_DNS_MS, tries: 2 });
 
 // UN TEXTE SANS ACCENTS, EN MINUSCULES, SANS PONCTUATION.
 function plat(v: any): string {
@@ -216,6 +221,22 @@ function candidats(l: any, metier: string): string[] {
     }
   }
 
+  // 4. 🆕 01/10 — LE SIGLE DU NOM. « EXPERTISE ET TECHNIQUE COMPTABLES » se
+  // presente sous « ETC » : son site ne porte aucun des trois mots. Le sigle
+  // se forme sur les mots du nom (y compris les mots du metier), sans les
+  // petits mots ni la forme juridique.
+  const PETITS = ["et", "de", "du", "des", "la", "le", "les", "en", "l", "d", "a", "au", "aux"];
+  const pourSigle = raison.filter(function (m) { return PETITS.indexOf(m) < 0; });
+  if (pourSigle.length >= 3 && pourSigle.length <= 6) {
+    const sigle = pourSigle.map(function (m) { return m[0]; }).join("");
+    if (metier === "avocat") {
+      ajouter(sigle + "-avocats"); ajouter("cabinet-" + sigle); ajouter(sigle + "avocats");
+    } else {
+      ajouter(sigle + "-expertise"); ajouter(sigle + "-expert-comptable"); ajouter("cabinet-" + sigle);
+      ajouter(sigle + "expertise"); ajouter(sigle + "-conseil");
+    }
+  }
+
   // Le coeur seul, en dernier (voir plus haut).
   const avantCoeur = slugs.length;
   for (const s of coeurSeul) ajouter(s);
@@ -292,14 +313,40 @@ function estPage(x: any): x is { html: string; finale: string } {
 // serveur muet le resterait en http, et ce serait 4 secondes de plus).
 // ⚠️ LE REPLI EN http EST REVENU : au premier essai, sans lui, des sites
 // de petits cabinets au certificat expire etaient « illisibles ».
+// 🆕 01/10 — LES PAGES QUI RENVOIENT AILLEURS SANS LE DIRE AU SERVEUR.
+// Plusieurs accueils « presque vides » (cegec.fr, lds39.com) sont des pages
+// de renvoi : une balise meta refresh, un script, ou un cadre qui charge le
+// vrai site. On suit ce renvoi UNE fois.
+function renvoiDe(html: string, base: string): string | null {
+  const m = html.match(/<meta[^>]+http-equiv=["']?refresh["']?[^>]*content=["'][^"']*url\s*=\s*([^"'>\s]+)/i)
+    || html.match(/(?:window\.)?location(?:\.href)?\s*=\s*["']([^"']+)["']/i)
+    || html.match(/<i?frame[^>]+src=["']([^"']+)["']/i);
+  if (!m) return null;
+  try {
+    const u = new URL(m[1], base);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
+
+async function suivreRenvoi(p: { html: string; finale: string }): Promise<{ html: string; finale: string }> {
+  if (plat(texteDe(p.html)).length >= 200) return p;
+  const cible = renvoiDe(p.html, p.finale);
+  if (!cible || cible === p.finale) return p;
+  const r = await lire(cible);
+  return estPage(r) ? r : p;
+}
+
 async function ouvrir(d: string): Promise<{ html: string; finale: string } | { erreur: string }> {
   const a = await lire("https://" + d);
-  if (estPage(a)) return a;
+  if (estPage(a)) return await suivreRenvoi(a);
   const b = await lire("https://www." + d);
-  if (estPage(b)) return b;
+  if (estPage(b)) return await suivreRenvoi(b);
   if ((a as any).erreur === "delai depasse" && (b as any).erreur === "delai depasse") return a;
   const c = await lire("http://" + d);
-  if (estPage(c)) return c;
+  if (estPage(c)) return await suivreRenvoi(c);
   return { erreur: (a as any).erreur + " / www : " + (b as any).erreur + " / http : " + (c as any).erreur };
 }
 
@@ -487,7 +534,7 @@ async function chercher(l: any, metier: string): Promise<any> {
 }
 
 // LES LIGNES A TRAITER : sans site, sans adresse, jamais cherchees.
-async function aChercher(conf: any, combien: number): Promise<any> {
+async function aChercher(conf: any, combien: number, debut: number): Promise<any> {
   return await supabase
     .from(conf.table)
     .select("*")
@@ -497,12 +544,14 @@ async function aChercher(conf: any, combien: number): Promise<any> {
     .eq("desabonne", false)
     .order(conf.ordre, { ascending: true })
     .order("id", { ascending: true })
-    .limit(combien);
+    // 🆕 ?debut= (essai seulement) : mesurer sur un autre echantillon que
+    // les trente premieres lignes, qui sont les plus gros cabinets.
+    .range(debut, debut + combien - 1);
 }
 
-async function traiter(nom: string, combien: number, depart: number, essai: boolean): Promise<any> {
+async function traiter(nom: string, combien: number, depart: number, essai: boolean, debut: number): Promise<any> {
   const conf = TABLES[nom];
-  const { data: lignes, error } = await aChercher(conf, combien);
+  const { data: lignes, error } = await aChercher(conf, combien, essai ? debut : 0);
   if (error) return { table: conf.table, erreur: error.message };
   if (!lignes || lignes.length === 0) return { table: conf.table, info: "rien a chercher" };
 
@@ -609,6 +658,7 @@ export async function GET(req: NextRequest) {
   // 🚨 ?essai=1 : on cherche, on rend le resultat, et on N ECRIT RIEN.
   // C est le mode de la premiere mesure, sur un echantillon (?lot=30).
   const essai = p.get("essai") === "1";
+  const debut = Math.max(0, Number(p.get("debut") || 0) || 0);
   const demande = Number(p.get("lot") || 0);
   const combien = demande > 0 && demande <= 500 ? demande : LOT;
   const vise = String(p.get("table") || "").trim();
@@ -623,7 +673,7 @@ export async function GET(req: NextRequest) {
     };
     let vu = false;
     while (Date.now() - depart < DUREE_MAX_MS) {
-      const r = await traiter(nom, combien, depart, essai);
+      const r = await traiter(nom, combien, depart, essai, debut);
       if (r.info) break;
       if (r.erreur) { resultats.push(r); break; }
       vu = true;
