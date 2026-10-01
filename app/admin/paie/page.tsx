@@ -2566,11 +2566,11 @@ export default function PagePaie() {
                   <span style={LIB}>
                     Taux
                     {tauxMajore() !== null && !e.taux && (
-                      <span style={{ color: OR }}> · {tauxMajore()}</span>
+                      <span style={{ color: OR }}> · {String(tauxMajore()).replace(".", ",")}</span>
                     )}
                   </span>
                   <input value={e.taux || ""} style={CHAMP}
-                    placeholder={tauxMajore() !== null ? String(tauxMajore()) : ""}
+                    placeholder={tauxMajore() !== null ? String(tauxMajore()).replace(".", ",") : ""}
                     onChange={(ev) => setE({ ...e, taux: ev.target.value })} />
                 </div>
                 <div style={{ flex: "0 1 110px" }}>
@@ -2660,6 +2660,186 @@ export default function PagePaie() {
                   Avant l&apos;émission : les contrôles et le récapitulatif client, dans
                   « Validation du mois » ci-dessous.
                 </span>
+              </div>
+            )}
+
+            {/* 🆕 01/10 — LE CALCUL S AFFICHE JUSTE SOUS SON BOUTON. Il venait
+                apres tout le bloc « Validation du mois » : apres « Calculer le
+                bulletin », rien ne bougeait a l ecran et il fallait descendre
+                loin pour trouver le resultat (vu au tournage de la video de la
+                paie, le 01/10). Le bloc n a pas change, seulement sa place. */}
+            {calcul && (
+              <div style={CADRE}>
+                <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
+                  Le calcul, avant de sortir le document
+                </h3>
+
+                {/* 🆕 27/09 soir — LES LIGNES QUI N ENTRENT PAS DANS LE BRUT
+                    (acompte, retenue des titres-restaurant, avantage deduit du
+                    net, indemnites non soumises, IJ reversees) s affichent SOUS
+                    les cotisations. Au-dessus du « Salaire brut », l acompte
+                    faisait lire 2 400 − 300 = 2 400 (essai 5 du 27/09). */}
+                {(calcul.lignes_brut || []).filter(function (l: any) { return !l.hors_brut; })
+                  .map(function (l: any, i: number) {
+                  return (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between",
+                      padding: "4px 0", fontSize: "13.5px" }}>
+                      <span>{l.libelle}</span>
+                      <span>{euros(l.montant)} €</span>
+                    </div>
+                  );
+                })}
+
+                {(calcul.lignes_mission || []).map(function (l: any, i: number) {
+                  return (
+                    <div key={"m" + i} style={{ display: "flex",
+                      justifyContent: "space-between", padding: "4px 0", fontSize: "13.5px" }}>
+                      <span>{l.libelle}
+                        {l.taux ? <span style={{ color: "rgba(255,255,255,0.72)",
+                          marginLeft: "8px", fontSize: "13.5px" }}>
+                          {l.taux} % de {euros(l.base)}</span> : null}
+                      </span>
+                      <span>{euros(l.montant)} €</span>
+                    </div>
+                  );
+                })}
+
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  padding: "10px 0", marginTop: "6px", fontWeight: "bold",
+                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                  <span>Salaire brut</span>
+                  <span>{euros(calcul.brut_total)} €</span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  padding: "4px 0", fontSize: "13.5px" }}>
+                  <span>Cotisations salariales</span>
+                  <span>− {euros(calcul.total_salarial)} €</span>
+                </div>
+
+                {/* 🆕 27/09 soir — les sommes hors brut, entre les cotisations
+                    et le net : brut − cotisations + ces lignes = net avant impôt. */}
+                {(calcul.lignes_brut || []).filter(function (l: any) { return !!l.hors_brut; })
+                  .map(function (l: any, i: number) {
+                  return (
+                    <div key={"h" + i} style={{ display: "flex", justifyContent: "space-between",
+                      padding: "4px 0", fontSize: "13.5px" }}>
+                      <span>{l.libelle}</span>
+                      <span>{euros(l.montant)} €</span>
+                    </div>
+                  );
+                })}
+
+                {/* 🚨🚨 LA REDUCTION PATRONALE N EST PLUS ICI — 16/09.
+                    DEFAUT TROUVE A L ESSAI : elle etait affichee entre les
+                    cotisations salariales et le net a payer, comme si elle
+                    entrait dans le calcul du net. Un salarie qui soustrayait
+                    les deux lignes du brut trouvait 1 360,66 EUR au lieu de
+                    1 995,24. Elle appartient au bloc employeur, et a lui
+                    seul : elle diminue le cout de l entreprise, jamais le
+                    net du salarie. */}
+
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  padding: "12px 0", marginTop: "8px", fontSize: "17px",
+                  fontWeight: "bold", color: OR,
+                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                  <span>Net à payer</span>
+                  <span>{euros(calcul.net_a_payer)} €</span>
+                </div>
+
+                {/* 🆕 27/09 — le prelevement a la source, calcule desormais. */}
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)", gap: "12px" }}>
+                  <span>Prélèvement à la source, déjà déduit du net à payer
+                    {calcul.prelevement_mention ? " — " + calcul.prelevement_mention : ""}</span>
+                  <span>{euros(calcul.prelevement_source || 0)} €</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
+                  <span>Net à payer avant impôt</span>
+                  <span>{euros(calcul.net_avant_impot)} €</span>
+                </div>
+
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
+                  <span>Montant net social</span>
+                  <span>{euros(calcul.net_social)} €</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
+                  <span>Net imposable</span>
+                  <span>{euros(calcul.net_imposable)} €</span>
+                </div>
+
+                {/* ---- CE QUE PAIE L EMPLOYEUR, A PART ---- */}
+                <div style={{ marginTop: "16px", paddingTop: "12px",
+                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                  <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 6px" }}>
+                    Côté employeur
+                  </p>
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    padding: "3px 0", fontSize: "14px" }}>
+                    <span>Cotisations patronales</span>
+                    <span>{euros(calcul.total_patronal)} €</span>
+                  </div>
+                  {calcul.rgdu > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "3px 0", fontSize: "14px", color: VERT }}>
+                      <span>Réduction générale dégressive unique
+                        {calcul.rgdu_detail && calcul.rgdu_detail.coefficient ? (
+                          <span style={{ color: "rgba(255,255,255,0.72)",
+                            marginLeft: "8px", fontSize: "12.5px" }}>
+                            coef. {String(calcul.rgdu_detail.coefficient).replace(".", ",")}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span>− {euros(calcul.rgdu)} €</span>
+                    </div>
+                  )}
+                  {/* 🆕 27/09 — la deduction forfaitaire sur heures supplementaires. */}
+                  {calcul.deduction_hs > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "3px 0", fontSize: "14px", color: VERT }}>
+                      <span>Déduction forfaitaire sur heures supplémentaires</span>
+                      <span>− {euros(calcul.deduction_hs)} €</span>
+                    </div>
+                  )}
+                  {/* 🆕 27/09 soir — ce que l employeur paie hors brut (indemnite
+                      de rupture non soumise, panier, transport) : le cout total
+                      le compte, la ligne le montre. */}
+                  {calcul.non_soumis_employeur > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between",
+                      padding: "3px 0", fontSize: "14px" }}>
+                      <span>Indemnités et frais non soumis versés</span>
+                      <span>{euros(calcul.non_soumis_employeur)} €</span>
+                    </div>
+                  )}
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    padding: "6px 0 0", fontSize: "14px", fontWeight: "bold",
+                    borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "6px" }}>
+                    <span>Coût total employeur</span>
+                    <span>{euros(calcul.cout_employeur)} €</span>
+                  </div>
+                </div>
+
+                {/* 🚨 LES RESERVES S AFFICHENT. Un calcul qui tait ce qu il ne
+                    fait pas est plus dangereux qu un calcul absent. */}
+                {(calcul.reserves || []).length > 0 && (
+                  <div style={{ marginTop: "16px", paddingTop: "12px",
+                    borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 6px" }}>
+                      Ce que ce calcul ne fait pas encore
+                    </p>
+                    {calcul.reserves.map(function (r: string, i: number) {
+                      return (
+                        <p key={i} style={{ fontSize: "12.5px", lineHeight: "1.6",
+                          color: "rgba(255,255,255,0.72)", margin: "0 0 3px" }}>
+                          {r}
+                        </p>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -2937,181 +3117,6 @@ export default function PagePaie() {
               )}
             </div>
 
-            {calcul && (
-              <div style={CADRE}>
-                <h3 style={{ color: OR, fontSize: "16px", marginTop: 0 }}>
-                  Le calcul, avant de sortir le document
-                </h3>
-
-                {/* 🆕 27/09 soir — LES LIGNES QUI N ENTRENT PAS DANS LE BRUT
-                    (acompte, retenue des titres-restaurant, avantage deduit du
-                    net, indemnites non soumises, IJ reversees) s affichent SOUS
-                    les cotisations. Au-dessus du « Salaire brut », l acompte
-                    faisait lire 2 400 − 300 = 2 400 (essai 5 du 27/09). */}
-                {(calcul.lignes_brut || []).filter(function (l: any) { return !l.hors_brut; })
-                  .map(function (l: any, i: number) {
-                  return (
-                    <div key={i} style={{ display: "flex", justifyContent: "space-between",
-                      padding: "4px 0", fontSize: "13.5px" }}>
-                      <span>{l.libelle}</span>
-                      <span>{euros(l.montant)} €</span>
-                    </div>
-                  );
-                })}
-
-                {(calcul.lignes_mission || []).map(function (l: any, i: number) {
-                  return (
-                    <div key={"m" + i} style={{ display: "flex",
-                      justifyContent: "space-between", padding: "4px 0", fontSize: "13.5px" }}>
-                      <span>{l.libelle}
-                        {l.taux ? <span style={{ color: "rgba(255,255,255,0.72)",
-                          marginLeft: "8px", fontSize: "13.5px" }}>
-                          {l.taux} % de {euros(l.base)}</span> : null}
-                      </span>
-                      <span>{euros(l.montant)} €</span>
-                    </div>
-                  );
-                })}
-
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  padding: "10px 0", marginTop: "6px", fontWeight: "bold",
-                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                  <span>Salaire brut</span>
-                  <span>{euros(calcul.brut_total)} €</span>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  padding: "4px 0", fontSize: "13.5px" }}>
-                  <span>Cotisations salariales</span>
-                  <span>− {euros(calcul.total_salarial)} €</span>
-                </div>
-
-                {/* 🆕 27/09 soir — les sommes hors brut, entre les cotisations
-                    et le net : brut − cotisations + ces lignes = net avant impôt. */}
-                {(calcul.lignes_brut || []).filter(function (l: any) { return !!l.hors_brut; })
-                  .map(function (l: any, i: number) {
-                  return (
-                    <div key={"h" + i} style={{ display: "flex", justifyContent: "space-between",
-                      padding: "4px 0", fontSize: "13.5px" }}>
-                      <span>{l.libelle}</span>
-                      <span>{euros(l.montant)} €</span>
-                    </div>
-                  );
-                })}
-
-                {/* 🚨🚨 LA REDUCTION PATRONALE N EST PLUS ICI — 16/09.
-                    DEFAUT TROUVE A L ESSAI : elle etait affichee entre les
-                    cotisations salariales et le net a payer, comme si elle
-                    entrait dans le calcul du net. Un salarie qui soustrayait
-                    les deux lignes du brut trouvait 1 360,66 EUR au lieu de
-                    1 995,24. Elle appartient au bloc employeur, et a lui
-                    seul : elle diminue le cout de l entreprise, jamais le
-                    net du salarie. */}
-
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  padding: "12px 0", marginTop: "8px", fontSize: "17px",
-                  fontWeight: "bold", color: OR,
-                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                  <span>Net à payer</span>
-                  <span>{euros(calcul.net_a_payer)} €</span>
-                </div>
-
-                {/* 🆕 27/09 — le prelevement a la source, calcule desormais. */}
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)", gap: "12px" }}>
-                  <span>Prélèvement à la source, déjà déduit du net à payer
-                    {calcul.prelevement_mention ? " — " + calcul.prelevement_mention : ""}</span>
-                  <span>{euros(calcul.prelevement_source || 0)} €</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
-                  <span>Net à payer avant impôt</span>
-                  <span>{euros(calcul.net_avant_impot)} €</span>
-                </div>
-
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
-                  <span>Montant net social</span>
-                  <span>{euros(calcul.net_social)} €</span>
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between",
-                  fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
-                  <span>Net imposable</span>
-                  <span>{euros(calcul.net_imposable)} €</span>
-                </div>
-
-                {/* ---- CE QUE PAIE L EMPLOYEUR, A PART ---- */}
-                <div style={{ marginTop: "16px", paddingTop: "12px",
-                  borderTop: "1px solid rgba(255,255,255,0.12)" }}>
-                  <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 6px" }}>
-                    Côté employeur
-                  </p>
-                  <div style={{ display: "flex", justifyContent: "space-between",
-                    padding: "3px 0", fontSize: "14px" }}>
-                    <span>Cotisations patronales</span>
-                    <span>{euros(calcul.total_patronal)} €</span>
-                  </div>
-                  {calcul.rgdu > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      padding: "3px 0", fontSize: "14px", color: VERT }}>
-                      <span>Réduction générale dégressive unique
-                        {calcul.rgdu_detail && calcul.rgdu_detail.coefficient ? (
-                          <span style={{ color: "rgba(255,255,255,0.72)",
-                            marginLeft: "8px", fontSize: "12.5px" }}>
-                            coef. {calcul.rgdu_detail.coefficient}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span>− {euros(calcul.rgdu)} €</span>
-                    </div>
-                  )}
-                  {/* 🆕 27/09 — la deduction forfaitaire sur heures supplementaires. */}
-                  {calcul.deduction_hs > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      padding: "3px 0", fontSize: "14px", color: VERT }}>
-                      <span>Déduction forfaitaire sur heures supplémentaires</span>
-                      <span>− {euros(calcul.deduction_hs)} €</span>
-                    </div>
-                  )}
-                  {/* 🆕 27/09 soir — ce que l employeur paie hors brut (indemnite
-                      de rupture non soumise, panier, transport) : le cout total
-                      le compte, la ligne le montre. */}
-                  {calcul.non_soumis_employeur > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between",
-                      padding: "3px 0", fontSize: "14px" }}>
-                      <span>Indemnités et frais non soumis versés</span>
-                      <span>{euros(calcul.non_soumis_employeur)} €</span>
-                    </div>
-                  )}
-                  <div style={{ display: "flex", justifyContent: "space-between",
-                    padding: "6px 0 0", fontSize: "14px", fontWeight: "bold",
-                    borderTop: "1px solid rgba(255,255,255,0.08)", marginTop: "6px" }}>
-                    <span>Coût total employeur</span>
-                    <span>{euros(calcul.cout_employeur)} €</span>
-                  </div>
-                </div>
-
-                {/* 🚨 LES RESERVES S AFFICHENT. Un calcul qui tait ce qu il ne
-                    fait pas est plus dangereux qu un calcul absent. */}
-                {(calcul.reserves || []).length > 0 && (
-                  <div style={{ marginTop: "16px", paddingTop: "12px",
-                    borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                    <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 6px" }}>
-                      Ce que ce calcul ne fait pas encore
-                    </p>
-                    {calcul.reserves.map(function (r: string, i: number) {
-                      return (
-                        <p key={i} style={{ fontSize: "12.5px", lineHeight: "1.6",
-                          color: "rgba(255,255,255,0.72)", margin: "0 0 3px" }}>
-                          {r}
-                        </p>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* ═══════════════════════════════════════════════════════
                 ══ LES CONGES PAYES ══
                 🚨 LE COMPTEUR NE SAVAIT QU ACQUERIR. Un salarie qui pose
@@ -3156,7 +3161,7 @@ export default function PagePaie() {
                   <div>
                     {/* ⚠️ LE MOIS S AFFICHE EN CLAIR : « 2026-09-01 » est un
                         format de base de donnees, pas une date qu on lit. */}
-                    <span style={LIB}>Jours pris en {String(periode).slice(0, 7)}</span>
+                    <span style={LIB}>Jours pris en {libelleMois(periode)}</span>
                     <input value={joursPris}
                       onChange={(e: any) => setJoursPris(e.target.value)}
                       placeholder="ex. 5" style={{ ...CHAMP, width: "120px" }} />
