@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// 🆕 01/10 (soir) — voir « AUCUNE LECTURE GARDEE EN CACHE » plus bas.
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 export const maxDuration = 300;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -144,9 +147,19 @@ const REJETS = [
 // expression reguliere, et n en est pas une.
 const EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js"];
 
+// 🚨🆕 01/10 (soir) — AUCUNE LECTURE GARDEE EN CACHE. Les journaux de Vercel
+// montraient « Using cache » sur la lecture de la base : chaque passage
+// automatique recevait LA MEME liste de lignes que le premier, et retraitait
+// sans fin les memes cabinets (180 cherches au bout de trois heures). Le
+// cache de Next.js garde les reponses des appels `fetch` ; on le refuse ici,
+// pour la base comme pour les pages et les questions DNS.
+const sansCache = function (entree: any, options?: any) {
+  return fetch(entree, { ...(options || {}), cache: "no-store" });
+};
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  { global: { fetch: sansCache as any } }
 );
 
 function pause(ms: number) {
@@ -192,6 +205,14 @@ function adressesDe(html: string): string[] {
     // pas une adresse, et ce cas remonte souvent des textes mal ecrits.
     const apres = a.split("@")[1] || "";
     if (apres.indexOf(".") < 1) return;
+    // 🆕 01/10 (soir) — LES ADRESSES D ADMINISTRATIONS ET DE COMPTES
+    // MICROSOFT GENERIQUES ne sont jamais celles d un prospect : le 01/10,
+    // 61 cabinets ont recu celle du secretariat d Etat du Dakota du Nord
+    // (« …@ndgov.onmicrosoft.com ») et un autre celle de l agence americaine
+    // du medicament (« …@fda.gov »), lues sur des sites qui n etaient pas
+    // les leurs.
+    if (/\.onmicrosoft\.com$/.test(apres) || /(^|\.)gov(\.[a-z]{2})?$/.test(apres)
+      || /\.gouv\.fr$/.test(apres)) return;
     if (vues[a]) return;
     vues[a] = true;
     sortie.push(a);
@@ -255,6 +276,7 @@ async function lire(url: string): Promise<string | null> {
     const r = await fetch(url, {
       signal: stop.signal,
       redirect: "follow",
+      cache: "no-store",
       headers: {
         // ⚠️ SANS EN-TETE D IDENTIFICATION, beaucoup de serveurs repondent
         // 403. On se presente honnetement : un lecteur, pas un navigateur
@@ -351,6 +373,15 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
 
   // UN SITE : le lire, puis ecrire ce qu on en tire. Rend ce qui s est passe.
   async function unSite(l: any): Promise<string> {
+    // 🆕 01/10 (soir) — UNE FICHE « [ND] » (non diffusible) n a pas de nom :
+    // son site, venu de Dropcontact, ne peut pas etre verifie (c etait celui
+    // du Dakota du Nord). On la marque lue, sans rien en tirer.
+    if (String(l.raison_sociale || "").trim() === "[ND]") {
+      await supabase.from(table)
+        .update({ site_lu_le: new Date().toISOString() })
+        .eq("id", l.id);
+      return "rien";
+    }
     const origine = normaliserSite(l.site_web);
     if (!origine) {
       await supabase.from(table)
