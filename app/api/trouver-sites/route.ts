@@ -87,7 +87,9 @@ const DUREE_MAX_MS = 250000;
 const MAX_DOMAINES_OUVERTS = 4;
 
 // LES PAGES OU CHERCHER LE SIREN QUAND L ACCUEIL NE LE PORTE PAS.
-const PAGES_MENTIONS = ["/mentions-legales", "/mentions-legales/", "/mentions-legales.html", "/mentions_legales"];
+// 🆕 01/10 — ET LA PAGE CONTACT : la ville y est presque toujours, meme
+// quand l accueil ne la donne pas.
+const PAGES_MENTIONS = ["/mentions-legales", "/mentions-legales/", "/mentions-legales.html", "/mentions_legales", "/contact", "/nous-contacter"];
 
 // ⚠️ LES FORMES JURIDIQUES ET LES PETITS MOTS NE FONT PAS UN NOM DE DOMAINE.
 // « SELARL DUPONT ET ASSOCIES » donne « dupont », et aussi « dupont-associes ».
@@ -132,7 +134,21 @@ function plat(v: any): string {
 
 function mots(v: any): string[] {
   const p = plat(v);
-  return p ? p.split(" ") : [];
+  if (!p) return [];
+  // 🆕 01/10 — LES SIGLES : « L.D.S. » devenait « l d s », dont « l » et
+  // « d » partaient avec les formes juridiques — et il restait « s », d ou
+  // « sexpertise.fr ». Les lettres seules qui se suivent forment un mot.
+  const brut = p.split(" ");
+  const sortie: string[] = [];
+  let sigle = "";
+  for (const m of brut) {
+    if (m.length === 1) { sigle += m; continue; }
+    if (sigle) { sortie.push(sigle); sigle = ""; }
+    sortie.push(m);
+  }
+  if (sigle) sortie.push(sigle);
+  // Une lettre seule restee seule (le « l » de « l expert ») n est pas un mot.
+  return sortie.filter(function (m) { return m.length >= 2; });
 }
 
 // UN MORCEAU DE NOM DE DOMAINE : lettres, chiffres, tirets, et pas trop long.
@@ -234,7 +250,12 @@ async function existe(domaine: string): Promise<boolean> {
 
 // LIRE UNE PAGE, AVEC UN DELAI D ABANDON. Rend le texte ET l adresse finale
 // (apres redirections) : c est elle qui sera ecrite comme site.
-async function lire(url: string): Promise<{ html: string; finale: string } | null> {
+// 🆕 01/10 (deuxieme essai) — LA RAISON DE L ECHEC EST RENDUE : sur 30
+// cabinets, la moitie des domaines plausibles (« auditgestionconseil.fr »
+// pour AUDIT GESTION CONSEIL) etaient « illisibles » sans qu on sache
+// pourquoi. `erreur` dit maintenant : code HTTP, delai, ou refus de
+// connexion (souvent un certificat invalide).
+async function lire(url: string): Promise<{ html: string; finale: string } | { erreur: string }> {
   const stop = new AbortController();
   const minuteur = setTimeout(function () { stop.abort(); }, DELAI_MS);
   try {
@@ -244,18 +265,42 @@ async function lire(url: string): Promise<{ html: string; finale: string } | nul
       headers: {
         "user-agent": "Mozilla/5.0 (compatible; AcademiaPro-Contact/1.0; +https://www.academiapro.fr)",
         accept: "text/html,application/xhtml+xml",
+        // ⚠️ Certains pare-feu refusent une requete sans langue.
+        "accept-language": "fr-FR,fr;q=0.9,en;q=0.5",
       },
     });
     clearTimeout(minuteur);
-    if (!r.ok) return null;
+    if (!r.ok) return { erreur: "http " + r.status };
     const type = String(r.headers.get("content-type") || "");
-    if (type && type.indexOf("html") < 0) return null;
+    if (type && type.indexOf("html") < 0) return { erreur: "pas une page (" + type.split(";")[0] + ")" };
     const texte = await r.text();
     return { html: texte.slice(0, 400000), finale: r.url || url };
-  } catch {
+  } catch (e: any) {
     clearTimeout(minuteur);
-    return null;
+    if (stop.signal.aborted) return { erreur: "delai depasse" };
+    const cause = String((e && e.cause && (e.cause.code || e.cause.message)) || (e && e.message) || "inconnue");
+    return { erreur: "connexion refusee (" + cause.slice(0, 60) + ")" };
   }
+}
+
+function estPage(x: any): x is { html: string; finale: string } {
+  return x && typeof x.html === "string";
+}
+
+// 🆕 OUVRIR UN DOMAINE : https, puis https://www., puis http:// — mais le
+// repli en http ne se fait que si l echec N EST PAS un delai depasse (un
+// serveur muet le resterait en http, et ce serait 4 secondes de plus).
+// ⚠️ LE REPLI EN http EST REVENU : au premier essai, sans lui, des sites
+// de petits cabinets au certificat expire etaient « illisibles ».
+async function ouvrir(d: string): Promise<{ html: string; finale: string } | { erreur: string }> {
+  const a = await lire("https://" + d);
+  if (estPage(a)) return a;
+  const b = await lire("https://www." + d);
+  if (estPage(b)) return b;
+  if ((a as any).erreur === "delai depasse" && (b as any).erreur === "delai depasse") return a;
+  const c = await lire("http://" + d);
+  if (estPage(c)) return c;
+  return { erreur: (a as any).erreur + " / www : " + (b as any).erreur + " / http : " + (c as any).erreur };
 }
 
 // LE TEXTE VISIBLE D UNE PAGE, sans scripts ni balises.
@@ -287,7 +332,10 @@ function verifier(html: string, l: any, metier: string): string | null {
   const brut = texteDe(html);
   if (porteSiren(brut, l.siren)) return "siren";
 
-  const t = plat(brut);
+  // 🆕 01/10 — LE TEXTE VISIBLE ET LE CODE DE LA PAGE ENSEMBLE : beaucoup de
+  // sites recents (Wix, React) ont leur texte dans des scripts, que
+  // texteDe retire. Le titre et la description y sont aussi.
+  const t = plat(brut + " " + html.slice(0, 200000));
   const metierOk = (PREUVES_METIER[metier] || []).some(function (p: string) {
     return t.indexOf(plat(p)) >= 0 || t.indexOf(p) >= 0;
   });
@@ -317,8 +365,8 @@ function verifier(html: string, l: any, metier: string): string | null {
 // existait sans etre retenu : sans la raison, on reglerait a l aveugle.
 function pourquoiRefuse(html: string, l: any, metier: string): string {
   const brut = texteDe(html);
-  const t = plat(brut);
-  if (t.length < 200) return "page presque vide (site en construction, redirection, ou lecture bloquee)";
+  if (plat(brut).length < 200) return "page presque vide (site en construction, redirection, ou lecture bloquee)";
+  const t = plat(brut + " " + html.slice(0, 200000));
   const metierOk = (PREUVES_METIER[metier] || []).some(function (p: string) {
     return t.indexOf(plat(p)) >= 0;
   });
@@ -382,16 +430,16 @@ async function chercher(l: any, metier: string): Promise<any> {
     // ⚠️ PAS DE REPLI EN « http:// » : trois essais par domaine sur quatre
     // domaines, c etait jusqu a 48 secondes pour une seule ligne qui ne
     // repond pas. Les sites de cabinets sont aujourd hui en https.
-    let page = await lire("https://" + d);
-    if (!page) page = await lire("https://www." + d);
-    if (!page) { journal.push({ domaine: d, refus: "page illisible (erreur, delai depasse ou lecture refusee)" }); continue; }
+    const ouvert = await ouvrir(d);
+    if (!estPage(ouvert)) { journal.push({ domaine: d, refus: "page illisible : " + ouvert.erreur }); continue; }
+    const page = ouvert;
 
     let preuve = verifier(page.html, l, metier);
     // ⚠️ L ACCUEIL NE PORTE PAS TOUJOURS LE SIREN : les mentions legales,
     // oui. On ne les ouvre que si l accueil parle deja du metier — sinon,
     // c est un autre site, inutile de chercher plus loin.
     if (!preuve) {
-      const t = plat(texteDe(page.html));
+      const t = plat(texteDe(page.html) + " " + page.html.slice(0, 200000));
       const parleMetier = (PREUVES_METIER[metier] || []).some(function (p: string) {
         return t.indexOf(plat(p)) >= 0;
       });
@@ -400,11 +448,12 @@ async function chercher(l: any, metier: string): Promise<any> {
         try { origineMentions = new URL(page.finale).origin; } catch { origineMentions = "https://" + d; }
         for (const chemin of PAGES_MENTIONS) {
           const m = await lire(origineMentions + chemin);
-          if (!m) continue;
+          if (!estPage(m)) continue;
           if (porteSiren(texteDe(m.html), l.siren)) { preuve = "siren"; break; }
-          const v = verifier(m.html, l, metier);
+          // 🆕 LA PAGE ANNEXE COMPLETE L ACCUEIL : le metier et le nom peuvent
+          // etre sur l accueil, la ville sur la page contact.
+          const v = verifier(page.html + " " + m.html, l, metier);
           if (v) { preuve = v; break; }
-          break;
         }
       }
     }
