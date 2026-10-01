@@ -72,8 +72,13 @@ const PREUVES_METIER: any = {
 // ⚠️ EN PARALLELE, PAS PLUS DE SIX : chaque ligne interroge jusqu a vingt
 // domaines et ouvre quelques pages. Au-dela, les delais d abandon se
 // cumulent et le passage deborde.
-const LOT = 60;
-const PARALLELE = 6;
+// 🆕 01/10 (soir) — PREMIER PASSAGE REEL : 60 cabinets en cinq minutes, un
+// seul passage par heure, soit trois semaines pour toute la base. Douze
+// lignes a la fois au lieu de six (tout est attente du reseau, et les
+// questions DNS restent limitees a huit par ligne) ; la tache passe aussi
+// toutes les dix minutes (vercel.json).
+const LOT = 120;
+const PARALLELE = 12;
 
 // LE DELAI AVANT D ABANDONNER UNE PAGE, ET LE GARDE-FOU DE DUREE.
 // 🚨 MEME REGLE QUE lire-sites : un serveur qui accepte la connexion sans
@@ -542,6 +547,18 @@ function identiteDe(t: string, l: any, domaine: string): string | null {
   const sigle = sigleDe(l.raison_sociale);
   if (sigle && sigle.length >= 3 && domaine.replace(/[^a-z0-9]/g, "").indexOf(sigle) >= 0 && contientMot(t, sigle)) {
     return "sigle";
+  }
+
+  // 🆕 01/10 (essai avocats) — UN MOT DISTINCTIF DU NOM, A LA FOIS DANS LE
+  // DOMAINE ET SUR LA PAGE. « SAS LEGALPS AVOCATS-HERLEMONT ET ASSOCIES »
+  // a pour site legalps-avocats.com, qui ecrit « Legalps » partout mais pas
+  // « Herlemont » : exiger tous les mots du nom le faisait refuser. Le mot
+  // doit avoir au moins cinq lettres, et le metier et le lieu restent exiges.
+  const nomDomaine = domaine.replace(/[^a-z0-9]/g, "");
+  const distinctifs = coeur.concat(mots(l.dirigeant_nom))
+    .filter(function (m) { return m.length >= 5; });
+  for (const m of distinctifs) {
+    if (nomDomaine.indexOf(m) >= 0 && contientMot(t, m)) return "nom du domaine";
   }
   return null;
 }
