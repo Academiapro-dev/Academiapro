@@ -549,6 +549,8 @@ export default function PageDsn() {
       taux: f.taux || "",
       date_effet: f.date_effet || (annee + "-01-01"),
       notifie_le: f.notifie_le || "",
+      // 🆕 01/10 — le code risque ; vide = celui deja enregistre reste.
+      code_risque: f.code_risque !== undefined ? f.code_risque : (voletUrssaf(soc.id).code_risque_at || ""),
     });
     if (d.success) {
       // 🆕 30/09 — LE MESSAGE APRES LE RECHARGEMENT, PAS AVANT : sinon « Enregistré »
@@ -1145,6 +1147,11 @@ export default function PageDsn() {
                               ? " — valeur d'essai" : "")
                             + (v.at.en_vigueur ? "" : " — pas encore en vigueur")
                           : "aucun, la cotisation vaut zéro sur tous les bulletins"}
+                        {/* 🆕 01/10 — LE CODE RISQUE, sur la meme ligne que le taux :
+                            sans lui, la DSN declare « 999ZZ » et signale une anomalie. */}
+                        {v.at && (v.code_risque_at
+                          ? <span> · code risque {v.code_risque_at}</span>
+                          : <span style={{ color: ROUGE }}> · code risque manquant (la DSN le réclame)</span>)}
                       </p>
                       <button onClick={() => setAtOuvert(atOuvert === soc.id ? "" : soc.id)}
                         style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
@@ -1173,6 +1180,13 @@ export default function PageDsn() {
                                 onChange={(ev) => setAtSaisie({ ...atSaisie,
                                   [soc.id]: { ...fa, date_effet: ev.target.value } })} />
                             </div>
+                            <div style={{ flex: "1 1 120px", minWidth: 0 }}>
+                              <span style={LIB}>Code risque</span>
+                              <input style={CHAMP} placeholder="ex. 745BD" autoCapitalize="characters"
+                                value={fa.code_risque !== undefined ? fa.code_risque : (v.code_risque_at || "")}
+                                onChange={(ev) => setAtSaisie({ ...atSaisie,
+                                  [soc.id]: { ...fa, code_risque: ev.target.value.toUpperCase() } })} />
+                            </div>
                             <div style={{ flex: "1 1 150px", minWidth: 0 }}>
                               <span style={LIB}>Notifié le (facultatif)</span>
                               <input style={{ ...CHAMP, minWidth: 0 }} className="mc-date" type="date"
@@ -1183,9 +1197,10 @@ export default function PageDsn() {
                           </div>
                           <p style={{ margin: "6px 0 0", fontSize: "12.5px",
                             lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
-                            Le taux figure sur la notification annuelle de la
+                            Le taux et le code risque (trois chiffres, deux
+                            lettres) figurent sur la notification annuelle de la
                             CARSAT, ou sur le compte AT/MP de net-entreprises.
-                            Il s&apos;applique aux bulletins du mois indiqué et
+                            Ils s&apos;appliquent aux bulletins du mois indiqué et
                             des suivants ; le taux précédent s&apos;arrête la
                             veille. Un bulletin déjà émis ne change pas.
                           </p>
