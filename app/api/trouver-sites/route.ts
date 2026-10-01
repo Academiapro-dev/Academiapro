@@ -4,6 +4,9 @@ import { promises as dnsPromises } from "dns";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// 🆕 01/10 (soir) — voir « AUCUNE LECTURE GARDEE EN CACHE » plus bas.
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 export const maxDuration = 300;
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -120,9 +123,19 @@ const GENERIQUES = [
   "fiscal", "fiscale", "juridique", "juridiques", "societe",
 ];
 
+// 🚨🆕 01/10 (soir) — AUCUNE LECTURE GARDEE EN CACHE. Les journaux de Vercel
+// montraient « Using cache » sur la lecture de la base : chaque passage
+// automatique recevait LA MEME liste de lignes que le premier, et retraitait
+// sans fin les memes cabinets (180 cherches au bout de trois heures). Le
+// cache de Next.js garde les reponses des appels `fetch` ; on le refuse ici,
+// pour la base comme pour les pages et les questions DNS.
+const sansCache = function (entree: any, options?: any) {
+  return fetch(entree, { ...(options || {}), cache: "no-store" });
+};
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || ""
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "",
+  { global: { fetch: sansCache as any } }
 );
 
 // LE RESOLVEUR DNS, AVEC UN DELAI COURT ET UNE SEULE TENTATIVE.
@@ -270,6 +283,7 @@ async function questionDns(nom: string, service: string): Promise<boolean | null
   try {
     const r = await fetch(service + "?name=" + encodeURIComponent(nom) + "&type=A", {
       signal: stop.signal,
+      cache: "no-store",
       headers: { accept: "application/dns-json" },
     });
     clearTimeout(minuteur);
@@ -336,6 +350,7 @@ async function lire(url: string): Promise<{ html: string; finale: string } | { e
     const r = await fetch(url, {
       signal: stop.signal,
       redirect: "follow",
+      cache: "no-store",
       headers: {
         "user-agent": "Mozilla/5.0 (compatible; AcademiaPro-Contact/1.0; +https://www.academiapro.fr)",
         accept: "text/html,application/xhtml+xml",
@@ -750,6 +765,11 @@ async function aChercher(conf: any, combien: number, debut: number): Promise<any
     .is("email", null)
     .or("site_web.is.null,site_web.eq.")
     .eq("desabonne", false)
+    // 🆕 01/10 (soir) — LES CABINETS « [ND] » (non diffusibles : l INSEE ne
+    // publie pas leur nom) sont ecartes. Sans nom, aucun site ne peut se
+    // deviner, et Dropcontact leur avait attribue celui du « ND »… du
+    // Dakota du Nord.
+    .neq("raison_sociale", "[ND]")
     .order(conf.ordre, { ascending: true })
     .order("id", { ascending: true })
     // 🆕 ?debut= (essai seulement) : mesurer sur un autre echantillon que
