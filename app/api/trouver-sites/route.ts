@@ -253,19 +253,68 @@ function candidats(l: any, metier: string): string[] {
 }
 
 // LE DOMAINE EXISTE-T-IL ? Une question DNS, rien d autre.
-async function existe(domaine: string): Promise<boolean> {
+// 🆕 01/10 (cinquieme essai) — LA QUESTION DNS PASSE PAR UN SERVICE PUBLIC
+// EN HTTPS (Cloudflare, puis Google en secours). D un essai a l autre, les
+// memes domaines apparaissaient ou disparaissaient (bakertillystrego.com,
+// carre-expertise.fr, cabinet-camatte.fr) : le resolveur du serveur ne
+// suivait pas deux cents questions a la fois. La reponse « ce domaine
+// n existe pas » (code 3) est nette ; une erreur, elle, est retentee.
+async function questionDns(nom: string, service: string): Promise<boolean | null> {
+  const stop = new AbortController();
+  const minuteur = setTimeout(function () { stop.abort(); }, DELAI_DNS_MS);
   try {
-    const r = await resolveur.resolve4(domaine);
-    return Array.isArray(r) && r.length > 0;
+    const r = await fetch(service + "?name=" + encodeURIComponent(nom) + "&type=A", {
+      signal: stop.signal,
+      headers: { accept: "application/dns-json" },
+    });
+    clearTimeout(minuteur);
+    if (!r.ok) return null;
+    const j: any = await r.json();
+    if (j.Status === 3) return false;
+    if (j.Status !== 0) return null;
+    return Array.isArray(j.Answer) && j.Answer.length > 0;
   } catch {
-    // ⚠️ Certains sites ne repondent qu a « www. » : on lui pose la question.
+    clearTimeout(minuteur);
+    return null;
+  }
+}
+
+async function resout(nom: string): Promise<boolean> {
+  let r = await questionDns(nom, "https://cloudflare-dns.com/dns-query");
+  if (r === null) r = await questionDns(nom, "https://dns.google/resolve");
+  if (r === null) {
     try {
-      const r = await resolveur.resolve4("www." + domaine);
-      return Array.isArray(r) && r.length > 0;
+      const a = await resolveur.resolve4(nom);
+      r = Array.isArray(a) && a.length > 0;
     } catch {
-      return false;
+      r = false;
     }
   }
+  return r === true;
+}
+
+async function existe(domaine: string): Promise<boolean> {
+  if (await resout(domaine)) return true;
+  // ⚠️ Certains sites ne repondent qu a « www. » : on lui pose la question.
+  return await resout("www." + domaine);
+}
+
+// ⚠️ PAS PLUS DE HUIT QUESTIONS DNS A LA FOIS PAR LIGNE : c est l exces de
+// questions simultanees qui faisait perdre des domaines.
+async function existentTous(liste: string[]): Promise<boolean[]> {
+  const sortie: boolean[] = new Array(liste.length).fill(false);
+  let i = 0;
+  const ouvriers = [];
+  for (let k = 0; k < 8; k++) {
+    ouvriers.push((async function () {
+      while (i < liste.length) {
+        const n = i++;
+        sortie[n] = await existe(liste[n]);
+      }
+    })());
+  }
+  await Promise.all(ouvriers);
+  return sortie;
 }
 
 // LIRE UNE PAGE, AVEC UN DELAI D ABANDON. Rend le texte ET l adresse finale
@@ -312,6 +361,33 @@ function estPage(x: any): x is { html: string; finale: string } {
 // serveur muet le resterait en http, et ce serait 4 secondes de plus).
 // ⚠️ LE REPLI EN http EST REVENU : au premier essai, sans lui, des sites
 // de petits cabinets au certificat expire etaient « illisibles ».
+// 🆕 01/10 — LES LIENS DE L ACCUEIL VERS LES PAGES OU FIGURENT L ADRESSE ET
+// LES MENTIONS LEGALES (meme site seulement), dans l ordre d utilite.
+function liensAnnexes(html: string, base: string): string[] {
+  const MOTS = ["mention", "legal", "contact", "cabinet", "equipe", "qui-sommes", "quisommes",
+    "a-propos", "apropos", "agence", "nous-trouver", "acces", "coordonnees", "about"];
+  let hote = "";
+  try { hote = new URL(base).hostname.replace(/^www\./, ""); } catch { return []; }
+  const trouves: { url: string; rang: number }[] = [];
+  const liens = html.match(/href=["']([^"'#]+)["']/gi) || [];
+  for (const brut of liens) {
+    const v = brut.replace(/^href=["']/i, "").replace(/["']$/, "");
+    let u: URL;
+    try { u = new URL(v, base); } catch { continue; }
+    if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+    if (u.hostname.replace(/^www\./, "") !== hote) continue;
+    const chemin = (u.pathname + u.search).toLowerCase();
+    if (/\.(pdf|jpg|jpeg|png|gif|svg|css|js|zip|doc|docx)$/.test(u.pathname.toLowerCase())) continue;
+    const rang = MOTS.findIndex(function (m) { return chemin.indexOf(m) >= 0; });
+    if (rang < 0) continue;
+    const propreUrl = u.origin + u.pathname + u.search;
+    if (trouves.some(function (x) { return x.url === propreUrl; })) continue;
+    trouves.push({ url: propreUrl, rang: rang });
+  }
+  trouves.sort(function (a, b) { return a.rang - b.rang; });
+  return trouves.slice(0, 6).map(function (x) { return x.url; });
+}
+
 // 🆕 01/10 — LES PAGES QUI RENVOIENT AILLEURS SANS LE DIRE AU SERVEUR.
 // Plusieurs accueils « presque vides » (cegec.fr, lds39.com) sont des pages
 // de renvoi : une balise meta refresh, un script, ou un cadre qui charge le
@@ -509,7 +585,7 @@ async function chercher(l: any, metier: string): Promise<any> {
 
   // Toutes les questions DNS en meme temps : elles coutent quelques
   // millisecondes, et la plupart des domaines devines n existent pas.
-  const reponses = await Promise.all(liste.map(function (d) { return existe(d); }));
+  const reponses = await existentTous(liste);
   const existants = liste.filter(function (_d, i) { return reponses[i]; });
 
   const journal: any[] = [];
@@ -536,13 +612,26 @@ async function chercher(l: any, metier: string): Promise<any> {
       if (parleMetier) {
         let origineMentions = "";
         try { origineMentions = new URL(page.finale).origin; } catch { origineMentions = "https://" + d; }
-        // ⚠️ AU PLUS TROIS PAGES ANNEXES LUES : au-dela, une ligne muette
-        // couterait trop cher au passage.
+        // 🆕 01/10 (cinquieme essai) — LES LIENS DE L ACCUEIL D ABORD. Les
+        // chemins devines (« /mentions-legales ») renvoyaient souvent
+        // l accueil lui-meme (un site qui ne connait pas la page renvoie sa
+        // page d accueil au lieu d une erreur) : trois « lectures » pour
+        // rien, et la page contact n etait jamais atteinte. On suit
+        // maintenant les liens que l accueil donne lui-meme vers ses pages
+        // contact, mentions, cabinet, equipe — puis les chemins devines.
+        // ⚠️ Une page identique a l accueil ne compte pas.
+        const urls = liensAnnexes(page.html, page.finale)
+          .concat(PAGES_MENTIONS.map(function (c) { return origineMentions + c; }));
+        const vues: any = {};
+        const debutAccueil = page.html.slice(0, 3000);
         let annexesLues = 0;
-        for (const chemin of PAGES_MENTIONS) {
-          if (annexesLues >= 3) break;
-          const m = await lire(origineMentions + chemin);
+        for (const u of urls) {
+          if (annexesLues >= 4) break;
+          if (vues[u]) continue;
+          vues[u] = true;
+          const m = await lire(u);
           if (!estPage(m)) continue;
+          if (m.html.slice(0, 3000) === debutAccueil) continue;
           annexesLues++;
           if (porteSiren(texteDe(m.html), l.siren)) { preuve = "siren"; break; }
           // 🆕 LA PAGE ANNEXE COMPLETE L ACCUEIL : le metier et le nom peuvent
