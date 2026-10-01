@@ -459,6 +459,43 @@ function sigleDe(raisonSociale: any): string | null {
   return pourSigle.map(function (m) { return m[0]; }).join("");
 }
 
+// 🆕 01/10 (sixieme essai) — LE DEPARTEMENT PAR SON NOM ET SES GRANDES VILLES.
+// agcexpertise.fr, fcaexpertise.com, carre-expertise.fr restaient refuses
+// meme apres lecture de leur page contact : ces sites disent « Dijon »,
+// « Agen », « Dole », sans code postal. Pour chaque departement : son nom
+// et sa ou ses grandes villes (prefecture, et les sous-prefectures les plus
+// citees).
+// ⚠️ LES NOMS QUI SONT AUSSI DES MOTS COURANTS SONT VOLONTAIREMENT ABSENTS
+// (Nord, Var, Lot, Somme, Manche, Tours, Gap, Nice, Laval...) : « la
+// somme », « le nord », « nice to meet you » feraient croire au bon lieu.
+const NOMS_DEPARTEMENT: any = {
+  "01": ["bourg en bresse"], "02": ["laon"], "03": ["moulins"], "04": ["alpes de haute provence", "digne les bains"],
+  "05": ["hautes alpes"], "06": ["alpes maritimes"], "07": ["ardeche", "privas"], "08": ["ardennes", "charleville mezieres"],
+  "09": ["ariege"], "10": ["troyes"], "11": ["carcassonne"], "12": ["aveyron", "rodez"],
+  "13": ["bouches du rhone", "marseille", "aix en provence"], "14": ["calvados", "caen"], "15": ["cantal", "aurillac"], "16": ["charente", "angouleme"],
+  "17": ["charente maritime", "la rochelle"], "18": ["bourges"], "19": ["correze", "tulle"], "20": ["corse", "ajaccio", "bastia"],
+  "21": ["cote d or", "dijon"], "22": ["cotes d armor", "saint brieuc"], "23": ["gueret"], "24": ["dordogne", "perigueux"],
+  "25": ["besancon"], "26": ["drome", "valence"], "27": ["evreux"], "28": ["eure et loir", "chartres"],
+  "29": ["finistere", "quimper", "brest"], "30": ["nimes"], "31": ["haute garonne", "toulouse"], "32": ["gers"],
+  "33": ["gironde", "bordeaux"], "34": ["herault", "montpellier"], "35": ["ille et vilaine", "rennes"], "36": ["chateauroux"],
+  "37": ["indre et loire"], "38": ["isere", "grenoble"], "39": ["jura", "lons le saunier", "dole"], "40": ["mont de marsan"],
+  "41": ["loir et cher", "blois"], "42": ["saint etienne"], "43": ["haute loire", "le puy en velay"], "44": ["loire atlantique", "nantes"],
+  "45": ["loiret", "orleans"], "46": ["cahors"], "47": ["lot et garonne", "agen"], "48": ["lozere"],
+  "49": ["maine et loire", "angers"], "50": ["saint lo", "cherbourg"], "51": ["chalons en champagne", "reims"], "52": ["haute marne"],
+  "53": ["mayenne"], "54": ["meurthe et moselle", "nancy"], "55": ["bar le duc"], "56": ["morbihan", "vannes", "lorient"],
+  "57": ["moselle", "metz"], "58": ["nievre", "nevers"], "59": ["lille"], "60": ["beauvais"],
+  "61": ["alencon"], "62": ["pas de calais", "arras"], "63": ["puy de dome", "clermont ferrand"], "64": ["pyrenees atlantiques", "bayonne"],
+  "65": ["hautes pyrenees", "tarbes"], "66": ["pyrenees orientales", "perpignan"], "67": ["bas rhin", "strasbourg"], "68": ["haut rhin", "colmar", "mulhouse"],
+  "69": ["lyon"], "70": ["haute saone", "vesoul"], "71": ["saone et loire", "macon", "chalon sur saone"], "72": ["sarthe", "le mans"],
+  "73": ["savoie", "chambery"], "74": ["haute savoie", "annecy"], "75": ["paris"], "76": ["seine maritime", "rouen", "le havre"],
+  "77": ["seine et marne", "melun"], "78": ["yvelines", "versailles"], "79": ["deux sevres", "niort"], "80": ["amiens"],
+  "81": ["albi"], "82": ["tarn et garonne", "montauban"], "83": ["toulon"], "84": ["vaucluse", "avignon"],
+  "85": ["vendee", "la roche sur yon"], "86": ["poitiers"], "87": ["haute vienne", "limoges"], "88": ["vosges", "epinal"],
+  "89": ["yonne", "auxerre"], "90": ["belfort"], "91": ["essonne", "evry"], "92": ["hauts de seine", "nanterre"],
+  "93": ["seine saint denis", "bobigny"], "94": ["val de marne", "creteil"], "95": ["val d oise", "cergy", "pontoise"], "971": ["guadeloupe"],
+  "972": ["martinique"], "973": ["guyane"], "974": ["la reunion"], "976": ["mayotte"],
+};
+
 // LE LIEU. 🆕 01/10 — LE DEPARTEMENT SUFFIT DESORMAIS. Le quatrieme essai
 // a montre trois sites tres probables refuses pour « ville absente » :
 // FIDUCIE CONSULTANTS AGEN, inscrit a Boe (commune voisine d Agen), dont
@@ -475,6 +512,11 @@ function lieuDe(brut: string, t: string, l: any): string | null {
     const dep = cp.slice(0, 2);
     const motif = new RegExp("(^|[^0-9])" + dep + "[0-9]{3}([^0-9]|$)");
     if (motif.test(brut)) return "departement";
+    const cle = dep === "97" ? cp.slice(0, 3) : dep;
+    const noms: string[] = NOMS_DEPARTEMENT[cle] || [];
+    for (const n of noms) {
+      if ((" " + t + " ").indexOf(" " + n + " ") >= 0) return "departement (" + n + ")";
+    }
   }
   return null;
 }
@@ -520,13 +562,25 @@ function verifier(html: string, l: any, metier: string, domaine: string): string
   });
   if (!metierOk) return null;
 
-  const lieu = lieuDe(brut, t, l);
-  if (!lieu) return null;
-
   const identite = identiteDe(t, l, domaine);
   if (!identite) return null;
 
-  return identite + " + " + lieu;
+  const lieu = lieuDe(brut, t, l);
+  if (lieu) return identite + " + " + lieu;
+
+  // 🆕 01/10 — SANS LIEU, DEUX IDENTITES INDEPENDANTES SUFFISENT : le nom du
+  // dirigeant ET (le nom distinctif du cabinet, son nom complet ou son
+  // sigle). Deux cabinets homonymes ont rarement le meme dirigeant.
+  if (identite !== "nom") {
+    const nom = mots(l.dirigeant_nom).filter(function (m) { return m.length >= 3; });
+    if (nom.length > 0 && nom.every(function (m) { return contientMot(t, m); })) {
+      return "nom + " + identite;
+    }
+  } else {
+    const sansNom = identiteDe(t, Object.assign({}, l, { dirigeant_nom: "" }), domaine);
+    if (sansNom) return "nom + " + sansNom;
+  }
+  return null;
 }
 
 // 🆕 01/10 — POURQUOI UNE PAGE A ETE REFUSEE (mode essai seulement).
