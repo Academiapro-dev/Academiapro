@@ -312,6 +312,25 @@ function verifier(html: string, l: any, metier: string): string | null {
   return null;
 }
 
+// 🆕 01/10 — POURQUOI UNE PAGE A ETE REFUSEE (mode essai seulement).
+// Le premier essai a montre 11 cabinets sur 30 dont un domaine devine
+// existait sans etre retenu : sans la raison, on reglerait a l aveugle.
+function pourquoiRefuse(html: string, l: any, metier: string): string {
+  const brut = texteDe(html);
+  const t = plat(brut);
+  if (t.length < 200) return "page presque vide (site en construction, redirection, ou lecture bloquee)";
+  const metierOk = (PREUVES_METIER[metier] || []).some(function (p: string) {
+    return t.indexOf(plat(p)) >= 0;
+  });
+  if (!metierOk) return "metier absent de la page";
+  const ville = plat(l.ville);
+  const cp = String(l.code_postal || "").replace(/\D/g, "");
+  const lieuOk = (ville.length >= 3 && (" " + t + " ").indexOf(" " + ville + " ") >= 0)
+    || (cp.length === 5 && brut.indexOf(cp) >= 0);
+  if (!lieuOk) return "ville et code postal absents";
+  return "ni le nom du dirigeant ni celui du cabinet";
+}
+
 // 🆕 LE LIEN LINKEDIN AFFICHE SUR LE SITE (meme regle que lire-sites : on
 // ne lit jamais LinkedIn, on garde le lien que le cabinet publie).
 function linkedinDe(html: string): string | null {
@@ -355,6 +374,7 @@ async function chercher(l: any, metier: string): Promise<any> {
   const reponses = await Promise.all(liste.map(function (d) { return existe(d); }));
   const existants = liste.filter(function (_d, i) { return reponses[i]; });
 
+  const journal: any[] = [];
   let ouverts = 0;
   for (const d of existants) {
     if (ouverts >= MAX_DOMAINES_OUVERTS) break;
@@ -364,7 +384,7 @@ async function chercher(l: any, metier: string): Promise<any> {
     // repond pas. Les sites de cabinets sont aujourd hui en https.
     let page = await lire("https://" + d);
     if (!page) page = await lire("https://www." + d);
-    if (!page) continue;
+    if (!page) { journal.push({ domaine: d, refus: "page illisible (erreur, delai depasse ou lecture refusee)" }); continue; }
 
     let preuve = verifier(page.html, l, metier);
     // ⚠️ L ACCUEIL NE PORTE PAS TOUJOURS LE SIREN : les mentions legales,
@@ -388,6 +408,11 @@ async function chercher(l: any, metier: string): Promise<any> {
         }
       }
     }
+    if (!preuve) {
+      let finale = d;
+      try { finale = new URL(page.finale).hostname; } catch { finale = d; }
+      journal.push({ domaine: d, arrive_sur: finale, refus: pourquoiRefuse(page.html, l, metier) });
+    }
     if (preuve) {
       let origine = "";
       try { origine = new URL(page.finale).origin; } catch { origine = "https://" + d; }
@@ -397,10 +422,19 @@ async function chercher(l: any, metier: string): Promise<any> {
         linkedin: linkedinDe(page.html),
         testes: liste.length,
         existants: existants.length,
+        domaines_existants: existants.slice(0, 8),
+        journal: journal,
       };
     }
   }
-  return { site: null, raison: existants.length === 0 ? "aucun domaine existant" : "aucun site verifie", testes: liste.length, existants: existants.length };
+  return {
+    site: null,
+    raison: existants.length === 0 ? "aucun domaine existant" : "aucun site verifie",
+    testes: liste.length,
+    existants: existants.length,
+    domaines_existants: existants.slice(0, 8),
+    journal: journal,
+  };
 }
 
 // LES LIGNES A TRAITER : sans site, sans adresse, jamais cherchees.
@@ -430,6 +464,8 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
   let nonVerifies = 0;
   let traites = 0;
   const exemples: any[] = [];
+  // 🆕 EN ESSAI : le detail de chaque ligne ou un domaine existait.
+  const details: any[] = [];
 
   for (let i = 0; i < lignes.length; i += PARALLELE) {
     // 🚨 ON REND LA MAIN AVANT QUE VERCEL COUPE : ce qui est ecrit est
@@ -452,6 +488,16 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
         sansDomaine++;
       } else {
         nonVerifies++;
+      }
+      if (essai && r.existants > 0 && details.length < 40) {
+        details.push({
+          cabinet: l.raison_sociale,
+          dirigeant: [l.dirigeant_prenom, l.dirigeant_nom].filter(Boolean).join(" "),
+          ville: l.ville,
+          site_retenu: r.site || null,
+          domaines_existants: r.domaines_existants,
+          refus: r.journal,
+        });
       }
       // ⛔ EN ESSAI, RIEN N EST ECRIT : on mesure seulement.
       if (essai) continue;
@@ -477,6 +523,7 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
     domaines_existants_mais_non_verifies: nonVerifies,
     taux: traites > 0 ? Math.round(trouves * 1000 / traites) / 10 + " %" : "—",
     exemples: exemples,
+    details: details,
     epuise: lignes.length < combien,
   };
 }
@@ -538,6 +585,7 @@ export async function GET(req: NextRequest) {
       cumul.aucun_domaine_existant += r.aucun_domaine_existant;
       cumul.domaines_existants_mais_non_verifies += r.domaines_existants_mais_non_verifies;
       for (const e of r.exemples) if (cumul.exemples.length < 12) cumul.exemples.push(e);
+      if (essai) cumul.details = r.details;
       // ⚠️ EN ESSAI, UN SEUL LOT : rien n etant ecrit, le lot suivant
       // reprendrait les memes lignes.
       if (essai || r.lignes_examinees === 0 || r.epuise) break;
