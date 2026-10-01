@@ -45,6 +45,10 @@ const TABLES: any = {
   qualiopi: "prospects_qualiopi",
   interim: "prospects_interim",
   cabinets: "prospects_cabinets",
+  // 🆕 01/10 — LES CABINETS D AVOCATS (une ligne par cabinet, pour la
+  // campagne MysterLLC puis Mr CRM). Leurs sites viennent de Dropcontact ou
+  // de la route trouver-sites.
+  avocats: "prospects_avocats",
 };
 
 // COMBIEN DE SITES PAR PASSAGE.
@@ -193,6 +197,19 @@ function adressesDe(html: string): string[] {
   return sortie;
 }
 
+// 🆕 01/10 — LE LIEN LINKEDIN AFFICHE SUR LE SITE (souvent en pied de page).
+// On ne lit JAMAIS LinkedIn lui-meme : on garde seulement le lien que
+// l entreprise publie sur son propre site, pour un message manuel.
+// ⚠️ La page de l entreprise (/company/) passe avant un profil (/in/) : sur
+// le site d un cabinet, un profil peut etre celui d un salarie.
+function linkedinDe(html: string): string | null {
+  const liens = html.match(/https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/(?:company|in|school)\/[A-Za-z0-9_%\-.]+/gi) || [];
+  if (liens.length === 0) return null;
+  const societe = liens.find(function (l) { return l.toLowerCase().indexOf("/company/") > 0; });
+  const choisi = societe || liens[0];
+  return choisi.replace(/[.\-]+$/, "").slice(0, 200);
+}
+
 // CHOISIR LA MEILLEURE ADRESSE QUAND IL Y EN A PLUSIEURS.
 //
 // 🚨 L ORDRE COMPTE. Une page de contact rend souvent trois adresses : le
@@ -209,7 +226,10 @@ function meilleure(adresses: string[], domaine: string): string | null {
   });
   const pool = memeDomaine.length > 0 ? memeDomaine : adresses;
 
-  const PREFERES = ["contact@", "info@", "accueil@", "bonjour@", "hello@", "agence@", "direction@"];
+  // 🆕 01/10 — « cabinet@ », « secretariat@ », « avocats@ » : les adresses
+  // d accueil des cabinets d avocats et d expertise comptable.
+  const PREFERES = ["contact@", "info@", "accueil@", "cabinet@", "secretariat@",
+    "avocats@", "avocat@", "bonjour@", "hello@", "agence@", "direction@"];
   for (const p of PREFERES) {
     for (const a of pool) if (a.indexOf(p) === 0) return a;
   }
@@ -254,6 +274,7 @@ async function explorer(origine: string): Promise<any> {
   const trouvees: string[] = [];
   let pagesLues = 0;
   let echecs = 0;
+  let linkedin: string | null = null;
 
   for (const chemin of CHEMINS) {
     const html = await lire(origine + chemin);
@@ -268,6 +289,7 @@ async function explorer(origine: string): Promise<any> {
     }
 
     pagesLues++;
+    if (!linkedin) linkedin = linkedinDe(html);
 
     for (const a of adressesDe(html)) {
       if (trouvees.indexOf(a) < 0) trouvees.push(a);
@@ -284,6 +306,7 @@ async function explorer(origine: string): Promise<any> {
     adresse: meilleure(trouvees, domaine),
     toutes: trouvees,
     pages_lues: pagesLues,
+    linkedin: linkedin,
   };
 }
 
@@ -295,7 +318,10 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
   // ait trouve quelque chose ou non.
   const { data: lignes, error } = await supabase
     .from(table)
-    .select("id, siren, site_web")
+    // 🆕 01/10 — TOUTES LES COLONNES, pour savoir si la base a une colonne
+    // `linkedin` : demander une colonne qui n existe pas ferait echouer la
+    // lecture de toute la base. Une cle presente = une colonne presente.
+    .select("*")
     .not("site_web", "is", null)
     .neq("site_web", "")
     .is("email", null)
@@ -309,6 +335,7 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
   let sansRien = 0;
   let injoignables = 0;
   let traites = 0;
+  let doublons = 0;
   const exemples: any[] = [];
 
   for (const l of lignes) {
@@ -337,7 +364,23 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
       if (r.pages_lues === 0) injoignables++; else sansRien++;
     }
 
-    await supabase.from(table).update(maj).eq("id", l.id);
+    // 🆕 01/10 — LE LIEN LINKEDIN DU SITE, seulement si la base a la colonne
+    // et que la fiche n en a pas deja un (Dropcontact peut l avoir trouve).
+    if (r.linkedin && Object.prototype.hasOwnProperty.call(l, "linkedin") && !l.linkedin) {
+      maj.linkedin = r.linkedin;
+    }
+    const { error: errMaj } = await supabase.from(table).update(maj).eq("id", l.id);
+    if (errMaj) {
+      // 🚨 01/10 — UNE ADRESSE DEJA PRESENTE DANS LA BASE (index unique sur
+      // l adresse, cas de prospects_avocats) FAISAIT ECHOUER TOUTE LA MISE A
+      // JOUR, `site_lu_le` compris : la ligne restait « a lire » et revenait
+      // a chaque passage, sans fin. On marque la ligne comme lue, sans
+      // l adresse, et on le compte.
+      const sansAdresse: any = { site_lu_le: maj.site_lu_le };
+      if (maj.linkedin) sansAdresse.linkedin = maj.linkedin;
+      await supabase.from(table).update(sansAdresse).eq("id", l.id);
+      if (r.adresse) { trouve--; doublons++; }
+    }
     traites++;
     await pause(PAUSE_MS);
   }
@@ -348,6 +391,7 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     adresses_trouvees: trouve,
     sans_adresse_visible: sansRien,
     sites_injoignables: injoignables,
+    adresses_deja_en_base: doublons,
     taux: traites > 0 ? Math.round(trouve * 1000 / traites) / 10 + " %" : "—",
     exemples: exemples,
     epuise: lignes.length < combien,
@@ -428,7 +472,8 @@ export async function GET(req: NextRequest) {
       if (!cumul[nom]) {
         cumul[nom] = {
           table: r.table, sites_examines: 0, adresses_trouvees: 0,
-          sans_adresse_visible: 0, sites_injoignables: 0, exemples: [],
+          sans_adresse_visible: 0, sites_injoignables: 0,
+          adresses_deja_en_base: 0, exemples: [],
         };
       }
       const c = cumul[nom];
@@ -436,6 +481,7 @@ export async function GET(req: NextRequest) {
       c.adresses_trouvees += r.adresses_trouvees;
       c.sans_adresse_visible += r.sans_adresse_visible;
       c.sites_injoignables += r.sites_injoignables;
+      c.adresses_deja_en_base += r.adresses_deja_en_base || 0;
       for (const e of (r.exemples || [])) {
         if (c.exemples.length < 10) c.exemples.push(e);
       }
