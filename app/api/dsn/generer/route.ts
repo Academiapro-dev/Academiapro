@@ -1490,7 +1490,11 @@ export async function POST(req: NextRequest) {
     if (!dispositif && estApprenti) {
       const effectifSoc = Number(societe.effectif || 0);
       dispositif = effectifSoc >= 11 ? "65" : "64";
-      anomalies.push(qui + " : apprenti déclaré avec le dispositif « "
+      // 🆕 01/10 — UN RAPPEL, PAS UNE ANOMALIE : le code est juste d apres
+      // l effectif ; seule l inscription au repertoire des metiers, que nous
+      // ne connaissons pas, pourrait le changer. Il se relit avant le depot
+      // (« Avant tout dépôt réel ») au lieu de compter parmi les anomalies.
+      notesArrets.push(qui + " : apprenti déclaré avec le dispositif « "
         + dispositif + " », déduit d'un effectif de " + effectifSoc
         + " salarié(s). ⚠️ LE CRITÈRE LÉGAL DU CODE 64 EST « entreprise "
         + "ARTISANALE OU de moins de 11 salariés » : une entreprise "
@@ -1733,7 +1737,8 @@ export async function POST(req: NextRequest) {
             + "risque » alors que le bulletin porte une cotisation accident "
             + "du travail. ⛔ LES DEUX SE CONTREDISENT. Le code risque figure "
             + "sur la notification annuelle de la CARSAT, à côté du taux : "
-            + "le renseigner sur le contrat.");
+            + "le saisir sur l'écran DSN, avec le taux accidents du travail "
+            + "(« nouveau taux »).");
         }
       }
       if (estMission && siretEu) {
