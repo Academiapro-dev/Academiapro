@@ -94,11 +94,11 @@
     },
     {
       "path": "/api/trouver-sites",
-      "schedule": "25 * * * *"
+      "schedule": "*/5 * * * *"
     },
     {
       "path": "/api/lire-sites",
-      "schedule": "55 * * * *"
+      "schedule": "*/5 * * * *"
     }
   ]
 }
