@@ -280,7 +280,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       const { data: volet, error: eVolet } = await supabase
         .from("compta_societes")
         .select("id, urssaf_codification, urssaf_entite_affectation, "
-          + "iban_prelevement, bic_prelevement, vm_assujetti, code_insee, effectif");
+          + "iban_prelevement, bic_prelevement, vm_assujetti, code_insee, effectif, code_risque_at");
 
       if (eVolet) {
         urssafLecture = "colonnes URSSAF illisibles : " + eVolet.message;
@@ -435,6 +435,9 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
             ? null : Number(v.effectif),
           // 🆕 25/09 — le taux AT/MP en vigueur, ou null s il manque.
           at: atParSociete[s.id] || null,
+          // 🆕 01/10 — LE CODE RISQUE de la notification CARSAT (S21.G00.40.040).
+          // Le generateur le prend pour tout contrat qui n a pas le sien.
+          code_risque_at: v.code_risque_at || "",
           // 🆕 27/09 — la mutuelle et la prevoyance en vigueur ou a venir.
           garanties: garantiesParSociete[s.id] || [],
         };
@@ -698,6 +701,23 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       const notifieLe = /^\d{4}-\d{2}-\d{2}$/.test(q(c.notifie_le).slice(0, 10))
         ? q(c.notifie_le).slice(0, 10) : null;
 
+      // 🆕🚨 01/10 — LE CODE RISQUE, NOTIFIE AVEC LE TAUX. La DSN de
+      // demonstration du 01/10 declarait « 999ZZ — sans code risque » pour
+      // un dossier neuf : aucun ecran ne permettait de saisir le code. Il
+      // se saisit ici, avec le taux, et s enregistre sur la societe.
+      // Format : trois chiffres et deux lettres (« 745BD », « 742CE ») ;
+      // les espaces et le point des ecritures courantes (« 74.2CE ») sont
+      // retires. Champ vide = le code deja enregistre ne change pas.
+      const codeRisqueBrut = q(c.code_risque).toUpperCase().replace(/[\s.]/g, "");
+      if (codeRisqueBrut && !/^[0-9]{3}[A-Z]{2}$/.test(codeRisqueBrut)) {
+        return json({ erreur: "code risque illisible : il compte trois chiffres puis deux lettres, "
+          + "par exemple 745BD. Il figure sur la notification de la CARSAT, à côté du taux." }, 400);
+      }
+      if (codeRisqueBrut === "999ZZ") {
+        return json({ erreur: "« 999ZZ » veut dire « sans code risque » : il ne se saisit pas. "
+          + "Indiquez le code de la notification CARSAT." }, 400);
+      }
+
       const jour = new Date();
       const saisiLe = String(jour.getDate()).padStart(2, "0") + "/"
         + String(jour.getMonth() + 1).padStart(2, "0") + "/" + jour.getFullYear();
@@ -772,8 +792,21 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           + " Il s'applique aux bulletins de ce mois et des suivants.";
       }
 
+      if (codeRisqueBrut) {
+        const { error: eCr } = await supabase
+          .from("compta_societes")
+          .update({ code_risque_at: codeRisqueBrut })
+          .eq("id", societeId);
+        if (eCr) {
+          return json({ erreur: "le taux est enregistré, mais pas le code risque (" + eCr.message
+            + ") : réessayez." }, 500);
+        }
+        message += " Code risque : " + codeRisqueBrut + ".";
+      }
+
       return json({ success: true, message: message,
-        at: { taux: taux, date_effet: dateEffet, notifie_le: notifieLe } });
+        at: { taux: taux, date_effet: dateEffet, notifie_le: notifieLe },
+        code_risque_at: codeRisqueBrut || null });
     }
 
     // ═══════════════════════════════════════════════════════════════════
