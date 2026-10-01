@@ -37,19 +37,30 @@ export const maxDuration = 300;
 // pas.
 // ═══════════════════════════════════════════════════════════════════════
 
+// 🆕 01/10 (soir) — L ORDRE DES BASES EST L ORDRE D URGENCE. Les bases sont
+// lues l une apres l autre ; les cabinets comptables venaient en septieme
+// position, derriere 4 300 sites d autres bases, alors que leur campagne
+// manque d adresses (stock epuise vers le 07/10) et que 657 de leurs sites
+// attendaient d etre lus. Cabinets et avocats passent desormais en tete.
 const TABLES: any = {
-  immobilier: "prospects_immobilier",
-  ecommerce: "prospects_ecommerce",
-  gros: "prospects_gros",
-  organismes: "prospects_organismes",
-  qualiopi: "prospects_qualiopi",
-  interim: "prospects_interim",
   cabinets: "prospects_cabinets",
   // 🆕 01/10 — LES CABINETS D AVOCATS (une ligne par cabinet, pour la
   // campagne MysterLLC puis Mr CRM). Leurs sites viennent de Dropcontact ou
   // de la route trouver-sites.
   avocats: "prospects_avocats",
+  organismes: "prospects_organismes",
+  immobilier: "prospects_immobilier",
+  gros: "prospects_gros",
+  qualiopi: "prospects_qualiopi",
+  interim: "prospects_interim",
+  ecommerce: "prospects_ecommerce",
 };
+
+// 🆕 01/10 (soir) — PLUSIEURS SITES A LA FOIS. Les sites etaient lus un par
+// un : environ 120 par heure. Chaque site attend surtout le reseau ; on en
+// lit huit en meme temps (huit sites differents : aucun n est sollicite
+// plus qu avant).
+const PARALLELE = 8;
 
 // COMBIEN DE SITES PAR PASSAGE.
 //
@@ -338,30 +349,26 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
   let doublons = 0;
   const exemples: any[] = [];
 
-  for (const l of lignes) {
-    // 🚨 ON REND LA MAIN AVANT QUE VERCEL COUPE. Les lignes deja traitees
-    // sont ecrites : le prochain passage reprend ou celui-ci s arrete.
-    if (Date.now() - depart > DUREE_MAX_MS) break;
-
+  // UN SITE : le lire, puis ecrire ce qu on en tire. Rend ce qui s est passe.
+  async function unSite(l: any): Promise<string> {
     const origine = normaliserSite(l.site_web);
     if (!origine) {
       await supabase.from(table)
         .update({ site_lu_le: new Date().toISOString() })
         .eq("id", l.id);
-      injoignables++;
-      continue;
+      return "injoignable";
     }
 
     const r = await explorer(origine);
 
     const maj: any = { site_lu_le: new Date().toISOString() };
+    let issue = "";
     if (r.adresse) {
       maj.email = r.adresse;
       maj.statut = "enrichi";
-      trouve++;
-      if (exemples.length < 8) exemples.push({ siren: l.siren, email: r.adresse });
+      issue = "trouve";
     } else {
-      if (r.pages_lues === 0) injoignables++; else sansRien++;
+      issue = r.pages_lues === 0 ? "injoignable" : "rien";
     }
 
     // 🆕 01/10 — LE LIEN LINKEDIN DU SITE, seulement si la base a la colonne
@@ -379,9 +386,25 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
       const sansAdresse: any = { site_lu_le: maj.site_lu_le };
       if (maj.linkedin) sansAdresse.linkedin = maj.linkedin;
       await supabase.from(table).update(sansAdresse).eq("id", l.id);
-      if (r.adresse) { trouve--; doublons++; }
+      if (r.adresse) issue = "doublon";
     }
-    traites++;
+    if (issue === "trouve" && exemples.length < 8) exemples.push({ siren: l.siren, email: r.adresse });
+    return issue;
+  }
+
+  for (let i = 0; i < lignes.length; i += PARALLELE) {
+    // 🚨 ON REND LA MAIN AVANT QUE VERCEL COUPE. Les lignes deja traitees
+    // sont ecrites : le prochain passage reprend ou celui-ci s arrete.
+    if (Date.now() - depart > DUREE_MAX_MS) break;
+    const paquet = lignes.slice(i, i + PARALLELE);
+    const issues = await Promise.all(paquet.map(function (l: any) { return unSite(l); }));
+    for (const x of issues) {
+      traites++;
+      if (x === "trouve") trouve++;
+      else if (x === "injoignable") injoignables++;
+      else if (x === "doublon") doublons++;
+      else sansRien++;
+    }
     await pause(PAUSE_MS);
   }
 
