@@ -446,7 +446,10 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
 
       return NextResponse.json({
         success: true, contrat_id: ctr.id,
-        message: prenom + " " + nom.toUpperCase() + " est enregistré avec son contrat.",
+        // 🆕 01/10 — L ACCORD. « Inès MOREAU est enregistré » s est affiche
+        // pendant le tournage de la video de la paie : la route ne connait
+        // pas le genre du salarie. La tournure ne depend plus de lui.
+        message: prenom + " " + nom.toUpperCase() + " et son contrat sont enregistrés.",
       });
     }
 
