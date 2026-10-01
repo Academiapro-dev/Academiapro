@@ -77,8 +77,15 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
       });
       const x = await r.json();
       if (x && x.success) {
+        // 🆕 01/10 — LA REPONSE S AFFICHE TOUT DE SUITE. La page attendait de
+        // relire tout le recapitulatif avant de retirer les boutons : au
+        // tournage de la video de la paie, « Enregistrement… » et « Je signale
+        // une erreur » sont restes plus de douze secondes apres le merci. La
+        // reponse est enregistree : on l affiche aussitot, et la relecture se
+        // fait ensuite, sans bloquer.
+        if (d) setD({ ...d, statut: reponse, repondu_le: new Date().toISOString(), remarque: remarque });
         setFait(x.message || "Réponse enregistrée.");
-        await charger();
+        charger();
       } else setErreur((x && x.erreur) || "Enregistrement impossible.");
     } catch (e: any) {
       setErreur("Enregistrement impossible : vérifiez votre connexion, puis réessayez.");
@@ -180,7 +187,10 @@ export default function RecapitulatifPaie({ params }: { params: { jeton: string 
               </span>
             </div>
 
-            {fait && <p style={{ color: VERT, fontSize: "15px", lineHeight: 1.7 }}>{fait}</p>}
+            {/* 🆕 01/10 — une fois la reponse affichee dans sa carte (« Vous avez
+                confirmé… »), le merci ferait doublon : il ne s affiche que tant
+                que la carte n est pas la. */}
+            {fait && d.statut === "envoye" && <p style={{ color: VERT, fontSize: "15px", lineHeight: 1.7 }}>{fait}</p>}
             {erreur && <p style={{ color: ROUGE, fontSize: "14px", lineHeight: 1.7 }}>{erreur}</p>}
 
             {d.statut === "envoye" && !d.remplace && (
