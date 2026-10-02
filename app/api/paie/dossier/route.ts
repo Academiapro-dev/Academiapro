@@ -667,7 +667,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           .from("paie_bulletins").select("numero")
           .eq("contrat_id", contratId).eq("statut", "emis").gt("periode", moisRupture);
         if (apres && apres.length > 0) {
-          avertissement = " ⚠️ " + apres.length + " bulletin(s) déjà émis pour un mois postérieur à la "
+          avertissement = " ⚠️ " + nbAcc(apres.length, "bulletin déjà émis", "bulletins déjà émis") + " pour un mois postérieur à la "
             + "rupture : à annuler par rectificatif.";
         }
       }
@@ -1381,12 +1381,12 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       if (avantCout !== null && apresCout !== null
         && Math.abs(apresCout - avantCout) >= 0.01) {
         message += " ⚠️ Recalculé avant émission : le coût employeur passe de "
-          + avantCout.toFixed(2) + " € à " + apresCout.toFixed(2)
+          + fr2(avantCout) + " € à " + fr2(apresCout)
           + " € (un taux ou un paramètre a changé depuis le dernier calcul).";
       }
       if (annule) message += " Le bulletin " + annule + " est annulé et remplacé.";
       if (congesPoses) message += " " + congesAcquisJours.toLocaleString("fr-FR")
-        + " jour(s) de congés acquis" + (congesAcquisJours < 2.5 ? " (mois incomplet)." : ".");
+        + (congesAcquisJours > 1 ? " jours" : " jour") + " de congés acquis" + (congesAcquisJours < 2.5 ? " (mois incomplet)." : ".");
       if (congesErreur) {
         message += " ⛔ ATTENTION : l'acquisition des congés a échoué (" + congesErreur + ").";
       }
@@ -1496,8 +1496,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       const disponible = Number((soldeAvant as any)?.solde || 0);
       if (jours > disponible) {
         return NextResponse.json({
-          erreur: "solde insuffisant : " + jours.toFixed(2) + " jour(s) "
-            + "demandé(s) pour " + disponible.toFixed(2) + " disponible(s) "
+          erreur: "Solde insuffisant : " + joursFr(jours) + " demandés pour "
+            + fr2(disponible) + " disponibles "
             + "sur la période ouverte au " + debutRef + ".",
         }, { status: 400 });
       }
@@ -1554,7 +1554,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
               + "contrat, avant de poser ses congés.",
           }, { status: 400 });
         }
-        noteBareme = " Salaire de référence de l'apprenti : " + mini.toFixed(2)
+        noteBareme = " Salaire de référence de l'apprenti : " + fr2(mini)
           + " € (barème légal, dernier bulletin émis).";
       }
       const maintien = salaireMensuel > 0
@@ -1639,8 +1639,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
             const mensuel = parRepas * Number(el.quantite);
             avantageConges = (mensuel / JOURS_OUVRABLES_MOIS) * jours;
             noteAvantage = " Avantage nourriture ajouté au maintien : "
-              + (Math.round(avantageConges * 100) / 100).toFixed(2) + " € ("
-              + Number(el.quantite) + " repas par mois à " + parRepas.toFixed(2)
+              + fr2(Math.round(avantageConges * 100) / 100) + " € ("
+              + Number(el.quantite) + " repas par mois à " + fr2(parRepas)
               + " €, art. L3141-25).";
           }
         }
@@ -1679,11 +1679,11 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
         avantage_nature: Math.round(avantageConges * 100) / 100,
         methode: maintienTotal >= dixieme ? "maintien de salaire" : "règle du dixième",
         solde_restant: Math.round((disponible - jours) * 100) / 100,
-        message: jours.toFixed(2) + " jour(s) posé(s). Indemnité retenue : "
-          + retenue.toFixed(2) + " € ("
+        message: joursFr(jours) + (jours > 1 ? " posés" : " posé") + ". Indemnité retenue : "
+          + fr2(retenue) + " € ("
           + (maintienTotal >= dixieme ? "maintien de salaire" : "règle du dixième")
           + ", la plus favorable)." + noteAvantage + " Solde restant : "
-          + (disponible - jours).toFixed(2) + " jour(s).",
+          + joursFr(disponible - jours) + ".",
       });
     }
 
@@ -1881,7 +1881,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           + "SYNTEC (IDCC 1486) : l'article 31 ne s'y applique pas. Le calcul "
           + "est donné à titre indicatif.");
       } else if (contratsSyntec < contratsTotal) {
-        reserves.push("⚠️ " + contratsSyntec + " contrat(s) sur "
+        reserves.push("⚠️ " + nbAcc(contratsSyntec, "contrat", "contrats") + " sur "
           + contratsTotal + " relèvent de la Syntec. L'article 31 vise "
           + "« l'ensemble des salariés » de l'entreprise : la masse ci-dessus "
           + "porte sur TOUS les salariés, pas seulement sur ceux dont le "
@@ -2361,14 +2361,14 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
         message: (type === "arret" ? "Arrêt" : "Fin de contrat")
           + " enregistré. "
           + (jours < 0
-            ? "⚠️ DÉLAI DÉPASSÉ de " + Math.abs(jours) + " jour(s) : "
+            ? "⚠️ DÉLAI DÉPASSÉ de " + nbAcc(Math.abs(jours), "jour", "jours") + " : "
               + "le signalement aurait dû partir le "
               + limite.toISOString().slice(8, 10) + "/"
               + limite.toISOString().slice(5, 7) + "."
             : "À déposer avant le "
               + limite.toISOString().slice(8, 10) + "/"
               + limite.toISOString().slice(5, 7) + " ("
-              + jours + " jour(s))."),
+              + nbAcc(jours, "jour", "jours") + ")."),
       });
     }
 
@@ -2971,7 +2971,7 @@ async function contenuRecap(societeId: string, periode: string): Promise<any> {
     for (const cg of ((cgRes.data || []) as any[])) {
       if (cg.contrat_id === contratId) jours += Math.abs(Number(cg.jours || 0));
     }
-    if (jours > 0) l.push("Congés payés : " + jours.toLocaleString("fr-FR") + " jour(s)");
+    if (jours > 0) l.push("Congés payés : " + jours.toLocaleString("fr-FR") + (jours > 1 ? " jours" : " jour"));
     return l;
   };
 
@@ -3078,6 +3078,18 @@ function marqueDuCourriel(hote: string) {
 function html(t: any): string {
   return String(t === null || t === undefined ? "" : t)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// 🆕 02/10 — LES ACCORDS ET LA VIRGULE DANS LES MESSAGES. « 1 bulletin
+// émis », « 2 bulletins émis » ; « 2,50 jours », pas « 2.50 jour(s) ».
+function nbAcc(n: number, singulier: string, pluriel: string): string {
+  return String(n).replace(".", ",") + " " + (Math.abs(n) > 1 ? pluriel : singulier);
+}
+function fr2(v: number): string {
+  return Number(v || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function joursFr(v: number): string {
+  return fr2(v) + " " + (Math.abs(v) > 1 ? "jours" : "jour");
 }
 
 function moisEnClair(periode: string): string {
@@ -3425,7 +3437,7 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
           + "<p>Feu : <b>" + html(r.controle.couleur) + "</b>" + (just ? " · justification : « " + html(just) + " »" : "") + "</p>"
           + (alertes.length > 0 ? "<ul>" + alertes.map(function (a: any) { return "<li>" + html(a.texte) + "</li>"; }).join("") + "</ul>" : ""));
         avis = echec ? " ⚠️ Le courriel aux validateurs n'est pas parti : " + echec
-          : " " + qui.length + " personne(s) prévenue(s) par courriel.";
+          : " " + nbAcc(qui.length, "personne prévenue", "personnes prévenues") + " par courriel.";
       }
     }
 
@@ -3572,7 +3584,7 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
 
     const rec = await contenuRecap(societeId, periode);
     if (rec.manquants.length > 0) {
-      return NextResponse.json({ erreur: rec.manquants.length + " salarié(s) n'ont pas encore de bulletin ce mois-ci : "
+      return NextResponse.json({ erreur: (rec.manquants.length > 1 ? rec.manquants.length + " salariés n'ont" : "1 salarié n'a") + " pas encore de bulletin ce mois-ci : "
         + rec.manquants.join(", ") + ". Sortez leur bulletin avant d'envoyer le récapitulatif." }, { status: 409 });
     }
     if (rec.contenu.lignes.length === 0) {
@@ -3651,7 +3663,11 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
       .in("statut", ["envoye", "confirme", "conteste"]).neq("id", (cree as any).id);
 
     return NextResponse.json({ success: true, message: "Récapitulatif de " + moisEnClair(periode)
-      + " envoyé à " + dest + " (" + rec.contenu.lignes.length + " salarié(s)). L'émission attend sa confirmation." });
+      // 🆕 02/10 — « pour 2 salariés » : les parenthèses doublées
+      // (« (2 salarié(s)) ») se lisaient à l'écran.
+      + " envoyé à " + dest + " pour " + (rec.contenu.lignes.length > 1
+        ? rec.contenu.lignes.length + " salariés" : "1 salarié")
+      + ". L'émission attend sa confirmation." });
   }
 
   // ---- LEVER L ATTENTE DU CLIENT (motif obligatoire) ----
