@@ -9,6 +9,11 @@ import crypto from "crypto";
 // entre les deux, portes par CETTE SEULE ROUTE :
 //   vague 1  MysterLLC   la societe americaine des clients    40/jour
 //   vague 2  Mr. CRM     savoir quel client rappeler          40/jour
+//   vague 3  Mr Comptable  la comptabilite et la paie du cabinet  40/jour
+//            🆕 02/10, decision de Jacques : un cabinet d avocats est aussi
+//            une societe qui peut tenir sa propre comptabilite. Texte valide
+//            le 02/10. Elle ne part que lorsque la page de la video de
+//            demonstration est en ligne (voir PAGE_DEMONSTRATION).
 //
 // POURQUOI UNE SEULE ROUTE, ALORS QUE LES ORGANISMES ET LES CABINETS EN ONT
 // UNE PAR PRODUIT. Chaque vague garde ici SON expediteur, SON domaine, SON
@@ -45,8 +50,19 @@ export const maxDuration = 300;
 // Le chiffre vaut PAR VAGUE : chaque vague part de son propre domaine.
 const LOT_PAR_DEFAUT = 40;
 
-// Deux produits, deux messages : au-dela, on n insiste pas.
-const PLAFOND_ENVOIS = 2;
+// Trois produits, trois messages : au-dela, on n insiste pas.
+// 🆕 02/10 : 2 → 3 avec la vague Mr Comptable. A 2, la troisieme vague
+// n aurait trouve personne (chaque avocat aurait deja recu ses deux envois).
+const PLAFOND_ENVOIS = 3;
+
+// 🆕 02/10 — LA PAGE DE LA VIDEO DE DEMONSTRATION DE MR COMPTABLE.
+// Le lien est branche des maintenant, a une adresse fixe, pour ne rien
+// avoir a se rappeler le jour ou la video sera en ligne (decision de
+// Jacques, 02/10). ⚠️ AVANT CHAQUE PASSAGE DE LA VAGUE 3, la route verifie
+// que la page repond ET qu elle contient une video (YouTube) : tant que ce
+// n est pas le cas, la vague attend, et aucun courriel ne part avec un lien
+// mort.
+const PAGE_DEMONSTRATION = "https://mrcomptable.fr/demonstration";
 
 // 🚨 TRENTE JOURS — decision de Jacques du 15/09, appliquee a toutes les
 // sequences. Chaque vague parle d un AUTRE PRODUIT : ce n est pas une
@@ -182,6 +198,45 @@ function messageMrCRM(o: any): string {
     + "message : je vous le montre en trente minutes.";
 }
 
+// ─────────────────────────────────────────────────────────────────────
+// VAGUE 3 — MR COMPTABLE : LA COMPTABILITE ET LA PAIE DU CABINET.
+//
+// L ANGLE. Ici, l avocat est le CLIENT : son cabinet tient lui-meme ses
+// comptes. Texte valide par Jacques le 02/10.
+//
+// ⚠️ CHAQUE FONCTION CITEE EXISTE : pieces photographiees et ecriture
+// creee seule, rapprochement bancaire, TVA, bulletins et DSN, liasse a la
+// cloture pour les societes a l IS, export du FEC.
+// ⛔ PAS DE DECLARATION 2035 : Mr Comptable ne la produit pas (avocat en
+// nom propre au regime de la declaration controlee). La liasse n est citee
+// que pour les societes a l impot sur les societes.
+// ⛔ JAMAIS « nous tenons votre comptabilite » (monopole de
+// l expert-comptable) : c est un outil pour la tenir soi-meme.
+// ⛔ AUCUN PRIX, AUCUN CONCURRENT NOMME.
+// ─────────────────────────────────────────────────────────────────────
+function messageMrComptable(o: any): string {
+  return salutationDe(o) + "\n\n"
+    + "Je me permets de vous présenter Mr Comptable, un logiciel de "
+    + "comptabilité et de paie conçu pour les structures qui souhaitent "
+    + "tenir elles-mêmes leurs comptes.\n\n"
+    + "— Vos justificatifs se saisissent en les photographiant : "
+    + "l'écriture se crée seule.\n"
+    + "— Vos relevés bancaires se rapprochent de vos écritures.\n"
+    + "— La TVA du mois se prépare à partir de vos écritures.\n"
+    + "— Les bulletins de paie de vos collaborateurs se calculent, avec la "
+    + "DSN de chaque mois.\n"
+    + "— Pour une société à l'impôt sur les sociétés, la liasse fiscale se "
+    + "prépare à la clôture.\n"
+    + "— Votre expert-comptable peut recevoir à tout moment le fichier des "
+    + "écritures comptables (FEC).\n\n"
+    + "Une vidéo de démonstration vous présente l'outil écran par écran, "
+    + "sur un dossier fictif : "
+    + "<a href=\"" + PAGE_DEMONSTRATION + "\" style=\"color:#8a6d3b\">"
+    + "mrcomptable.fr/demonstration</a>\n\n"
+    + "Si elle vous donne envie d'aller plus loin, répondez simplement à "
+    + "ce message : nous fixerons un échange téléphonique.";
+}
+
 // CHAQUE VAGUE PORTE SON EXPEDITEUR, SON DOMAINE ET SA SIGNATURE.
 //
 // ⚠️ LES EXPEDITEURS SONT CEUX DES CAMPAGNES EXISTANTES DU MEME PRODUIT
@@ -206,7 +261,40 @@ const VAGUES: any = {
     sujet: "Savoir quel client rappeler, et quoi lui dire",
     message: function (o: any) { return messageMrCRM(o); },
   },
+  // 🆕 02/10 — l expediteur de la campagne Mr Comptable des cabinets
+  // (sous-domaine de prospection), aucun domaine nouveau.
+  3: {
+    expediteur: "Jacques Lalou <jacques@contact-pro.mrcomptable.fr>",
+    reponse: "contact@mrcomptable.fr",
+    site: "https://mrcomptable.fr",
+    marque: "Mr Comptable",
+    domaineAffiche: "mrcomptable.fr",
+    sujet: "La comptabilité et la paie de votre cabinet, dans un seul outil",
+    message: function (o: any) { return messageMrComptable(o); },
+  },
 };
+
+// 🆕 02/10 — LA PAGE DE LA VIDEO EST-ELLE EN LIGNE ? Elle doit repondre, et
+// contenir une video YouTube. Huit secondes au plus ; le moindre doute vaut
+// « pas encore » : on attend le passage suivant plutot que d envoyer un
+// lien mort.
+async function videoEnLigne(): Promise<boolean> {
+  const stop = new AbortController();
+  const minuterie = setTimeout(function () { stop.abort(); }, 8000);
+  try {
+    const r = await fetch(PAGE_DEMONSTRATION, {
+      signal: stop.signal, redirect: "follow", cache: "no-store",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MrComptable-verification/1.0)" },
+    });
+    if (!r.ok) return false;
+    const html = await r.text();
+    return /youtube(-nocookie)?\.com\/embed\/[A-Za-z0-9_-]{6,}/.test(html);
+  } catch (e) {
+    return false;
+  } finally {
+    clearTimeout(minuterie);
+  }
+}
 
 // Le pied de page : signature, source des coordonnees, desinscription.
 // Le lien pointe sur le domaine de la vague : la page de desinscription y
@@ -270,6 +358,7 @@ function dateLimiteVagueDeux(): string {
 //
 // Vague 1 : jamais contacte — statut 'enrichi', vague_envoi 0.
 // Vague 2 : a recu la vague 1 il y a plus de trente jours, rien depuis.
+// Vague 3 : a recu la vague 2 il y a plus de trente jours, rien depuis.
 //
 // ⚠️ DANS LES DEUX CAS : desabonne = false. Une desinscription est
 // definitive, et la respecter n est pas une courtoisie mais la loi.
@@ -279,10 +368,10 @@ function appliquerFiltre(q: any, vague: number): any {
     .not("email", "is", null)
     .lt("nb_envois", PLAFOND_ENVOIS);
 
-  if (vague === 2) {
+  if (vague === 2 || vague === 3) {
     sortie = sortie
       .eq("statut", "envoye")
-      .eq("vague_envoi", 1)
+      .eq("vague_envoi", vague - 1)
       .lt("envoye_le", dateLimiteVagueDeux());
   } else {
     sortie = sortie
@@ -312,7 +401,7 @@ async function traiterVague(supabase: any, vague: number, lot: number, debut: nu
     return bilan;
   }
 
-  const statutAttendu = vague === 2 ? "envoye" : "enrichi";
+  const statutAttendu = vague >= 2 ? "envoye" : "enrichi";
 
   for (const o of (cibles || [])) {
     if (Date.now() - debut > BUDGET_MS) {
@@ -418,6 +507,9 @@ export async function GET(req: NextRequest) {
       vague_1_mysterllc_a_faire: await compter(1),
       vague_2_mrcrm_a_faire: await compter(2),
       vague_2_en_attente_du_delai: enAttente || 0,
+      // 🆕 02/10
+      vague_3_mrcomptable_a_faire: await compter(3),
+      video_de_demonstration_en_ligne: await videoEnLigne(),
       delai_entre_vagues_jours: DELAI_ENTRE_VAGUES,
       desabonnes: desabonnes || 0,
     });
@@ -426,14 +518,20 @@ export async function GET(req: NextRequest) {
   const demande = Number(req.nextUrl.searchParams.get("lot") || LOT_PAR_DEFAUT);
   const lot = demande > 0 && demande <= 500 ? demande : LOT_PAR_DEFAUT;
 
-  // LES DEUX VAGUES A CHAQUE PASSAGE, la seconde d abord : ses prospects
-  // attendent depuis trente jours. ?vague=1 ou ?vague=2 n en traite qu une.
+  // LES TROIS VAGUES A CHAQUE PASSAGE, la plus ancienne d abord : ses
+  // prospects attendent depuis le plus longtemps. ?vague=1, 2 ou 3 n en
+  // traite qu une.
   const seule = Number(req.nextUrl.searchParams.get("vague") || 0);
-  const ordre = seule === 1 ? [1] : seule === 2 ? [2] : [2, 1];
+  const ordre = seule >= 1 && seule <= 3 ? [seule] : [3, 2, 1];
 
   const bilans: any[] = [];
   for (const vague of ordre) {
     if (Date.now() - debut > BUDGET_MS) break;
+    // 🆕 02/10 — LA VAGUE 3 ATTEND SA VIDEO (voir PAGE_DEMONSTRATION).
+    if (vague === 3 && !(await videoEnLigne())) {
+      bilans.push({ vague: 3, envoyes: 0, en_attente: "la page de la vidéo de démonstration n'est pas encore en ligne : " + PAGE_DEMONSTRATION });
+      continue;
+    }
     bilans.push(await traiterVague(supabase, vague, lot, debut));
   }
 
