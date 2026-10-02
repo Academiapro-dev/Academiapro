@@ -67,6 +67,11 @@ const BASES = [
   // pour « immobilier », c est que TABLES, cote /api/admin/linkedin, ne la
   // contient pas encore — a verifier avant de chercher ailleurs.
   { cle: "immobilier", nom: "Agences immobilières" },
+  // 🆕 02/10 — DEUX BASES QUI AVAIENT DES PROFILS SANS ETRE AFFICHEES :
+  // 1 615 profils d avocats (MysterLLC) et 799 profils de grands organismes
+  // de formation (AcadeMIA Pro). La route les connait aussi (TABLES).
+  { cle: "avocats", nom: "Cabinets d'avocats" },
+  { cle: "gros", nom: "Grands organismes de formation" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -110,7 +115,7 @@ const PRODUITS: any = {
     domaine: "academiapro.fr",
     // Les bases de prospection qui relevent de ce produit. Une fiche issue
     // d une de ces bases porte ce produit sans qu on ait rien a saisir.
-    bases: ["organismes", "qualiopi", "interim"],
+    bases: ["organismes", "qualiopi", "interim", "gros"],
     resume: "Cette fiche recevra le message sur le bilan pédagogique et le catalogue.",
   },
   mrcomptable: {
@@ -124,7 +129,8 @@ const PRODUITS: any = {
     nom: "MysterLLC",
     couleur: VERT_PRODUIT,
     domaine: "mysterllc.com",
-    bases: [],
+    // 🆕 02/10 : les cabinets d avocats, premiere cible de MysterLLC.
+    bases: ["avocats"],
     resume: "Cette fiche recevra le message sur l'administratif d'une LLC américaine.",
   },
   mrcrm: {
