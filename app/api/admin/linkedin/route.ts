@@ -304,6 +304,37 @@ async function compterCampagnes() {
   return par;
 }
 
+// 🆕 02/10 — LA VIDEO DE DEMONSTRATION DE MR COMPTABLE EST-ELLE EN LIGNE ?
+// Le message LinkedIn « Mr Comptable » pour une societe qui tient sa propre
+// comptabilite renvoie a cette page (meme adresse que la vague 3 de la
+// campagne des avocats). Tant qu elle ne repond pas avec une video, l ecran
+// ne propose pas ce message. La reponse est gardee dix minutes : inutile
+// d interroger la page a chaque geste de l ecran.
+const PAGE_DEMONSTRATION_MRCOMPTABLE = "https://mrcomptable.fr/demonstration";
+let videoMrComptable = { valeur: false, le: 0 };
+async function videoMrComptableEnLigne(): Promise<boolean> {
+  if (Date.now() - videoMrComptable.le < 10 * 60 * 1000) return videoMrComptable.valeur;
+  const stop = new AbortController();
+  const minuterie = setTimeout(function () { stop.abort(); }, 6000);
+  let ok = false;
+  try {
+    const r = await fetch(PAGE_DEMONSTRATION_MRCOMPTABLE, {
+      signal: stop.signal, redirect: "follow", cache: "no-store",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MrComptable-verification/1.0)" },
+    });
+    if (r.ok) {
+      const html = await r.text();
+      ok = /youtube(-nocookie)?\.com\/embed\/[A-Za-z0-9_-]{6,}/.test(html);
+    }
+  } catch (e) {
+    ok = false;
+  } finally {
+    clearTimeout(minuterie);
+  }
+  videoMrComptable = { valeur: ok, le: Date.now() };
+  return ok;
+}
+
 async function compteurs() {
   const [
     jour,
@@ -317,6 +348,7 @@ async function compteurs() {
     ecartes,
     en_file,
     campagnes,
+    video_mrcomptable,
   ] = await Promise.all([
     compterDepuis(debutDuJour()),
     compterDepuis(ilYaSeptJours()),
@@ -329,6 +361,7 @@ async function compteurs() {
     compterStatuts(["ecarte"]),
     compterEnFile(),
     compterCampagnes(),
+    videoMrComptableEnLigne(),
   ]);
 
   // 🚨 « ACCEPTEES » COMPTE AUSSI LES RELANCEES — corrige le 18/08.
@@ -357,6 +390,8 @@ async function compteurs() {
     plafond_semaine: PLAFOND_SEMAINE,
     reste_jour: Math.max(PLAFOND_JOUR - jour, 0),
     reste_semaine: Math.max(PLAFOND_SEMAINE - semaine, 0),
+    // 🆕 02/10 — voir PAGE_DEMONSTRATION_MRCOMPTABLE.
+    video_mrcomptable: video_mrcomptable,
   };
 }
 
