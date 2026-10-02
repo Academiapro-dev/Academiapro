@@ -3212,7 +3212,8 @@ export default function PagePaie() {
                             </span>
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.76)" }}>
-                              {String(m.periode).slice(0, 7)}
+                              {/* 🆕 02/10 — le mois en lettres, comme ailleurs. */}
+                              {libelleMois(String(m.periode))}
                               {" · "}{prise ? "prise" : "acquisition"}
                             </span>
                             {/* 🆕 22/09 — D OU VIENNENT CES JOURS.
