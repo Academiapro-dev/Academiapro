@@ -93,7 +93,11 @@ const PARALLELE = 12;
 // repondait trop tard. Delais allonges, deux tentatives DNS.
 const DELAI_MS = 7000;
 const DELAI_DNS_MS = 2500;
-const DUREE_MAX_MS = 250000;
+// 🆕 02/10 — 250 s → 200 s. Un passage a dure 4 min 42 le 01/10 : le
+// dernier paquet commence avant la limite et peut durer encore une minute.
+// Au-dela de 300 s, Vercel coupe, et ce paquet est perdu (repris au
+// passage suivant). 200 s laissent toujours la marge.
+const DUREE_MAX_MS = 200000;
 
 // AU PLUS, COMBIEN DE DOMAINES OUVRIR POUR UNE LIGNE.
 // Les questions DNS sont presque gratuites ; les pages, non.
