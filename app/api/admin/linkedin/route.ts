@@ -39,6 +39,13 @@ const TABLES: any = {
   interim: "prospects_interim",
   cabinets: "prospects_cabinets",
   immobilier: "prospects_immobilier",
+  // 🆕 02/10 — DEUX BASES QUI AVAIENT DES PROFILS SANS ETRE BRANCHEES :
+  // les cabinets d avocats (1 615 profils, cible MysterLLC puis Mr CRM) et
+  // les grands organismes de formation (799 profils). Les colonnes de
+  // l ecran (statut, dates, campagne, produits, telephone) leur ont ete
+  // ajoutees le 02/10, au type exact de prospects_cabinets.
+  avocats: "prospects_avocats",
+  gros: "prospects_gros",
   manuel: "crm",
 };
 
@@ -183,9 +190,10 @@ function taux(acceptes: number, invitations: number) {
 // trois autres n existent que dans la table crm, ou chaque fiche porte sa
 // colonne campagne. On compte donc les deux origines, et on additionne.
 const BASES_DE = {
-  academiapro: ["organismes", "qualiopi", "interim"],
+  academiapro: ["organismes", "qualiopi", "interim", "gros"],
   mrcomptable: ["cabinets"],
-  mysterllc: [],
+  // 🆕 02/10 : les cabinets d avocats, premiere cible de MysterLLC.
+  mysterllc: ["avocats"],
   // 🆕 15/09 : les agences immobilieres relevent de Mr CRM. C est la cible
   // arretee le 13/09, et les briques metier — biens, mandats, registre,
   // rapprochement acquereur — ont ete construites et eprouvees pour elles.
@@ -534,11 +542,20 @@ async function suivante(base: string) {
   const table = TABLES[base];
   if (!table) return { erreur: "Base inconnue." };
 
+  // 🆕🚨 02/10 — SEULS LES PROFILS DE PERSONNES S INVITENT. L outil
+  // d enrichissement releve aussi le lien LinkedIn affiche sur le site d un
+  // prospect, et c est presque toujours LA PAGE DE L ENTREPRISE
+  // (« linkedin.com/company/… ») : 1 024 chez les cabinets en une nuit. Une
+  // page ne s invite pas et ne recoit aucun message ; la proposer dans la
+  // file ferait perdre une invitation du jour a chaque fois. La file ne
+  // sert donc que les profils (« /in/ »). Les pages restent sur la fiche,
+  // pour retrouver le dirigeant a la main.
   const [lecture, comptage] = await Promise.all([
     supabase
       .from(table)
       .select(colonnesDe(base))
       .not("linkedin", "is", null)
+      .ilike("linkedin", "%/in/%")
       .is("linkedin_le", null)
       .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte")
       .order("id", { ascending: true })
@@ -547,6 +564,7 @@ async function suivante(base: string) {
       .from(table)
       .select("id", { count: "exact", head: true })
       .not("linkedin", "is", null)
+      .ilike("linkedin", "%/in/%")
       .is("linkedin_le", null)
       .or("linkedin_statut.is.null,linkedin_statut.neq.ecarte"),
   ]);
