@@ -4,6 +4,12 @@ import { createClient } from "@supabase/supabase-js";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
+// 🆕 02/10 — AUCUNE LECTURE GARDEE EN CACHE, pour toute la route : les
+// exports lisaient deja sans memoire (cache: "no-store"), mais pas le
+// compteur de la liste d attente (client Supabase, plus bas), qui aurait pu
+// donner chaque jour le chiffre d un jour precedent.
+export const fetchCache = "force-no-store";
+export const revalidate = 0;
 
 const TABLES_ACADEMIA = [
   "projets", "depenses", "factures", "tva_par_periode",
