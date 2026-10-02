@@ -307,6 +307,33 @@ export async function POST(req: NextRequest) {
     return t + "...";
   };
 
+  // 🆕 02/10 — UN LIBELLE TROP LONG PASSE A LA LIGNE AU LIEU D ETRE COUPE.
+  // « Indemnités journalières de Sécurité sociale déduites (2 j × 42,74 €) »
+  // sortait coupe par « ... » sur le bulletin d Hugo (video du 01/10) : un
+  // salarie doit pouvoir lire chaque ligne de son bulletin en entier. On
+  // coupe entre deux mots ; la seconde ligne se coupe elle-meme si besoin.
+  const deuxLignes = function (txt: string, f: any, taille: number, largeur: number): string[] {
+    const t = ascii(txt);
+    if (f.widthOfTextAtSize(t, taille) <= largeur) return [t];
+    // La parenthese (le detail du calcul) passe entiere a la seconde ligne
+    // quand le debut tient : « … déduites » / « (2 j × 42,74 EUR) ».
+    const par = t.indexOf(" (");
+    if (par > 0 && f.widthOfTextAtSize(t.slice(0, par), taille) <= largeur) {
+      return [t.slice(0, par), couper(t.slice(par + 1), f, taille, largeur)];
+    }
+    const mots = t.split(" ");
+    let l1 = "";
+    let i = 0;
+    while (i < mots.length) {
+      const essai = l1 ? l1 + " " + mots[i] : mots[i];
+      if (f.widthOfTextAtSize(essai, taille) > largeur) break;
+      l1 = essai;
+      i++;
+    }
+    if (!l1) return [couper(t, f, taille, largeur)];
+    return [l1, couper(mots.slice(i).join(" "), f, taille, largeur)];
+  };
+
   // ---- EN-TETE ----
   // 🆕 16/09 — LE TITRE DIT CE QUE LE DOCUMENT EST. Un rectificatif qui
   // ressemble a un bulletin ordinaire se classe comme un bulletin
@@ -428,11 +455,16 @@ export async function POST(req: NextRequest) {
     // colonnes : « Indemnité spécifique de rupture conventionnelle (part
     // soumise à cotisations) » sortait coupe.
     const larg = (l.quantite === null || l.quantite === undefined) && (l.taux === null || l.taux === undefined) ? 400 : 250;
-    ecrire(couper(l.libelle, police, 8.5, larg), 40, 8.5, police, NOIR);
+    const lignesLib = deuxLignes(l.libelle, police, 8.5, larg);
+    ecrire(lignesLib[0], 40, 8.5, police, NOIR);
     if (l.quantite !== null && l.quantite !== undefined) droite(euros(l.quantite), 340, 8.5, police, NOIR);
     if (l.taux !== null && l.taux !== undefined) droite(taux(l.taux), 420, 8.5, police, NOIR);
     droite(euros(l.montant), 555, 8.5, police, NOIR);
     y -= 11;
+    if (lignesLib[1]) {
+      ecrire(lignesLib[1], 48, 8.5, police, NOIR);
+      y -= 11;
+    }
   }
 
   // ---- LES INDEMNITES DE FIN DE CONTRAT ----
@@ -497,9 +529,11 @@ export async function POST(req: NextRequest) {
       const largeur = police.widthOfTextAtSize(ascii(l1), 8);
       ecrire(couper("(" + c.alerte + ")", police, 6.5, 195 - largeur),
         40 + largeur + 4, 6.5, police, ROUGE);
-    } else {
-      ecrire(couper(c.libelle, police, 8, 195), 40, 8, police, NOIR);
     }
+    // 🆕 02/10 — un libelle trop long passe a la ligne (« Fonds national
+    // d'aide au logement - moins de 50 salariés » sortait coupe).
+    const libCot = c.alerte ? [] : deuxLignes(c.libelle, police, 8, 195);
+    if (!c.alerte) ecrire(libCot[0], 40, 8, police, NOIR);
 
     droite(euros(c.base), 285, 8, police, NOIR);
     // 🆕 27/09 soir — UNE PART NEGATIVE S ECRIT AUSSI : la reduction de
@@ -512,6 +546,10 @@ export async function POST(req: NextRequest) {
     droite(c.part_patronale > 0 ? euros(c.part_patronale)
       : (c.alerte ? "0,00" : ""), 555, 8, police, c.alerte ? ROUGE : NOIR);
     y -= 10;
+    if (libCot[1]) {
+      ecrire(libCot[1], 48, 8, police, NOIR);
+      y -= 10;
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // 🆕🚨 22/09 — QUAND LE SALARIE ET L EMPLOYEUR N ONT PAS LA MEME
@@ -556,7 +594,8 @@ export async function POST(req: NextRequest) {
   if (calcul.rgdu && calcul.rgdu > 0) {
     ecrire("Réduction générale dégressive unique (part employeur)", 40, 8, police, NOIR);
     if (calcul.rgdu_detail && calcul.rgdu_detail.coefficient) {
-      droite("coef. " + String(calcul.rgdu_detail.coefficient), 480, 8, police, GRIS);
+      // 🆕 02/10 — la virgule française (« 0,1157 », pas « 0.1157 »).
+      droite("coef. " + String(calcul.rgdu_detail.coefficient).replace(".", ","), 480, 8, police, GRIS);
     }
     droite("- " + euros(calcul.rgdu), 555, 8, police, NOIR);
     y -= 11;
@@ -600,11 +639,17 @@ export async function POST(req: NextRequest) {
         y = 800;
       }
       const largH = (l.quantite === null || l.quantite === undefined) && (l.taux === null || l.taux === undefined) ? 400 : 250;
-      ecrire(couper(l.libelle, police, 8.5, largH), 40, 8.5, police, NOIR);
+      // 🆕 02/10 — passe a la ligne au lieu d etre coupe (voir deuxLignes).
+      const libH = deuxLignes(l.libelle, police, 8.5, largH);
+      ecrire(libH[0], 40, 8.5, police, NOIR);
       if (l.quantite !== null && l.quantite !== undefined) droite(euros(l.quantite), 340, 8.5, police, NOIR);
       if (l.taux !== null && l.taux !== undefined) droite(taux(l.taux), 420, 8.5, police, NOIR);
       droite(euros(l.montant), 555, 8.5, police, NOIR);
       y -= 11;
+      if (libH[1]) {
+        ecrire(libH[1], 48, 8.5, police, NOIR);
+        y -= 11;
+      }
     }
     y -= 4;
     ligne();
