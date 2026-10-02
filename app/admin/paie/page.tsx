@@ -255,6 +255,17 @@ function texteRecap(r: any): string {
 // boutons, a la couleur de leur consequence.
 const NOMS_MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet",
   "août", "septembre", "octobre", "novembre", "décembre"];
+// 🆕 02/10 — LES ACCORDS : « 1 bulletin prêt », « 2 bulletins prêts ».
+// Les « bulletin(s) prêt(s) » se lisaient à l'écran, et dans la vidéo.
+// 🆕 02/10 — deux décimales à la française (« 92,31 », pas « 92.31 »).
+function fr2(v: any): string {
+  return Number(v || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function nb(n: number, singulier: string, pluriel: string): string {
+  return n + " " + (n > 1 ? pluriel : singulier);
+}
+
 function libelleMois(p: string): string {
   const a = String(p || "").slice(0, 4);
   const m = Number(String(p || "").slice(5, 7));
@@ -758,7 +769,7 @@ export default function PagePaie() {
   // ═══════════════════════════════════════════════════════════════════
   async function sortirTousLesBrouillons() {
     if (!mois || sansBulletin.length === 0) return;
-    if (!confirm("Sortir le brouillon de " + sansBulletin.length + " salarié(s) pour ce mois ?")) return;
+    if (!confirm("Sortir le brouillon de " + nb(sansBulletin.length, "salarié", "salariés") + " pour ce mois ?")) return;
     setErr(""); setMsg(""); setOccupe("masse");
     let ok = 0;
     const refus: string[] = [];
@@ -771,13 +782,19 @@ export default function PagePaie() {
     }
     setOccupe("");
     await chargerMois();
-    if (refus.length > 0) setErr(ok + " brouillon(s) sorti(s). Refusé(s) : " + refus.join(" · "));
-    else setMsg(ok + " brouillon(s) sorti(s).");
+    // 🆕 02/10 — la liste « Bulletins » se met à jour aussi (elle ne
+    // montrait les nouveaux brouillons qu'après un rechargement de la page).
+    if (choisi) {
+      const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
+      if (b.success) setBulletins(b.bulletins);
+    }
+    if (refus.length > 0) setErr(nb(ok, "brouillon sorti", "brouillons sortis") + ". Refus : " + refus.join(" · "));
+    else setMsg(nb(ok, "brouillon sorti", "brouillons sortis") + ".");
   }
 
   async function emettreLesPrets() {
     if (!mois || prets.length === 0) return;
-    if (!confirm("Émettre " + prets.length + " bulletin(s) de ce mois ?\n\nUn bulletin émis est définitif : "
+    if (!confirm("Émettre " + nb(prets.length, "bulletin", "bulletins") + " de ce mois ?\n\nUn bulletin émis est définitif : "
       + "il ne se corrige plus que par un bulletin rectificatif.")) return;
     setErr(""); setMsg(""); setOccupe("masse");
     let ok = 0;
@@ -794,9 +811,12 @@ export default function PagePaie() {
     if (choisi) {
       const b = await appeler({ action: "bulletins", contrat_id: choisi.id });
       if (b.success) setBulletins(b.bulletins);
+      // 🆕 02/10 — les congés s'acquièrent à l'émission : le bloc « Congés
+      // payés » se met à jour (il affichait encore « Aucun droit acquis »).
+      await chargerConges(choisi.id);
     }
-    if (refus.length > 0) setErr(ok + " bulletin(s) émis. Refusé(s) : " + refus.join(" · "));
-    else setMsg(ok + " bulletin(s) émis.");
+    if (refus.length > 0) setErr(nb(ok, "bulletin émis", "bulletins émis") + ". Refus : " + refus.join(" · "));
+    else setMsg(nb(ok, "bulletin émis", "bulletins émis") + ".");
   }
 
   // 🆕 28/09 — les seuils du cabinet (associés et administrateur).
@@ -1085,33 +1105,33 @@ export default function PagePaie() {
       return n.slice(0, 3).join(", ") + (n.length > 3 ? "…" : "");
     };
     if (lignes.every(function (l: any) { return l.bulletin && l.bulletin.statut === "emis"; })) {
-      return "Tous les bulletins du mois sont émis. Prochaine étape : la DSN du mois (Tous les outils → Paie → DSN).";
+      return "Tous les bulletins du mois sont émis. Prochaine étape : la DSN du mois (Mes dossiers → carte du dossier → Paie → DSN).";
     }
     if (sansBulletin.length > 0) {
-      return "Sortir " + sansBulletin.length + " brouillon(s) manquant(s) ou à refaire (" + noms(sansBulletin)
+      return "Sortir " + nb(sansBulletin.length, "brouillon manquant ou à refaire", "brouillons manquants ou à refaire") + " (" + noms(sansBulletin)
         + ") : bouton « Sortir les brouillons » juste en dessous.";
     }
     const brouillons = lignes.filter(function (l: any) { return l.bulletin && l.bulletin.statut === "brouillon" && l.controle; });
     const rouges = brouillons.filter(function (l: any) { return l.controle.couleur === "rouge" && !l.bulletin.levee_motif; });
     if (rouges.length > 0) {
-      return "Traiter " + rouges.length + " point(s) rouge(s) (" + noms(rouges) + ") : corriger la saisie, joindre la pièce "
+      return "Traiter " + (rouges.length > 1 ? "les " + rouges.length + " points rouges" : "le point rouge") + " (" + noms(rouges) + ") : corriger la saisie, joindre la pièce "
         + "ou l'avis d'arrêt, ou lever le rouge avec un motif.";
     }
     const renvoyes = brouillons.filter(function (l: any) { return l.bulletin.validation === "renvoye"; });
     if (renvoyes.length > 0) {
-      return renvoyes.length + " bulletin(s) renvoyé(s) pour correction (" + noms(renvoyes) + ") : corriger, "
+      return nb(renvoyes.length, "bulletin renvoyé", "bulletins renvoyés") + " pour correction (" + noms(renvoyes) + ") : corriger, "
         + "puis soumettre de nouveau.";
     }
     const oranges = brouillons.filter(function (l: any) {
       return l.controle.couleur === "orange" && !l.bulletin.justification;
     });
     if (oranges.length > 0) {
-      return "Justifier " + oranges.length + " point(s) orange (" + noms(oranges) + ") : écrire la raison sur la ligne, "
+      return "Justifier " + (oranges.length > 1 ? "les " + oranges.length + " points orange" : "le point orange") + " (" + noms(oranges) + ") : écrire la raison sur la ligne, "
         + "puis « justifier ».";
     }
     const aValider = brouillons.filter(function (l: any) { return l.bulletin.validation === "a_valider"; });
     if (aValider.length > 0) {
-      return aValider.length + " bulletin(s) attendent la validation d'un associé (" + noms(aValider) + ").";
+      return (aValider.length > 1 ? aValider.length + " bulletins attendent" : "1 bulletin attend") + " la validation d'un associé (" + noms(aValider) + ").";
     }
     if (!mois.recap) return "Envoyer le récapitulatif au client : son adresse, puis « Envoyer le récapitulatif ».";
     if (mois.recap.statut === "envoye") return "Attendre la confirmation du client, ou lever l'attente avec un motif.";
@@ -1119,7 +1139,7 @@ export default function PagePaie() {
     if (mois.recap.statut === "confirme" && !mois.recap.a_jour) {
       return "La paie a changé depuis la confirmation du client : renvoyer le récapitulatif.";
     }
-    if (prets.length > 0) return "Émettre les " + prets.length + " bulletin(s) prêt(s).";
+    if (prets.length > 0) return prets.length > 1 ? "Émettre les " + prets.length + " bulletins prêts." : "Émettre le bulletin prêt.";
     return null;
   })();
 
@@ -2364,7 +2384,7 @@ export default function PagePaie() {
                           color: "rgba(255,255,255,0.72)" }}>
                           {joursSaisie.length > 0 && !auForfait
                             ? hebdo.toLocaleString("fr-FR") + " h réparties sur "
-                              + joursSaisie.length + " jour(s), soit "
+                              + nb(joursSaisie.length, "jour", "jours") + ", soit "
                               + (Math.round(hebdo / joursSaisie.length * 100) / 100)
                                 .toLocaleString("fr-FR") + " h par jour. "
                             : ""}
@@ -2579,7 +2599,7 @@ export default function PagePaie() {
                     onChange={(ev) => setE({ ...e, montant: ev.target.value })} />
                 </div>
                 <button onClick={ajouterElement} disabled={occupe !== ""} style={{ ...SECOND, ...cache(droitsIci.preparer) }}>
-                  Ajouter
+                  {occupe === "element" ? "…" : "Ajouter"}
                 </button>
               </div>
 
@@ -2928,13 +2948,17 @@ export default function PagePaie() {
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginBottom: "12px" }}>
                       {sansBulletin.length > 0 && droitsIci.preparer && (
                         <button onClick={sortirTousLesBrouillons} disabled={occupe !== ""} style={SECOND}>
-                          {occupe === "masse" ? "…" : "Sortir les " + sansBulletin.length + " brouillon(s) manquant(s) ou périmé(s)"}
+                          {occupe === "masse" ? "…" : (sansBulletin.length > 1
+                            ? "Sortir les " + sansBulletin.length + " brouillons manquants ou périmés"
+                            : "Sortir le brouillon manquant ou périmé")}
                         </button>
                       )}
                       {prets.length > 0 && droitsIci.emettre && droitsIci.carte_blanche && (
                         <button onClick={emettreLesPrets} disabled={occupe !== "" || !recapOk}
                           style={{ ...SECOND, borderColor: VERT, color: VERT, opacity: recapOk ? 1 : 0.45 }}>
-                          {occupe === "masse" ? "…" : "Émettre les " + prets.length + " bulletin(s) prêt(s)"}
+                          {occupe === "masse" ? "…" : (prets.length > 1
+                            ? "Émettre les " + prets.length + " bulletins prêts"
+                            : "Émettre le bulletin prêt")}
                         </button>
                       )}
                       {prets.length > 0 && droitsIci.emettre && droitsIci.carte_blanche && !recapOk && (
@@ -3068,7 +3092,7 @@ export default function PagePaie() {
                       ) : mesure.personnes.map(function (p: any) {
                         return (
                           <p key={p.email} style={{ fontSize: "13.5px", margin: "5px 0 0", lineHeight: 1.5 }}>
-                            {p.email} : {p.soumis} soumis, {p.renvoyes} renvoyé(s), {p.leves} levée(s),
+                            {p.email} : {p.soumis} soumis, {nb(p.renvoyes, "renvoyé", "renvoyés")}, {nb(p.leves, "levée", "levées")},
                             {" "}{p.emis} émis
                             {p.taux_corrections !== null
                               ? " — " + Number(p.taux_corrections).toLocaleString("fr-FR") + " % de corrections" : ""}
@@ -3141,11 +3165,12 @@ export default function PagePaie() {
                       + "/" + String(conges.solde.periode_ref).slice(5, 7)
                       + "/" + String(conges.solde.periode_ref).slice(0, 4)}
                     {" — "}
-                    <strong>{Number(conges.solde.acquis).toFixed(2)}</strong> acquis,{" "}
-                    <strong>{Number(conges.solde.pris).toFixed(2)}</strong> pris,{" "}
+                    {/* 🆕 02/10 — la virgule française (« 2,50 », pas « 2.50 »). */}
+                    <strong>{Number(conges.solde.acquis).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> acquis,{" "}
+                    <strong>{Number(conges.solde.pris).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> pris,{" "}
                     solde <strong style={{ color: OR }}>
-                      {Number(conges.solde.solde).toFixed(2)}
-                    </strong> jour(s) ouvrable(s).
+                      {Number(conges.solde.solde).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </strong> {Math.abs(Number(conges.solde.solde)) > 1 ? "jours ouvrables" : "jour ouvrable"}.
                   </p>
                 ) : (
                   <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
@@ -3183,7 +3208,7 @@ export default function PagePaie() {
                           fontSize: "14px" }}>
                           <span>
                             <span style={{ color: prise ? ROUGE : VERT }}>
-                              {prise ? "−" : "+"}{Number(m.jours).toFixed(2)} j
+                              {prise ? "−" : "+"}{fr2(m.jours)} j
                             </span>
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.76)" }}>
@@ -3208,11 +3233,11 @@ export default function PagePaie() {
                             {prise && m.valeur_retenue != null && (
                               <span style={{ marginLeft: "10px", fontSize: "13.5px",
                                 color: "rgba(255,255,255,0.72)" }}>
-                                maintien {Number(m.valeur_maintien).toFixed(2)} €
-                                {" · "}dixième {Number(m.valeur_dixieme).toFixed(2)} €
+                                maintien {fr2(m.valeur_maintien)} €
+                                {" · "}dixième {fr2(m.valeur_dixieme)} €
                                 {" · retenu "}
                                 <strong style={{ color: OR }}>
-                                  {Number(m.valeur_retenue).toFixed(2)} €
+                                  {fr2(m.valeur_retenue)} €
                                 </strong>
                               </span>
                             )}
@@ -3897,7 +3922,8 @@ export default function PagePaie() {
                         </span>
                         <span style={{ color: "rgba(255,255,255,0.72)",
                           marginLeft: "10px", fontSize: "13.5px" }}>
-                          {String(b.periode).slice(0, 7)}
+                          {/* 🆕 02/10 — le mois en lettres (« octobre 2026 »). */}
+                          {libelleMois(String(b.periode))}
                         </span>
                         <span style={{ marginLeft: "10px", fontSize: "12.5px",
                           color: b.statut === "emis" ? VERT
