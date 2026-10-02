@@ -216,6 +216,14 @@ function urssafRanges(organismes: any[]): any {
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin",
   "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
+// 🆕 02/10 — CHAQUE MESSAGE COMMENCE PAR UNE MAJUSCULE. Les refus des
+// routes commencent souvent en minuscule (« code risque illisible… ») :
+// vu au tournage du 01/10. Meme fonction que sur l ecran de paie.
+function majuscule(m: any): string {
+  const t = String(m || "");
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
+}
+
 function moisLisible(p: string): string {
   const x = String(p).split("-");
   return MOIS[Number(x[1]) - 1] + " " + x[0];
@@ -804,7 +812,7 @@ export default function PageDsn() {
               <p style={{ fontSize: "14px", margin: 0, color: "rgba(255,255,255,0.8)" }}>Lecture…</p>
             )}
           </div>
-          {err && <p style={{ color: ROUGE, fontSize: "14px" }}>{err}</p>}
+          {err && <p style={{ color: ROUGE, fontSize: "14px" }}>{majuscule(err)}</p>}
         </div>
       </div>
     );
@@ -862,7 +870,7 @@ export default function PageDsn() {
             border: "1px solid " + (err ? ROUGE : VERT), borderRadius: "10px",
             padding: "12px 44px 12px 16px", boxShadow: "0 8px 30px rgba(0,0,0,0.6)",
             fontSize: "14px", lineHeight: 1.6, color: err ? ROUGE : VERT, whiteSpace: "pre-wrap" }}>
-            {err || msg}
+            {majuscule(err || msg)}
             <button onClick={() => { setMsg(""); setErr(""); }} aria-label="fermer"
               style={{ position: "absolute", top: "6px", right: "10px", background: "none",
                 border: "none", color: "rgba(255,255,255,0.8)", fontSize: "20px", cursor: "pointer" }}>
