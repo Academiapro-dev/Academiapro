@@ -362,7 +362,7 @@ function motInvitation(prenom: string, cle?: string) {
 // CABINET d un TITULAIRE de LLC : les deux ne lisent pas le meme message.
 // Elle est facultative : sans elle, on retombe sur la version cabinet,
 // qui etait la seule avant ce jour.
-function messageRelance(prenom: string, societe: string, nbFormations: number, cle?: string, base?: any) {
+function messageRelance(prenom: string, societe: string, nbFormations: number, cle?: string, base?: any, videoMrComptable?: boolean) {
   const p = capitaliser(prenom);
   const s = capitaliser(societe);
   const salut = (p ? "Bonjour " + p : "Bonjour") + ",\n\n";
@@ -371,8 +371,46 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
   const k = String(cle || "academiapro");
   // Un cabinet se reconnait a sa base de prospection ; a defaut de base
   // (fiche saisie a la main), on regarde l intitule de la societe.
+  // 🆕 02/10 — UN CABINET D AVOCATS EST UN CABINET : il accompagne des
+  // clients, il ne detient pas lui-meme de LLC. Venu de la base des avocats,
+  // il recoit donc la version « cabinet » (« ce que ça change pour votre
+  // cabinet »), comme le courriel de la campagne des avocats (« la société
+  // américaine de vos clients »). Sans cela, « Cousin et Associés » tombait
+  // dans la version « titulaire » : aucun mot de l intitule ne le signalait.
   const cabinet = estCabinet(base)
-    || /comptab|expertise|audit|fiduciaire|conseil/i.test(String(societe || ""));
+    || String(base || "") === "avocats"
+    || /comptab|expertise|audit|fiduciaire|conseil|avocat/i.test(String(societe || ""));
+
+  // 🆕 02/10 — MR COMPTABLE POUR UNE SOCIETE QUI TIENT SA PROPRE
+  // COMPTABILITE (un cabinet d avocats, un independant, une TPE, une PME).
+  // Le message ci-dessous, plus bas, parle aux CABINETS COMPTABLES (« les
+  // pieces justificatives qui n arrivent jamais ») : il ne convient qu a
+  // eux. Texte valide par Jacques le 02/10.
+  // ⚠️ IL RENVOIE A LA VIDEO DE DEMONSTRATION : tant que la page n est pas
+  // en ligne (la route le verifie), l ecran ne le propose pas.
+  // ⛔ PAS DE DECLARATION 2035, PAS DE « nous tenons votre comptabilite ».
+  const cabinetComptable = estCabinet(base)
+    || /comptab|expert|fiduciaire|audit/i.test(String(societe || ""));
+  if (k === "mrcomptable" && !cabinetComptable) {
+    if (!videoMrComptable) {
+      return "⏳ Ce message sera proposé dès que la vidéo de démonstration "
+        + "de Mr Comptable sera en ligne (https://mrcomptable.fr/demonstration). "
+        + "Ne l'envoyez pas avant.";
+    }
+    return salut
+      + "Un mot sur un autre outil que j'ai construit, plus proche de votre "
+      + "quotidien : Mr Comptable, pour tenir soi-même sa comptabilité et sa "
+      + "paie.\n\n"
+      + "Vos justificatifs se saisissent en les photographiant, vos relevés se "
+      + "rapprochent de vos écritures, la TVA du mois se prépare à partir de vos "
+      + "écritures, et les bulletins de vos collaborateurs se calculent avec la "
+      + "DSN de chaque mois. Votre expert-comptable peut recevoir le FEC quand "
+      + "il le souhaite.\n\n"
+      + "Une vidéo de démonstration le présente écran par écran : "
+      + "https://mrcomptable.fr/demonstration. Si elle vous parle, nous pourrons "
+      + "en discuter au téléphone.\n\n"
+      + "Bien à vous,\nJacques Lalou\nmrcomptable.fr";
+  }
 
   if (k === "mrcomptable") {
     return salut
@@ -628,6 +666,25 @@ function messageRelance(prenom: string, societe: string, nbFormations: number, c
 // ⚠️ UN SEUL DOMAINE EN SIGNATURE : LinkedIn transforme le premier lien en
 // carte d apercu ; deux domaines faisaient apparaitre le mauvais logo.
 // ══════════════════════════════════════════════════════════════════════════
+// 🆕🚨 02/10 — LE MESSAGE D UN PRODUIT SECONDAIRE PRESENTE CE PRODUIT.
+//
+// LE DEFAUT. Le bloc « produits secondaires » affichait
+// secondMessage(prenom, produit). Or secondMessage(k) est la RELANCE QUI
+// SUIT le produit k (« Mr Comptable → MysterLLC », « Mr CRM → le
+// catalogue »…). Un avocat dont le produit secondaire est Mr CRM aurait
+// recu… le message du catalogue de formations ; un cabinet dont le produit
+// secondaire est MysterLLC, « Je vous avais parle du suivi de votre LLC ».
+// Trouve le 02/10 en branchant Mr CRM et Mr Comptable sur les avocats.
+//
+// CE QUI REMPLACE. La presentation du produit lui-meme (messageRelance),
+// sans le « Merci d avoir accepte mon invitation » : ce message part au
+// moins sept jours apres le precedent, le remerciement est deja fait.
+function messageSecondaire(prenom: string, societe: string, nbFormations: number,
+                           cle: string, base: any, videoMrComptable: boolean): string {
+  return messageRelance(prenom, societe, nbFormations, cle, base, videoMrComptable)
+    .replace(/Merci d'avoir accepté (mon invitation|ma demande)\.\n\n/, "");
+}
+
 function secondMessage(prenom: string, cle?: string) {
   const p = capitaliser(prenom);
   const salut = (p ? "Bonjour " + p : "Bonjour") + ",\n\n";
@@ -1493,7 +1550,8 @@ export default function PageLinkedin() {
     const cle = second ? (String(l.linkedin_produit || "") || campagneDe(l)) : campagneDe(l);
     return second
       ? secondMessage(l.dirigeant_prenom, cle)
-      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle, l.base);
+      : messageRelance(l.dirigeant_prenom, l.raison_sociale, nbFormations, cle, l.base,
+          !!(compteurs && compteurs.video_mrcomptable));
   }
 
   function demarrerSerie() {
@@ -1891,8 +1949,20 @@ export default function PageLinkedin() {
   // Les produits secondaires d une fiche, avec leur etat.
   //   envoye : le message est deja parti sous ce produit
   //   jours  : ce qu il reste a attendre (0 = pret a ecrire)
+  // 🆕 02/10 — LES AVOCATS PORTENT D OFFICE MR CRM ET MR COMPTABLE
+  // (decision de Jacques) : MysterLLC d abord, puis ces deux produits, sept
+  // jours au moins entre deux messages. Tant que rien n a ete enregistre
+  // sur la fiche, ils sont proposes ; des qu un produit est ajoute, retire
+  // ou marque envoye, la liste enregistree fait foi.
+  function produitsParDefaut(l: any): any {
+    if (l && l.base === "avocats" && (!l.produits || typeof l.produits !== "object")) {
+      l.produits = { mrcrm: null, mrcomptable: null };
+    }
+    return l.produits;
+  }
+
   function produitsDe(l: any): any[] {
-    const p = l.produits;
+    const p = produitsParDefaut(l);
     if (!p || typeof p !== "object") return [];
 
     const dernier = dernierMessageDe(l);
@@ -4755,7 +4825,9 @@ export default function PageLinkedin() {
                                   {enEcriture && (
                                     <div style={{ marginTop: "9px" }}>
                                       <textarea
-                                        value={secondMessage(l.dirigeant_prenom, x.cle)}
+                                        value={messageSecondaire(l.dirigeant_prenom, l.raison_sociale,
+                                          nbFormations, x.cle, l.base,
+                                          !!(compteurs && compteurs.video_mrcomptable))}
                                         readOnly
                                         rows={5}
                                         style={{ ...CHAMP, width: "100%",
@@ -4765,7 +4837,9 @@ export default function PageLinkedin() {
                                       <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                                         <button
                                           onClick={() => copier(
-                                            secondMessage(l.dirigeant_prenom, x.cle),
+                                            messageSecondaire(l.dirigeant_prenom, l.raison_sociale,
+                                              nbFormations, x.cle, l.base,
+                                              !!(compteurs && compteurs.video_mrcomptable)),
                                             cleDe(l) + "|" + x.cle
                                           )}
                                           style={{ ...BOUTON, flex: "1 1 160px", fontSize: "13px" }}>
