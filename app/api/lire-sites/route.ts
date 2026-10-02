@@ -218,15 +218,93 @@ function adressesDe(html: string): string[] {
     sortie.push(a);
   };
 
+  // 🆕 02/10 — 0. LES ADRESSES MASQUEES. Beaucoup de sites « a formulaire
+  // seul » affichent en fait leur adresse, mais masquee contre les robots.
+  // On la decode avant de chercher, sans rien inventer : chaque adresse
+  // tiree d ici est ecrite telle quelle sur le site.
+  //   a. la protection de Cloudflare (active par defaut) : l adresse est
+  //      codee en hexadecimal dans « data-cfemail » ou dans un lien
+  //      « /cdn-cgi/l/email-protection#… » ; le premier octet est la cle ;
+  for (const h of decodesCloudflare(html)) ajouter(h);
+  //   b. les autres masquages, ramenes a une adresse ordinaire.
+  const texte = demasquer(html);
+
   // 1. Les mailto, d abord : ce sont les plus sures.
-  const liens = html.match(/mailto:[^"'\s>)]+/gi) || [];
-  for (const l of liens) ajouter(l);
+  // 🆕 02/10 — une arobase codee dans le lien (« %40 ») est decodee.
+  const liens = texte.match(/mailto:[^"'\s>)]+/gi) || [];
+  for (const l of liens) {
+    let d = l;
+    try { d = decodeURIComponent(l); } catch (e) { d = l; }
+    ajouter(d);
+  }
 
   // 2. Le texte.
-  const brutes = html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
+  const brutes = texte.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
   for (const b of brutes) ajouter(b);
 
+  // 3. 🆕 02/10 — l adresse assemblee en JavaScript :
+  //    'contact' + '@' + 'cabinet.fr'  ou  "contact" + "@cabinet.fr".
+  const js = html.match(/["']([a-zA-Z0-9._%+-]+)["']\s*\+\s*["']@["']\s*\+\s*["']([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})["']/g) || [];
+  for (const j of js) {
+    const m = j.match(/["']([a-zA-Z0-9._%+-]+)["']\s*\+\s*["']@["']\s*\+\s*["']([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})["']/);
+    if (m) ajouter(m[1] + "@" + m[2]);
+  }
+  const js2 = html.match(/["']([a-zA-Z0-9._%+-]+)["']\s*\+\s*["']@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})["']/g) || [];
+  for (const j of js2) {
+    const m = j.match(/["']([a-zA-Z0-9._%+-]+)["']\s*\+\s*["']@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})["']/);
+    if (m) ajouter(m[1] + "@" + m[2]);
+  }
+
   return sortie;
+}
+
+// 🆕 02/10 — LA PROTECTION DE CLOUDFLARE. L adresse est ecrite en
+// hexadecimal ; le premier octet est la cle, chaque octet suivant, combine
+// a la cle (ou exclusif), donne une lettre. Algorithme public, celui du
+// script que Cloudflare insere lui-meme dans la page pour l afficher.
+function decodesCloudflare(html: string): string[] {
+  const sortie: string[] = [];
+  const codes: string[] = [];
+  const a = html.match(/data-cfemail=["']([0-9a-fA-F]+)["']/g) || [];
+  for (const x of a) { const m = x.match(/([0-9a-fA-F]{4,})/); if (m) codes.push(m[1]); }
+  const b = html.match(/email-protection#([0-9a-fA-F]+)/g) || [];
+  for (const x of b) { const m = x.match(/#([0-9a-fA-F]{4,})/); if (m) codes.push(m[1]); }
+  for (const c of codes) {
+    if (c.length % 2 !== 0) continue;
+    const cle = parseInt(c.slice(0, 2), 16);
+    let r = "";
+    for (let i = 2; i < c.length; i += 2) {
+      r += String.fromCharCode(parseInt(c.slice(i, i + 2), 16) ^ cle);
+    }
+    if (/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(r)) sortie.push(r);
+  }
+  return sortie;
+}
+
+// 🆕 02/10 — LES AUTRES MASQUAGES COURANTS, ramenes a une adresse ordinaire :
+//   « contact&#64;cabinet.fr », « contact&#x40;… », « &commat; » ;
+//   « contact [at] cabinet [dot] fr », « contact (at) cabinet.fr »,
+//   « contact {arobase} cabinet.fr », « contact arobase cabinet.fr »,
+//   « contact@cabinet point fr ».
+// ⚠️ « at » et « point » NUS ne sont jamais remplaces (trop de faux
+// positifs dans un texte) : seulement entre crochets, parentheses ou
+// accolades, ou « arobase » en toutes lettres.
+function demasquer(html: string): string {
+  let t = String(html || "");
+  t = t.replace(/&#(\d{2,3});/g, function (m: string, n: string) {
+    const c = Number(n);
+    return c === 64 || c === 46 || (c >= 48 && c <= 122) ? String.fromCharCode(c) : m;
+  });
+  t = t.replace(/&#x([0-9a-fA-F]{2});/g, function (m: string, h: string) {
+    const c = parseInt(h, 16);
+    return c === 64 || c === 46 || (c >= 48 && c <= 122) ? String.fromCharCode(c) : m;
+  });
+  t = t.replace(/&commat;/gi, "@").replace(/&period;/gi, ".");
+  t = t.replace(/\s*[\[\(\{]\s*(?:at|arobase|@)\s*[\]\)\}]\s*/gi, "@");
+  t = t.replace(/([a-zA-Z0-9._%+-])\s+arobase\s+([a-zA-Z0-9-])/gi, "$1@$2");
+  t = t.replace(/\s*[\[\(\{]\s*(?:dot|point)\s*[\]\)\}]\s*/gi, ".");
+  t = t.replace(/(@[a-zA-Z0-9-]+)\s+point\s+([a-zA-Z]{2,})\b/g, "$1.$2");
+  return t;
 }
 
 // 🆕 01/10 — LE LIEN LINKEDIN AFFICHE SUR LE SITE (souvent en pied de page).
