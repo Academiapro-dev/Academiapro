@@ -426,6 +426,12 @@ function cleLuhnValide(numero: string): boolean {
 }
 
 // LA DATE AU FORMAT DSN : JJMMAAAA.
+// 🆕 02/10 — LA MEME DATE, LISIBLE (JJ/MM/AAAA), pour les notes affichees.
+function dateLisible(v: any): string {
+  const d = dateDsn(v);
+  return d.length === 8 ? d.slice(0, 2) + "/" + d.slice(2, 4) + "/" + d.slice(4) : d;
+}
+
 function dateDsn(v: any): string {
   const d = q(v);
   if (!d) return "";
@@ -1951,7 +1957,7 @@ export async function POST(req: NextRequest) {
         ecrire("S21.G00.60.002", dateDsn(djtAnnule));
         ecrire("S21.G00.60.003", dateDsn(finAnnule));
         notesArrets.push(qui + " : l'arrêt déclaré du "
-          + dateDsn(djtAnnule) + " au " + dateDsn(finAnnule)
+          + dateLisible(djtAnnule) + " au " + dateLisible(finAnnule)
           + " est ANNULÉ dans cette DSN (motif 99). ⚠️ C'est la seule "
           + "déclaration qui le retire de la base de la CPAM : après ce "
           + "dépôt, il ne sera plus répété.");
@@ -1976,8 +1982,10 @@ export async function POST(req: NextRequest) {
         // que la prolongation n a pas ete saisie, on declare une reprise qui
         // n a pas eu lieu.
         if (!anticipee) {
+          // 🆕 02/10 — la date LISIBLE (19/09/2026), pas la forme du
+          // fichier DSN (19092026) : la note se lit a l ecran.
           notesArrets.push(qui + " : reprise déclarée le "
-            + dateDsn((ev as any)._reprise_effective) + ", lendemain de la fin "
+            + dateLisible((ev as any)._reprise_effective) + ", lendemain de la fin "
             + "prévue de l'arrêt. ⛔ SI L'ARRÊT A ÉTÉ PROLONGÉ, corriger sa "
             + "date de fin AVANT de déposer : la prolongation ne se signale "
             + "pas à part, elle passe par cette date.");
