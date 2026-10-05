@@ -354,6 +354,9 @@ export default function PageDsn() {
   const [garOuvert, setGarOuvert] = useState("");
   const [garSaisie, setGarSaisie] = useState<any>({});
   const [garFin, setGarFin] = useState<any>({ id: "", date: "" });
+  // 🆕 05/10 — les identifiants DSN d un contrat (code de l organisme,
+  // reference…) : quel contrat a son formulaire deplie, et ce qui est tape.
+  const [garDsn, setGarDsn] = useState<any>({ id: "" });
 
   useEffect(function () {
     charger();
@@ -593,6 +596,39 @@ export default function PageDsn() {
     setErr(""); setMsg(""); setOccupe("garfin");
     const d = await appeler({ action: "garantie_fin", id: garFin.id, date_fin: garFin.date });
     if (d.success) { await charger(true); setGarFin({ id: "", date: "" }); setMsg(d.message || "Arrêtée."); }
+    else setErr(d.erreur || "enregistrement impossible");
+    setOccupe("");
+  }
+
+  // ═════════════════════════════════════════════════════════════════════
+  // 🆕🚨 05/10 — LES IDENTIFIANTS DSN D UN CONTRAT DE MUTUELLE OU DE
+  // PREVOYANCE
+  //
+  // Sans le code de l organisme et la reference du contrat, la cotisation ne
+  // peut pas se declarer : la DSN sortait avec « Aucun code DSN pour la
+  // cotisation MUTUELLE ». Ils se saisissent ici, sur la ligne du contrat,
+  // et se corrigent au meme endroit. Le formulaire d ajout ne change pas.
+  // ⚠️ Ils ne changent pas la paie : seule la DSN du mois est a regenerer.
+  // ═════════════════════════════════════════════════════════════════════
+  function ouvrirGarantieDsn(g: any) {
+    if (garDsn.id === g.id) { setGarDsn({ id: "" }); return; }
+    setGarDsn({
+      id: g.id,
+      code: g.organisme_code_dsn || "", reference: g.reference_contrat || "",
+      delegataire: g.delegataire_dsn || "", population: g.population_dsn || "",
+      option: g.option_dsn || "",
+    });
+  }
+  async function enregistrerGarantieDsn() {
+    if (!garDsn.id) return;
+    setErr(""); setMsg(""); setOccupe("gardsn");
+    const d = await appeler({
+      action: "garantie_dsn", id: garDsn.id,
+      organisme_code_dsn: garDsn.code || "", reference_contrat: garDsn.reference || "",
+      delegataire_dsn: garDsn.delegataire || "", population_dsn: garDsn.population || "",
+      option_dsn: garDsn.option || "",
+    });
+    if (d.success) { await charger(true); setGarDsn({ id: "" }); setMsg(d.message || "Enregistré."); }
     else setErr(d.erreur || "enregistrement impossible");
     setOccupe("");
   }
@@ -1249,8 +1285,11 @@ export default function PageDsn() {
                             </button>
                           </div>
                           {liste.map(function (g: any) {
+                            // 🆕 05/10 — sous chaque contrat, ce que la DSN en sait.
+                            const dsnComplet = !!(g.organisme_code_dsn && g.reference_contrat);
                             return (
-                              <div key={g.id} style={{ fontSize: "13.5px", lineHeight: "1.6",
+                            <div key={g.id} style={{ marginTop: "8px" }}>
+                              <div style={{ fontSize: "13.5px", lineHeight: "1.6",
                                 color: "rgba(255,255,255,0.76)", display: "flex",
                                 justifyContent: "space-between", gap: "8px", flexWrap: "wrap" }}>
                                 <span>
@@ -1271,10 +1310,75 @@ export default function PageDsn() {
                                       style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px" }}>confirmer</button>
                                   </span>
                                 ) : (
-                                  <button onClick={() => setGarFin({ id: g.id, date: "" })}
-                                    style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
+                                  <span style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                                    <button onClick={() => ouvrirGarantieDsn(g)}
+                                      style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
+                                      {garDsn.id === g.id ? "fermer" : "pour la DSN"}</button>
+                                    <button onClick={() => setGarFin({ id: g.id, date: "" })}
+                                      style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>arrêter</button>
+                                  </span>
                                 )}
                               </div>
+                              <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                                color: dsnComplet ? "rgba(255,255,255,0.72)" : ROUGE }}>
+                                {dsnComplet
+                                  ? "Pour la DSN : organisme " + g.organisme_code_dsn + " · contrat " + g.reference_contrat
+                                    + (g.delegataire_dsn ? " · délégataire " + g.delegataire_dsn : "")
+                                    + (g.population_dsn ? " · population " + g.population_dsn : "")
+                                    + (g.option_dsn ? " · option " + g.option_dsn : "")
+                                  : "Pour la DSN : code de l'organisme et référence du contrat manquants (la DSN les réclame)"}
+                              </p>
+                              {garDsn.id === g.id && (
+                                <div style={{ margin: "8px 0 10px" }}>
+                                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                                    <div style={{ flex: "1 1 180px" }}>
+                                      <span style={LIB}>Code de l&apos;organisme</span>
+                                      <input style={CHAMP} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                                        value={garDsn.code || ""}
+                                        onChange={(ev) => setGarDsn({ ...garDsn, code: ev.target.value.toUpperCase() })} />
+                                    </div>
+                                    <div style={{ flex: "1 1 220px" }}>
+                                      <span style={LIB}>Référence du contrat</span>
+                                      <input style={CHAMP} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                                        value={garDsn.reference || ""}
+                                        onChange={(ev) => setGarDsn({ ...garDsn, reference: ev.target.value })} />
+                                    </div>
+                                  </div>
+                                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "6px" }}>
+                                    <div style={{ flex: "1 1 180px" }}>
+                                      <span style={LIB}>Code délégataire (facultatif)</span>
+                                      <input style={CHAMP} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                                        value={garDsn.delegataire || ""}
+                                        onChange={(ev) => setGarDsn({ ...garDsn, delegataire: ev.target.value.toUpperCase() })} />
+                                    </div>
+                                    <div style={{ flex: "1 1 180px" }}>
+                                      <span style={LIB}>Code population (facultatif)</span>
+                                      <input style={CHAMP} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                                        value={garDsn.population || ""}
+                                        onChange={(ev) => setGarDsn({ ...garDsn, population: ev.target.value })} />
+                                    </div>
+                                    <div style={{ flex: "1 1 180px" }}>
+                                      <span style={LIB}>Code option (facultatif)</span>
+                                      <input style={CHAMP} autoCapitalize="characters" autoCorrect="off" spellCheck={false}
+                                        value={garDsn.option || ""}
+                                        onChange={(ev) => setGarDsn({ ...garDsn, option: ev.target.value })} />
+                                    </div>
+                                  </div>
+                                  <p style={{ margin: "6px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                                    color: "rgba(255,255,255,0.72)" }}>
+                                    Ces codes figurent sur la fiche de paramétrage DSN que l&apos;organisme remet à
+                                    l&apos;entreprise. Le code de l&apos;organisme s&apos;écrit avec la lettre P et 4 chiffres
+                                    (institution de prévoyance), 9 chiffres (mutuelle) ou la lettre A et 5 caractères
+                                    (société d&apos;assurance). Les trois derniers champs ne se remplissent que si
+                                    l&apos;organisme les demande.
+                                  </p>
+                                  <button onClick={enregistrerGarantieDsn} disabled={occupe !== ""}
+                                    style={{ ...BOUTON, marginTop: "8px" }}>
+                                    {occupe === "gardsn" ? "…" : "Enregistrer pour la DSN"}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
                             );
                           })}
                           {garOuvert === soc.id && (
