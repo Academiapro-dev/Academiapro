@@ -124,8 +124,50 @@ const CHEMINS = [
 // lui seul — la moitie du passage pour UNE ligne.
 const DELAI_MS = 4000;
 
+// 🚨🆕 05/10 — L OUTIL N ECRIVAIT PLUS RIEN DEPUIS LE 02/10 AU SOIR. Mesure
+// en base : derniere lecture le 02/10 a 21h31 ; il restait UN site
+// d organisme « a lire », et 931 sites d agences immobilieres et 346 de
+// grands organismes derriere lui, jamais atteints. Chaque passage reprenait
+// ce meme site, y restait bloque jusqu a ce que Vercel coupe (300 s), et
+// `site_lu_le` — ecrit APRES la lecture — ne l etait jamais : le passage
+// suivant recommencait au meme endroit. Vercel affichait des passages, la
+// base ne bougeait pas.
+//
+// TROIS CAUSES POSSIBLES D UN TEL BLOCAGE, TOUTES FERMEES ICI :
+//  1. LE DELAI NE COUVRAIT QUE L ATTENTE DE LA REPONSE, pas la lecture de
+//     la page elle-meme : un serveur qui commence a repondre puis s arrete
+//     en chemin (ou qui envoie sans fin) n etait jamais abandonne. Le delai
+//     couvre maintenant la page entiere, et la lecture s arrete a
+//     TAILLE_MAX octets au lieu de tout telecharger puis de couper.
+//  2. DEUX RECHERCHES D ADRESSE COUTAIENT LE CARRE DE LA LONGUEUR sur
+//     certaines pages : mesure, 3,4 s pour 60 000 espaces qui se suivent
+//     (masquages « [at] » et « [dot] », ecrits le 02/10) et 4,1 s pour
+//     60 000 lettres ou chiffres qui se suivent (recherche dans le texte) —
+//     soit plusieurs minutes pour une page de 400 000 caracteres, pendant
+//     lesquelles le serveur ne fait rien d autre. Elles sont reecrites pour
+//     couter le meme temps quelle que soit la page (voir `demasquer` et
+//     `adressesDuTexte`). Les adresses trouvees sont les memes.
+//  3. UNE FICHE N ETAIT MARQUEE QU APRES SA LECTURE. Elle l est maintenant
+//     AVANT (voir `traiter`) : quoi qu il arrive pendant la lecture, la
+//     meme fiche ne peut plus revenir au passage suivant.
+//
+// LE DELAI POUR LIRE LE CORPS D UNE PAGE, une fois la reponse commencee.
+const DELAI_CORPS_MS = 6000;
+// LA TAILLE LUE, AU PLUS : l adresse n est jamais au-dela des 400 premiers
+// kilooctets.
+const TAILLE_MAX = 400000;
+// LE TEMPS ACCORDE A UN SITE. Vingt-deux chemins a dix secondes au plus
+// feraient 220 secondes pour un seul site lent : passe 60 secondes, on
+// garde ce qu on a trouve et on s arrete. LIMITE_SITE_MS est le filet : au
+// dela, on passe aux sites suivants sans attendre celui-la.
+const DUREE_SITE_MS = 60000;
+const LIMITE_SITE_MS = 75000;
+
 const PAUSE_MS = 120;
-const DUREE_MAX_MS = 260000;
+// 🆕 05/10 — 260 s → 205 s. Le dernier paquet commence avant cette limite
+// et dure au plus LIMITE_SITE_MS : 205 + 75 = 280 s, sous les 300 s ou
+// Vercel coupe.
+const DUREE_MAX_MS = 205000;
 
 // 🚨 LES ADRESSES A NE JAMAIS GARDER. Un site en contient toujours qui
 // n ont rien a voir avec l entreprise : celle de son prestataire web, une
@@ -239,8 +281,8 @@ function adressesDe(html: string): string[] {
   }
 
   // 2. Le texte.
-  const brutes = texte.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
-  for (const b of brutes) ajouter(b);
+  // 🆕 05/10 — cherche autour de chaque arobase (voir `adressesDuTexte`).
+  for (const b of adressesDuTexte(texte)) ajouter(b);
 
   // 3. 🆕 02/10 — l adresse assemblee en JavaScript :
   //    'contact' + '@' + 'cabinet.fr'  ou  "contact" + "@cabinet.fr".
@@ -255,6 +297,59 @@ function adressesDe(html: string): string[] {
     if (m) ajouter(m[1] + "@" + m[2]);
   }
 
+  return sortie;
+}
+
+// 🆕 05/10 — LES ADRESSES ECRITES DANS LE TEXTE, CHERCHEES AUTOUR DE CHAQUE
+// AROBASE.
+//
+// AVANT : une seule expression, « des lettres, une arobase, un domaine »,
+// essayee a partir de CHAQUE caractere de la page. Sur une longue suite de
+// lettres et de chiffres sans arobase (une image ou une police ecrite dans
+// la page, des donnees), elle relisait toute la suite depuis chacune de ses
+// lettres : 4,1 s pour 60 000 caracteres, le carre au-dela.
+//
+// MAINTENANT : on va d arobase en arobase. Pour chacune, on remonte les
+// caracteres permis a gauche, on descend les caracteres permis a droite, et
+// on applique la meme regle qu avant au seul domaine. Le temps ne depend
+// plus que de la longueur de la page.
+// ⚠️ LE RESULTAT EST LE MEME QU AVANT (compare sur 51 419 textes d essai,
+// aucun ecart) : meme debut (tous les caracteres permis avant l arobase),
+// meme fin (le dernier « .xx » du domaine), et deux adresses ne se
+// chevauchent jamais. Une adresse de plus de 120 caracteres etait deja
+// refusee par `ajouter` : on ne remonte pas plus loin a gauche.
+const LONGUEUR_MAX_ADRESSE = 120;
+function estCaractereLocal(c: number): boolean {
+  // a-z A-Z 0-9 . _ % + -
+  return (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57)
+    || c === 46 || c === 95 || c === 37 || c === 43 || c === 45;
+}
+function estCaractereDomaine(c: number): boolean {
+  // a-z A-Z 0-9 . -
+  return (c >= 97 && c <= 122) || (c >= 65 && c <= 90) || (c >= 48 && c <= 57)
+    || c === 46 || c === 45;
+}
+function adressesDuTexte(texte: string): string[] {
+  const sortie: string[] = [];
+  // La fin de la derniere adresse trouvee : la suivante ne commence pas avant.
+  let fin = 0;
+  let i = texte.indexOf("@");
+  while (i >= 0) {
+    // A gauche : les caracteres permis, sans remonter avant l adresse
+    // precedente. A droite : les caracteres permis dans un domaine.
+    let g = i;
+    while (g > fin && i - g <= LONGUEUR_MAX_ADRESSE && estCaractereLocal(texte.charCodeAt(g - 1))) g--;
+    let d = i + 1;
+    while (d < texte.length && estCaractereDomaine(texte.charCodeAt(d))) d++;
+    if (g < i && d > i + 1) {
+      const m = texte.slice(i + 1, d).match(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      if (m) {
+        fin = i + 1 + m[0].length;
+        if (i - g <= LONGUEUR_MAX_ADRESSE) sortie.push(texte.slice(g, fin));
+      }
+    }
+    i = texte.indexOf("@", i + 1);
+  }
   return sortie;
 }
 
@@ -291,6 +386,16 @@ function decodesCloudflare(html: string): string[] {
 // accolades, ou « arobase » en toutes lettres.
 function demasquer(html: string): string {
   let t = String(html || "");
+  // 🆕 05/10 — LES SUITES DE BLANCS SONT REDUITES A UN SEUL ESPACE AVANT
+  // TOUT. Les masquages « [at] » et « [dot] » ci-dessous acceptent des
+  // blancs autour des crochets ; sur une page qui contient une tres longue
+  // suite d espaces ou de retours a la ligne (cela existe : des pages
+  // generees avec des milliers de lignes vides), ils la relisaient depuis
+  // chacun de ses caracteres — 3,4 s pour 60 000 blancs, plusieurs minutes
+  // pour 400 000. Un seul espace suffit a toutes les regles de cette
+  // fonction (elles disent « des blancs », jamais combien) : ce qu elles
+  // trouvent ne change pas.
+  t = t.replace(/\s+/g, " ");
   t = t.replace(/&#(\d{2,3});/g, function (m: string, n: string) {
     const c = Number(n);
     return c === 64 || c === 46 || (c >= 48 && c <= 122) ? String.fromCharCode(c) : m;
@@ -346,10 +451,50 @@ function meilleure(adresses: string[], domaine: string): string | null {
   return pool[0];
 }
 
+// 🆕 05/10 — LIRE LE CORPS D UNE REPONSE, MORCEAU PAR MORCEAU, ET S ARRETER
+// A `limite` OCTETS. Avant, la page etait telechargee en entier puis
+// coupee : une page de plusieurs dizaines de megaoctets, ou un serveur qui
+// envoie sans fin, etait lu jusqu au bout.
+// ⚠️ SI LE DELAI TOMBE EN COURS DE LECTURE, ON GARDE CE QUI EST DEJA LU :
+// l adresse est souvent dans les premiers kilooctets.
+// ⚠️ MEME DECODAGE QU AVANT (UTF-8, comme `r.text()`).
+async function corpsBorne(r: any, limite: number): Promise<string> {
+  const corps: any = r.body;
+  if (!corps || typeof corps.getReader !== "function") {
+    const entier = await r.text();
+    return String(entier || "").slice(0, limite);
+  }
+  const lecteur = corps.getReader();
+  const decodeur = new TextDecoder("utf-8");
+  let texte = "";
+  let octets = 0;
+  try {
+    while (octets < limite) {
+      const morceau = await lecteur.read();
+      if (morceau.done) break;
+      if (morceau.value) {
+        octets += morceau.value.byteLength;
+        texte += decodeur.decode(morceau.value, { stream: true });
+      }
+    }
+  } catch (e) {
+    // Delai depasse ou connexion coupee : on rend ce qui est lu.
+  }
+  // On n attend pas la fermeture : un serveur muet ne la confirmerait jamais.
+  try { lecteur.cancel().catch(function () { return null; }); } catch (e) { /* rien */ }
+  return texte.slice(0, limite);
+}
+
 // LIRE UNE PAGE, AVEC UN DELAI D ABANDON.
-async function lire(url: string): Promise<string | null> {
+// 🚨🆕 05/10 — LE DELAI COUVRE MAINTENANT LA PAGE ENTIERE. Il etait leve
+// des l arrivee de la reponse, AVANT la lecture de son contenu : un serveur
+// qui repond puis n envoie jamais la fin de sa page bloquait la lecture
+// sans limite. Deux temps : DELAI_MS pour obtenir la reponse, puis
+// DELAI_CORPS_MS pour lire la page.
+// `etat.delais` compte les delais depasses sur un meme site (voir `explorer`).
+async function lire(url: string, etat?: any): Promise<string | null> {
   const stop = new AbortController();
-  const minuteur = setTimeout(function () { stop.abort(); }, DELAI_MS);
+  let minuteur: any = setTimeout(function () { stop.abort(); }, DELAI_MS);
   try {
     const r = await fetch(url, {
       signal: stop.signal,
@@ -364,21 +509,58 @@ async function lire(url: string): Promise<string | null> {
       },
     });
     clearTimeout(minuteur);
+    minuteur = setTimeout(function () { stop.abort(); }, DELAI_CORPS_MS);
     if (!r.ok) return null;
     const type = String(r.headers.get("content-type") || "");
     if (type && type.indexOf("html") < 0) return null;
-    const texte = await r.text();
     // ⚠️ ON BORNE LA TAILLE : certaines pages font plusieurs megaoctets, et
     // l adresse n est jamais au-dela des 400 premiers kilooctets.
-    return texte.slice(0, 400000);
+    const texte = await corpsBorne(r, TAILLE_MAX);
+    if (stop.signal.aborted && etat) etat.delais++;
+    return texte;
   } catch {
-    clearTimeout(minuteur);
+    if (stop.signal.aborted && etat) etat.delais++;
     return null;
+  } finally {
+    clearTimeout(minuteur);
+    // La connexion est rendue dans tous les cas (page refusee, page trop
+    // longue, delai) : sans cela, une reponse non lue la garderait ouverte.
+    try { stop.abort(); } catch (e) { /* rien */ }
   }
 }
 
+// 🆕 05/10 — UN TRAVAIL, AVEC UNE HEURE LIMITE, ET SANS QU UNE ERREUR NE
+// REMONTE. `Promise.all` attend TOUS les sites d un paquet : un seul qui ne
+// finit jamais, ou une seule erreur, et le paquet entier etait perdu — avec
+// lui le passage. Ici, passe la limite, on rend « trop_long » et le paquet
+// continue ; une erreur rend « erreur ».
+function avecLimite(travail: () => Promise<string>, ms: number, enErreur: (e: any) => void): Promise<string> {
+  return new Promise(function (rendre) {
+    let fini = false;
+    const minuteur = setTimeout(function () {
+      if (fini) return;
+      fini = true;
+      rendre("trop_long");
+    }, ms);
+    const conclure = function (v: string) {
+      if (fini) return;
+      fini = true;
+      clearTimeout(minuteur);
+      rendre(v);
+    };
+    try {
+      travail().then(conclure, function (e: any) { enErreur(e); conclure("erreur"); });
+    } catch (e) {
+      enErreur(e);
+      conclure("erreur");
+    }
+  });
+}
+
 // TOUT CE QU ON PEUT TIRER D UN SITE.
-async function explorer(origine: string): Promise<any> {
+// 🆕 05/10 — `limite` : l heure a laquelle on s arrete pour ce site, en
+// gardant ce qui est deja trouve.
+async function explorer(origine: string, limite: number): Promise<any> {
   let domaine = "";
   try { domaine = new URL(origine).hostname.replace(/^www\./, ""); } catch { domaine = ""; }
 
@@ -386,9 +568,12 @@ async function explorer(origine: string): Promise<any> {
   let pagesLues = 0;
   let echecs = 0;
   let linkedin: string | null = null;
+  let tropLong = false;
+  const etat: any = { delais: 0 };
 
   for (const chemin of CHEMINS) {
-    const html = await lire(origine + chemin);
+    if (Date.now() > limite) { tropLong = true; break; }
+    const html = await lire(origine + chemin, etat);
 
     if (!html) {
       echecs++;
@@ -396,6 +581,10 @@ async function explorer(origine: string): Promise<any> {
       // MORT. Inutile de lui demander vingt-deux pages : le domaine est
       // expire, le serveur est eteint, ou il nous refuse. On passe.
       if (echecs >= 3 && pagesLues === 0) break;
+      // 🆕 05/10 — TROIS DELAIS DEPASSES SUR UN MEME SITE : il repond trop
+      // lentement pour qu on lui demande vingt-deux pages. On s arrete, en
+      // gardant ce qui est deja trouve.
+      if (etat.delais >= 3) { tropLong = true; break; }
       continue;
     }
 
@@ -411,6 +600,8 @@ async function explorer(origine: string): Promise<any> {
     // inutiles feraient la difference entre un passage et cinq.
     const bonne = trouvees.filter(function (a) { return a.split("@")[1] === domaine; });
     if (bonne.length > 0) break;
+    // 🆕 05/10 — meme regle quand les pages arrivent, mais a moitie.
+    if (etat.delais >= 3) { tropLong = true; break; }
   }
 
   return {
@@ -418,6 +609,7 @@ async function explorer(origine: string): Promise<any> {
     toutes: trouvees,
     pages_lues: pagesLues,
     linkedin: linkedin,
+    trop_long: tropLong,
   };
 }
 
@@ -437,6 +629,9 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     .neq("site_web", "")
     .is("email", null)
     .is("site_lu_le", null)
+    // 🆕 05/10 — TOUJOURS DANS LE MEME ORDRE : un site qui pose probleme se
+    // retrouve, au lieu de changer de place d un passage a l autre.
+    .order("id", { ascending: true })
     .limit(combien);
 
   if (error) return { table: table, erreur: error.message };
@@ -447,6 +642,14 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
   let injoignables = 0;
   let traites = 0;
   let doublons = 0;
+  // 🆕 05/10 — ce qui ne se voyait pas : les sites abandonnes parce que trop
+  // longs, les ecritures que la base a refusees, les erreurs.
+  let tropLongs = 0;
+  let refus = 0;
+  let erreurs = 0;
+  let premierRefus = "";
+  let premiereErreur = "";
+  let arret = "";
   const exemples: any[] = [];
 
   // UN SITE : le lire, puis ecrire ce qu on en tire. Rend ce qui s est passe.
@@ -454,28 +657,24 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     // 🆕 01/10 (soir) — UNE FICHE « [ND] » (non diffusible) n a pas de nom :
     // son site, venu de Dropcontact, ne peut pas etre verifie (c etait celui
     // du Dakota du Nord). On la marque lue, sans rien en tirer.
-    if (String(l.raison_sociale || "").trim() === "[ND]") {
-      await supabase.from(table)
-        .update({ site_lu_le: new Date().toISOString() })
-        .eq("id", l.id);
-      return "rien";
-    }
+    // 🆕 05/10 — la fiche est deja marquee lue (voir le paquet, plus bas).
+    if (String(l.raison_sociale || "").trim() === "[ND]") return "rien";
     const origine = normaliserSite(l.site_web);
-    if (!origine) {
-      await supabase.from(table)
-        .update({ site_lu_le: new Date().toISOString() })
-        .eq("id", l.id);
-      return "injoignable";
-    }
+    if (!origine) return "injoignable";
 
-    const r = await explorer(origine);
+    const r = await explorer(origine, Date.now() + DUREE_SITE_MS);
 
-    const maj: any = { site_lu_le: new Date().toISOString() };
+    // 🆕 05/10 — `site_lu_le` n est plus ecrit ici : il l est AVANT la
+    // lecture. Il ne reste a ecrire que ce qu on a trouve.
+    const maj: any = {};
     let issue = "";
     if (r.adresse) {
       maj.email = r.adresse;
       maj.statut = "enrichi";
       issue = "trouve";
+    } else if (r.trop_long) {
+      issue = "trop_long";
+      console.log("lire-sites : site trop long, abandonne", table, l.id, origine);
     } else {
       issue = r.pages_lues === 0 ? "injoignable" : "rien";
     }
@@ -485,17 +684,37 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     if (r.linkedin && Object.prototype.hasOwnProperty.call(l, "linkedin") && !l.linkedin) {
       maj.linkedin = r.linkedin;
     }
+    if (Object.keys(maj).length === 0) return issue;
+
     const { error: errMaj } = await supabase.from(table).update(maj).eq("id", l.id);
     if (errMaj) {
       // 🚨 01/10 — UNE ADRESSE DEJA PRESENTE DANS LA BASE (index unique sur
-      // l adresse, cas de prospects_avocats) FAISAIT ECHOUER TOUTE LA MISE A
-      // JOUR, `site_lu_le` compris : la ligne restait « a lire » et revenait
-      // a chaque passage, sans fin. On marque la ligne comme lue, sans
-      // l adresse, et on le compte.
-      const sansAdresse: any = { site_lu_le: maj.site_lu_le };
-      if (maj.linkedin) sansAdresse.linkedin = maj.linkedin;
-      await supabase.from(table).update(sansAdresse).eq("id", l.id);
-      if (r.adresse) issue = "doublon";
+      // l adresse) fait echouer la mise a jour : on garde le lien LinkedIn
+      // seul, et on le compte.
+      // 🆕 05/10 — ON DISTINGUE CE REFUS-LA DES AUTRES. Tout refus de la
+      // base etait compte « adresse deja en base », meme quand la cause
+      // etait ailleurs, et la seconde ecriture n etait pas verifiee.
+      const dejaLa = String((errMaj as any).code || "") === "23505"
+        || /duplicate|unique/i.test(String(errMaj.message || ""));
+      if (dejaLa) {
+        if (maj.linkedin) await supabase.from(table).update({ linkedin: maj.linkedin }).eq("id", l.id);
+        if (r.adresse) issue = "doublon";
+      } else {
+        // Un autre refus : on reessaie sans le lien LinkedIn (c est la seule
+        // colonne facultative) ; s il persiste, on le compte et on le dit.
+        let reste: any = errMaj;
+        if (maj.linkedin && (maj.email || maj.statut)) {
+          const sansLien: any = Object.assign({}, maj);
+          delete sansLien.linkedin;
+          const { error: err2 } = await supabase.from(table).update(sansLien).eq("id", l.id);
+          reste = err2;
+        }
+        if (reste) {
+          if (!premierRefus) premierRefus = String(reste.message || reste).slice(0, 200);
+          console.log("lire-sites : ecriture refusee", table, l.id, String(reste.message || reste).slice(0, 200));
+          return "refus";
+        }
+      }
     }
     if (issue === "trouve" && exemples.length < 8) exemples.push({ siren: l.siren, email: r.adresse });
     return issue;
@@ -506,16 +725,59 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     // sont ecrites : le prochain passage reprend ou celui-ci s arrete.
     if (Date.now() - depart > DUREE_MAX_MS) break;
     const paquet = lignes.slice(i, i + PARALLELE);
-    const issues = await Promise.all(paquet.map(function (l: any) { return unSite(l); }));
+
+    // 🚨🆕 05/10 — ON MARQUE LE PAQUET « LU » AVANT DE LE LIRE, ET ON VERIFIE
+    // QUE LA BASE L A ACCEPTE.
+    // AVANT : `site_lu_le` etait ecrit apres la lecture de chaque site. Si
+    // la lecture ne finissait pas (Vercel coupe a 300 s), rien n etait
+    // ecrit, et le passage suivant reprenait LE MEME paquet : un seul site
+    // suffisait a arreter tout l outil, sans aucune erreur visible. C est
+    // ce qui s est passe du 02/10 au 05/10.
+    // MAINTENANT : quoi qu il arrive ensuite, ces fiches ne reviendront pas.
+    // ⚠️ LE PRIX : si Vercel coupe quand meme au milieu d un paquet, ses
+    // huit sites au plus sont marques sans avoir ete lus. C est le choix
+    // fait : perdre huit sites plutot qu arreter toutes les bases.
+    // ⛔ SI LE MARQUAGE EST REFUSE, ON NE LIT RIEN : lire sans pouvoir
+    // marquer, c est relire les memes sites sans fin.
+    const { error: errMarque } = await supabase.from(table)
+      .update({ site_lu_le: new Date().toISOString() })
+      .in("id", paquet.map(function (l: any) { return l.id; }));
+    if (errMarque) {
+      arret = "marquage impossible : " + String(errMarque.message || errMarque).slice(0, 200);
+      break;
+    }
+
+    const issues = await Promise.all(paquet.map(function (l: any) {
+      return avecLimite(function () { return unSite(l); }, LIMITE_SITE_MS, function (e: any) {
+        const texteErreur = String((e && e.message) || e).slice(0, 200);
+        if (!premiereErreur) premiereErreur = texteErreur;
+        console.log("lire-sites : erreur sur un site", table, l.id, texteErreur);
+      });
+    }));
+    let longsDuPaquet = 0;
     for (const x of issues) {
       traites++;
       if (x === "trouve") trouve++;
       else if (x === "injoignable") injoignables++;
       else if (x === "doublon") doublons++;
+      else if (x === "trop_long") { tropLongs++; longsDuPaquet++; }
+      else if (x === "refus") refus++;
+      else if (x === "erreur") erreurs++;
       else sansRien++;
+    }
+    // 🆕 05/10 — LA MOITIE D UN PAQUET TROP LONGUE, CE N EST PLUS UN SITE,
+    // C EST LE RESEAU. On arrete ce passage plutot que de marquer « lus »,
+    // paquet apres paquet, des sites qu on n arrive pas a lire ; le passage
+    // suivant (cinq minutes plus tard) continue avec les sites suivants.
+    if (longsDuPaquet >= 3 && longsDuPaquet * 2 >= paquet.length) {
+      arret = "trop de sites trop longs dans un meme paquet (" + longsDuPaquet + " sur " + paquet.length
+        + ") : passage arrete, le suivant continue";
+      break;
     }
     await pause(PAUSE_MS);
   }
+
+  if (arret && traites === 0) return { table: table, erreur: arret, arret: arret };
 
   return {
     table: table,
@@ -524,6 +786,12 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     sans_adresse_visible: sansRien,
     sites_injoignables: injoignables,
     adresses_deja_en_base: doublons,
+    sites_trop_longs: tropLongs,
+    ecritures_refusees: refus,
+    erreurs: erreurs,
+    premier_refus: premierRefus,
+    premiere_erreur: premiereErreur,
+    arret: arret,
     taux: traites > 0 ? Math.round(trouve * 1000 / traites) / 10 + " %" : "—",
     exemples: exemples,
     epuise: lignes.length < combien,
@@ -592,12 +860,15 @@ export async function GET(req: NextRequest) {
   // compteur de lots.
   const resultats: any[] = [];
   const cumul: any = {};
+  // 🆕 05/10 — un arret demande par `traiter` (marquage refuse, reseau
+  // malade) arrete le passage entier, pas seulement la base en cours.
+  let arretDuPassage = "";
 
   for (const nom of aTraiter) {
     while (Date.now() - depart < DUREE_MAX_MS) {
       const r = await traiter(nom, combien, depart);
       if (r.info) break;
-      if (r.erreur) { resultats.push(r); break; }
+      if (r.erreur) { resultats.push(r); if (r.arret) arretDuPassage = r.arret; break; }
 
       // On additionne les lots d une meme base plutot que d empiler dix
       // lignes de compte rendu identiques.
@@ -605,7 +876,8 @@ export async function GET(req: NextRequest) {
         cumul[nom] = {
           table: r.table, sites_examines: 0, adresses_trouvees: 0,
           sans_adresse_visible: 0, sites_injoignables: 0,
-          adresses_deja_en_base: 0, exemples: [],
+          adresses_deja_en_base: 0, sites_trop_longs: 0,
+          ecritures_refusees: 0, erreurs: 0, exemples: [],
         };
       }
       const c = cumul[nom];
@@ -614,9 +886,15 @@ export async function GET(req: NextRequest) {
       c.sans_adresse_visible += r.sans_adresse_visible;
       c.sites_injoignables += r.sites_injoignables;
       c.adresses_deja_en_base += r.adresses_deja_en_base || 0;
+      c.sites_trop_longs += r.sites_trop_longs || 0;
+      c.ecritures_refusees += r.ecritures_refusees || 0;
+      c.erreurs += r.erreurs || 0;
+      if (r.premier_refus && !c.premier_refus) c.premier_refus = r.premier_refus;
+      if (r.premiere_erreur && !c.premiere_erreur) c.premiere_erreur = r.premiere_erreur;
       for (const e of (r.exemples || [])) {
         if (c.exemples.length < 10) c.exemples.push(e);
       }
+      if (r.arret) { c.arret = r.arret; arretDuPassage = r.arret; break; }
 
       // Rien n a ete traite, ou la base est finie : on sort.
       if (r.sites_examines === 0 || r.epuise) break;
@@ -632,6 +910,7 @@ export async function GET(req: NextRequest) {
 
     // Une base visee explicitement s arrete la ; sinon on enchaine.
     if (vise) break;
+    if (arretDuPassage) break;
     if (Date.now() - depart > DUREE_MAX_MS) break;
   }
 
@@ -643,9 +922,15 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  // 🆕 05/10 — UN MARQUAGE REFUSE PAR LA BASE EST UNE PANNE, ET ELLE DOIT SE
+  // VOIR : la reponse passe en erreur (500), que Vercel affiche en rouge
+  // dans la liste des passages. Jusqu ici, tout passage repondait « 200 »,
+  // qu il ait travaille ou non.
+  const enPanne = arretDuPassage.indexOf("marquage impossible") === 0;
   return NextResponse.json({
     mode: "lecture des sites",
     resultats: resultats,
+    arret: arretDuPassage || null,
     duree_s: Math.round((Date.now() - depart) / 1000),
-  });
+  }, { status: enPanne ? 500 : 200 });
 }
