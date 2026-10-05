@@ -95,6 +95,10 @@
     {
       "path": "/api/lire-sites",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/veille-enrichissement",
+      "schedule": "37 * * * *"
     }
   ]
 }
