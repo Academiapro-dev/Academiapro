@@ -255,6 +255,15 @@ function adressesDe(html: string): string[] {
     // les leurs.
     if (/\.onmicrosoft\.com$/.test(apres) || /(^|\.)gov(\.[a-z]{2})?$/.test(apres)
       || /\.gouv\.fr$/.test(apres)) return;
+    // 🚨🆕 05/10 — L ADRESSE EST VERIFIEE EN ENTIER, CARACTERE PAR CARACTERE.
+    // Le 05/10, deux envois de la campagne des cabinets ont ete refuses :
+    //     contact@cabinet&#045;lamperti.com     contact@melois.co&#109
+    // Deux adresses lues dans un lien « mailto » dont un caractere etait
+    // encore code (« &#045; » est un tiret, « &#109 » un « m »). Un lien
+    // mailto etait garde tel quel, pourvu qu il porte une arobase et un
+    // point : rien ne verifiait ce qu il y avait autour.
+    // ⛔ CE QUI NE RESSEMBLE PAS EXACTEMENT A UNE ADRESSE N EST PAS GARDE.
+    if (!adresseValable(a)) return;
     if (vues[a]) return;
     vues[a] = true;
     sortie.push(a);
@@ -277,7 +286,11 @@ function adressesDe(html: string): string[] {
   for (const l of liens) {
     let d = l;
     try { d = decodeURIComponent(l); } catch (e) { d = l; }
-    ajouter(d);
+    // 🆕 05/10 — un lien peut porter plusieurs adresses, separees par une
+    // virgule ou un point-virgule : chacune est examinee seule (ensemble,
+    // elles ne formaient pas une adresse et auraient ete refusees a l envoi).
+    const sansSuite = d.replace(/^mailto:/i, "").split("?")[0];
+    for (const une of sansSuite.split(/[,;]/)) ajouter(une);
   }
 
   // 2. Le texte.
@@ -298,6 +311,26 @@ function adressesDe(html: string): string[] {
   }
 
   return sortie;
+}
+
+// 🆕 05/10 — UNE ADRESSE VALABLE, ET RIEN D AUTRE (texte deja en minuscules).
+//   · avant l arobase : lettres, chiffres, point, tiret, tiret bas, plus ;
+//   · apres : des noms separes par des points, puis une extension de deux
+//     lettres au moins ;
+//   · jamais deux points de suite, ni un point ou un tiret au bord d un nom.
+// ⚠️ LE SIGNE « % » N EST PLUS ADMIS : dans une adresse lue sur un site, il
+// vient toujours d un codage mal defait (« %20contact@… »).
+function adresseValable(a: string): boolean {
+  if (!/^[a-z0-9._+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(a)) return false;
+  if (a.indexOf("..") >= 0) return false;
+  const morceaux = a.split("@");
+  const local = morceaux[0];
+  const domaine = morceaux[1];
+  if (local.charAt(0) === "." || local.charAt(local.length - 1) === ".") return false;
+  for (const nom of domaine.split(".")) {
+    if (!nom || nom.charAt(0) === "-" || nom.charAt(nom.length - 1) === "-") return false;
+  }
+  return true;
 }
 
 // 🆕 05/10 — LES ADRESSES ECRITES DANS LE TEXTE, CHERCHEES AUTOUR DE CHAQUE
@@ -341,7 +374,12 @@ function adressesDuTexte(texte: string): string[] {
     while (g > fin && i - g <= LONGUEUR_MAX_ADRESSE && estCaractereLocal(texte.charCodeAt(g - 1))) g--;
     let d = i + 1;
     while (d < texte.length && estCaractereDomaine(texte.charCodeAt(d))) d++;
-    if (g < i && d > i + 1) {
+    // 🆕 05/10 — SI UNE LETTRE ACCENTUEE PRECEDE (« hélène.dupont@… »), ce
+    // qu on lirait est la fin d un mot (« ne.dupont@… ») : une adresse
+    // fausse, qui reviendrait en erreur. On ne la garde pas.
+    const avant = g > 0 ? texte.charCodeAt(g - 1) : 0;
+    const tronquee = avant >= 192 && avant <= 591;
+    if (g < i && d > i + 1 && !tronquee) {
       const m = texte.slice(i + 1, d).match(/^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
       if (m) {
         fin = i + 1 + m[0].length;
@@ -396,13 +434,24 @@ function demasquer(html: string): string {
   // fonction (elles disent « des blancs », jamais combien) : ce qu elles
   // trouvent ne change pas.
   t = t.replace(/\s+/g, " ");
-  t = t.replace(/&#(\d{2,3});/g, function (m: string, n: string) {
+  // 🆕 05/10 — DEUX MANQUES, VUS SUR DEUX ADRESSES REFUSEES A L ENVOI :
+  //   · le tiret (code 45) et le plus (43) n etaient pas decodes :
+  //     « cabinet&#045;lamperti.com » restait tel quel ;
+  //   · le point-virgule final etait exige, alors que les sites l oublient
+  //     (« melois.co&#109 ») et que les navigateurs s en passent.
+  // On decode les caracteres qui peuvent figurer dans une adresse (et le
+  // deux-points de « mailto: »), avec ou sans point-virgule, quel que soit
+  // le nombre de zeros devant. Les autres codes sont laisses tels quels.
+  const decodable = function (c: number): boolean {
+    return c === 43 || c === 45 || c === 46 || c === 64 || (c >= 48 && c <= 122);
+  };
+  t = t.replace(/&#(\d{2,6});?/g, function (m: string, n: string) {
     const c = Number(n);
-    return c === 64 || c === 46 || (c >= 48 && c <= 122) ? String.fromCharCode(c) : m;
+    return decodable(c) ? String.fromCharCode(c) : m;
   });
-  t = t.replace(/&#x([0-9a-fA-F]{2});/g, function (m: string, h: string) {
+  t = t.replace(/&#[xX]([0-9a-fA-F]{2,6});?/g, function (m: string, h: string) {
     const c = parseInt(h, 16);
-    return c === 64 || c === 46 || (c >= 48 && c <= 122) ? String.fromCharCode(c) : m;
+    return decodable(c) ? String.fromCharCode(c) : m;
   });
   t = t.replace(/&commat;/gi, "@").replace(/&period;/gi, ".");
   t = t.replace(/\s*[\[\(\{]\s*(?:at|arobase|@)\s*[\]\)\}]\s*/gi, "@");
