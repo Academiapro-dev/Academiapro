@@ -324,6 +324,9 @@ export default function PageDsn() {
     return function () { clearTimeout(t); };
   }, [msg]);
   const [detail, setDetail] = useState<any>(null);
+  // 🆕 05/10 — les rappels « avant le premier dépôt réel » sont repliés par
+  // défaut : voir le compte rendu de la génération, plus bas.
+  const [notesOuvertes, setNotesOuvertes] = useState(false);
   // 🆕 CE QUE LA ROUTE A REELLEMENT LU.
   const [diag, setDiag] = useState<any>(null);
 
@@ -775,6 +778,7 @@ export default function PageDsn() {
     if (d.success) {
       await charger(true);
       setDetail(d);
+      setNotesOuvertes(false);
       setMsg(d.message);
     } else setErr(d.erreur || "génération impossible");
     setOccupe("");
@@ -1705,17 +1709,36 @@ export default function PageDsn() {
               </div>
             )}
 
-            {/* 🚨 CE QUI RESTE AVANT UN DEPOT REEL, TOUJOURS AFFICHE. */}
+            {/* 🆕 05/10 — LE VERDICT SE LIT EN PREMIER. Un fichier sans
+                anomalie le dit en vert, sur sa propre ligne : c est ce que
+                l on cherche des yeux apres avoir genere. */}
+            {(detail.anomalies || []).length === 0 && (
+              <p style={{ fontSize: "14px", color: VERT, margin: "2px 0 0" }}>
+                ✓ Aucune anomalie détectée à la génération.
+              </p>
+            )}
+
+            {/* 🚨 CE QUI RESTE AVANT UN DEPOT REEL : TOUJOURS ANNONCE, AVEC
+                SON NOMBRE, ET DEPLIE D UN GESTE.
+                🆕 05/10 — vu en filmant la scene de la DSN : dix rappels
+                deplies d office sous un fichier PROPRE donnaient, a l image,
+                l impression d une liste de problemes. Ils restent tous la,
+                a un toucher ; un fichier AVEC anomalies, lui, les montre
+                toujours (les anomalies ne se replient jamais). */}
             {(detail.avant_depot || []).length > 0 && (
               <div style={{ marginTop: "12px", paddingTop: "10px",
                 borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                <p style={{ fontSize: "13.5px", color: OR, margin: "0 0 5px" }}>
-                  Avant tout dépôt réel
-                </p>
-                {detail.avant_depot.map(function (a: string, i: number) {
+                <button onClick={() => setNotesOuvertes(!notesOuvertes)}
+                  style={{ background: "none", border: "none", padding: 0,
+                    cursor: "pointer", fontFamily: "Georgia,serif",
+                    fontSize: "13.5px", color: OR, textAlign: "left" }}>
+                  À relire avant le premier dépôt réel ({detail.avant_depot.length}){" "}
+                  {notesOuvertes ? "▴" : "▾"}
+                </button>
+                {notesOuvertes && detail.avant_depot.map(function (a: string, i: number) {
                   return (
                     <p key={i} style={{ fontSize: "12.5px", lineHeight: "1.6",
-                      color: "rgba(255,255,255,0.72)", margin: "0 0 3px" }}>
+                      color: "rgba(255,255,255,0.72)", margin: i === 0 ? "6px 0 3px" : "0 0 3px" }}>
                       {a}
                     </p>
                   );
