@@ -87,6 +87,9 @@ const SECOND: any = {
   ...BOUTON, background: "rgba(200,169,110,0.12)", color: OR,
   border: "1px solid " + OR, fontWeight: "bold",
 };
+// 🆕 05/10 — la largeur minimale d une case de date du formulaire des
+// signalements (« 30 sept. 2026 » doit y tenir sur l iPad).
+const DATE_EV: any = { minWidth: "175px" };
 const LIEN: any = {
   background: "none", border: "none", cursor: "pointer", fontSize: "13.5px",
   fontFamily: "Georgia,serif", padding: 0,
@@ -3675,7 +3678,10 @@ export default function PagePaie() {
                     </select>
                   </div>
 
-                  <div>
+                  {/* 🆕 05/10 — UNE CASE DE DATE GARDE SA LARGEUR. Vide, sur
+                      l iPad, elle se reduisait a la largeur de son libelle :
+                      « Date de fin » tenait dans trois caracteres. */}
+                  <div style={DATE_EV}>
                     <span style={LIB}>
                       {ev.type_evenement === "arret"
                         ? "Début de l'arrêt" : "Date de fin"}
@@ -3686,7 +3692,7 @@ export default function PagePaie() {
                   </div>
 
                   {ev.type_evenement === "arret" && (
-                    <div>
+                    <div style={DATE_EV}>
                       {/* ⚠️ CE N EST PAS TOUJOURS LA VEILLE DE L ARRET : le
                           salarie peut avoir travaille le matin. C est ce
                           jour qui fixe le depart du delai de carence. */}
@@ -3699,7 +3705,7 @@ export default function PagePaie() {
                   )}
 
                   {ev.type_evenement === "arret" && (
-                    <div>
+                    <div style={DATE_EV}>
                       {/* 🆕🚨 OBLIGATOIRE — dsn-val, 17/09 : « absence de la
                           rubrique S21.G00.60.003 ». C est la date que porte
                           l avis d arret du medecin. ELLE NE SE DEVINE PAS :
@@ -3713,7 +3719,7 @@ export default function PagePaie() {
                   )}
 
                   {ev.type_evenement === "fin_contrat" && (
-                    <div>
+                    <div style={DATE_EV}>
                       <span style={LIB}>
                         Date de notification
                         {champsSignalement(ev, evenements).notificationObligatoire ? " (obligatoire)" : ""}
@@ -3829,7 +3835,7 @@ export default function PagePaie() {
                             onChange={(x: any) => setEv(Object.assign({}, ev,
                               { bic: x.target.value }))} />
                         </div>
-                        <div>
+                        <div style={DATE_EV}>
                           {/* ⚠️ CE N EST PAS LA FIN DE L ARRET : c est la fin
                               de la periode pendant laquelle l employeur
                               MAINTIENT LE SALAIRE, que fixe la convention
@@ -4093,7 +4099,10 @@ export default function PagePaie() {
                                   + (x.preavis_debut && x.preavis_fin
                                     ? " du " + jma(x.preavis_debut) + " au " + jma(x.preavis_fin) : "")
                                 : ""}
-                              {" · "}{x.statut}
+                              {/* 🆕 05/10 — l etat en clair : la liste affichait le
+                                  mot de la base (« genere »). */}
+                              {" · "}{x.statut === "genere" ? "généré"
+                                : x.statut === "depose" ? "déposé" : x.statut}
                               {/* 🚨 LE NUMERO D ORDRE SE VOIT : c est lui qui
                                   dit si le prochain fichier sera un « annule
                                   et remplace ». */}
