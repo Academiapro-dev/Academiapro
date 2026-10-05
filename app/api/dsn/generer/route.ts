@@ -392,6 +392,113 @@ const CTP_RGDU_AVEC_CHOMAGE = "668";
 const CTP_RGDU_SANS_CHOMAGE = "671";
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 05/10 (soir) — LES DOUZE POINTS QUI RESTAIENT, ECRITS D APRES DEUX
+// FICHIERS D ESSAI PASSES DANS dsn-val 2026.1.0.17 SANS AUCUNE ANOMALIE
+//   · mensuelle de 1 831 lignes, onze salaries, un cas par salarie ;
+//   · signalement de fin de contrat de 189 lignes (route /api/dsn/evenement).
+// Les deux fichiers sont gardes dans les documents du projet : c est a eux
+// que se compare ce que ce generateur produit.
+//
+// CE QUE dsn-val A APPRIS, cas par cas :
+//   MANDAT SOCIAL    nature « 80 » · unite « 99 » · quotites 0.00 · modalite
+//                    « 99 » · convention « 9999 » · statut d emploi « 99 » ·
+//                    remuneration 002 a 0.00, sans bloc activite · ni base
+//                    chomage ni reduction generale · au bordereau, CTP 863.
+//   STAGIAIRE        nature « 29 » · retraite complementaire « 99 » et bloc
+//                    71 « 90000 » · date de fin obligatoire · statut d emploi
+//                    « 99 » · remuneration 002 a 0.00 · seule la fraction qui
+//                    cotise est declaree.
+//   CONTRAT PRO      un CDD ou un CDI, dispositif « 61 ».
+//   APPRENTI PUBLIC  dispositif « 81 » · retraite complementaire « 98 » et
+//                    bloc 71 « IRCANTEC » · code 003 · base « 28 » et codes
+//                    060 / 061 · au bordereau, CTP 803 et 518.
+//   HEURES SUP.      remuneration « 017 » avec le nombre d heures · code 114
+//                    (reduction salariale) et 021 (deduction patronale), en
+//                    negatif · bloc 58 de type « 01 » · CTP 003 et 004.
+//   AVANTAGES        bloc 54 : 02 repas, 03 logement, 04 vehicule.
+//   MOIS INCOMPLET   les dates des blocs 51 et 78 sont celles de la periode
+//                    d emploi · bloc activite d unite « 40 » (jours
+//                    calendaires) sous la remuneration 001.
+//   FIN D UN CDI     bloc 62 · bloc 52 : 001 rupture conventionnelle, 007
+//                    licenciement, 020 conges non pris · code 093 et CTP 719.
+//   CHANGEMENT       bloc 41 : un bloc par caracteristique changee, avec
+//                    l ANCIENNE valeur ; la profondeur de recalcul est le
+//                    1er du mois (ou le debut du contrat).
+//   FORFAIT SOCIAL   base « 13 », code 071, CTP 479.
+// ═══════════════════════════════════════════════════════════════════════
+
+// ⚠️ LA TABLE dsn_codes RESTE LA PREMIERE SOURCE. Ces valeurs ne servent que
+// si elle ne porte pas la correspondance : elles sont celles des fichiers
+// valides, lues au cahier technique 2026.1.
+const NATURE_CONTRAT_REPLI: Record<string, string> = {
+  mandat_social: "80",   // 80 - Mandat social
+  stage: "29",           // 29 - Convention de stage (hors formation professionnelle)
+};
+const COTISATION_REPLI: Record<string, { code: string; base: string }> = {
+  REDUCTION_HS: { code: "114", base: "03" },
+  CONTRIBUTION_PATRONALE_RC: { code: "093", base: "03" },
+  FORFAIT_SOCIAL_PREVOYANCE: { code: "071", base: "13" },
+  IRCANTEC_TA: { code: "060", base: "28" },
+  IRCANTEC_TB: { code: "061", base: "28" },
+  APEC: { code: "132", base: "02" },
+};
+// La deduction forfaitaire patronale sur les heures supplementaires n est pas
+// une ligne du bulletin : le moteur la range dans `detail.deduction_hs`.
+const CODE_DEDUCTION_HS = "021";
+// 🚨 CES CODES NE FONT PAS L ASSIETTE DE LEUR BASE : leur « assiette » est la
+// remuneration des heures supplementaires ou la part exoneree d une indemnite
+// de rupture — qui peut depasser le brut du mois.
+const CODES_HORS_ASSIETTE = ["114", "021", "093"];
+// Ni taux ni rapprochement assiette x taux : reductions et exonerations.
+const CODES_SANS_TAUX = ["018", "106", "001", "002", "003", "114", "021"];
+// Ce qui n est PAS du a l URSSAF : Agirc-Arrco (131, 142, 106, 132) et
+// Ircantec (060, 061).
+const CODES_HORS_URSSAF = ["131", "142", "106", "132", "060", "061"];
+// L exoneration de l apprenti : loi de 1979, de 1987, de 1992 (secteur public).
+const CODES_EXONERATION_APPRENTI = ["001", "002", "003"];
+
+// LES CTP DES NOUVEAUX CAS — lus dans le tableur d equivalence de l URSSAF.
+const CTP_MANDATAIRE = "863";           // l equivalent du CTP 100, il porte aussi les codes 102 et 907
+const CTP_REDUCTION_HS = "003";         // reduction salariale, montant en positif
+const CTP_DEDUCTION_HS = "004";         // deduction patronale, montant en positif
+const CTP_RUPTURE_CONV = "719";         // contribution sur la rupture conventionnelle
+const CTP_FORFAIT_SOCIAL_8 = "479";     // forfait social a 8 %
+const CTP_APPRENTI_PUBLIC_SOUS = "803"; // apprenti du secteur public, part sous le seuil
+const CTP_APPRENTI_PUBLIC_AU_DELA = "518";
+
+// 🚨 LES MOTIFS DE RUPTURE QUI ADMETTENT UNE INDEMNITE DE LICENCIEMENT (types
+// 007 a 010 du bloc 52) — controle CCH-24 de la rubrique S21.G00.52.001.
+const MOTIFS_LICENCIEMENT = ["011", "012", "014", "015", "020", "025", "026",
+  "082", "086", "087", "089", "091", "092", "093", "098", "099", "111", "112",
+  "113", "114", "115", "117"];
+
+// LES JOURS TRAVAILLES D UN CONTRAT (0 = dimanche … 6 = samedi) : la meme
+// lecture que le moteur de paie, pour proratiser les heures d un mois
+// incomplet dans le meme rapport que le salaire.
+function joursTravailDsn(ct: any): number[] {
+  const brut = q(ct && ct.jours_travailles);
+  if (!brut) return [1, 2, 3, 4, 5];
+  const vus: number[] = [];
+  for (const morceau of brut.split(/[^0-9]+/)) {
+    if (!morceau) continue;
+    const n = Number(morceau);
+    if (n >= 0 && n <= 6 && vus.indexOf(n) < 0) vus.push(n);
+  }
+  return vus.length > 0 ? vus : [1, 2, 3, 4, 5];
+}
+function compterJours(debut: string, fin: string, jours: number[] | null): number {
+  if (!debut || !fin || fin < debut) return 0;
+  let n = 0;
+  const d = new Date(debut + "T00:00:00Z");
+  const f = new Date(fin + "T00:00:00Z").getTime();
+  while (d.getTime() <= f) {
+    if (!jours || jours.indexOf(d.getUTCDay()) >= 0) n += 1;
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return n;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🆕🚨 05/10 — LA COMPLEMENTAIRE SANTE ET LA PREVOYANCE DANS LA DSN
 //
 // ⛔ JUSQU ICI ELLES N ETAIENT PAS DECLAREES : le generateur cherchait la
@@ -710,7 +817,84 @@ function primesDsn(detail: any, ct: any): { lignes: any[]; inconnues: string[] }
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 05/10 — LA FIN D UN CDI : CONGES NON PRIS ET INDEMNITE DE RUPTURE
+  //
+  // Le moteur les range a part (`detail.iccp_cdi`, `detail.rupture`). Chaque
+  // ligne dit ici combien d elle est DANS LE BRUT (`dansLeBrut`) : c est ce
+  // montant-la qui sort de la remuneration 002, pas le montant declare.
+  //   · conges non pris → 020, entierement dans le brut ;
+  //   · rupture conventionnelle → 001, pour son montant TOTAL — seule sa
+  //     part soumise a cotisations est dans le brut ;
+  //   · licenciement → 007 jusqu au minimum legal calcule par le moteur, et
+  //     021 (indemnite conventionnelle, en plus de l indemnite legale) pour
+  //     ce qui le depasse.
+  // ⚠️ `rupture.soumise_cotisations` n existe que si l indemnite a ete
+  // PORTEE AU BULLETIN (elle ne l est pas sur un mandat ou un stage).
+  // ═══════════════════════════════════════════════════════════════════
+  for (const p of sortie) p.dansLeBrut = Number(p.montant || 0);
+
+  const iccpCdi = detail && detail.iccp_cdi ? Number(detail.iccp_cdi.montant || 0) : 0;
+  if (iccpCdi > 0 && !sortie.some(function (p: any) { return p.type === "020"; })) {
+    sortie.push({ type: "020", montant: iccpCdi, dansLeBrut: iccpCdi,
+      libelle: "Indemnité compensatrice de congés payés" });
+  }
+
+  const rup: any = detail && detail.rupture ? detail.rupture : null;
+  if (rup && Number(rup.montant || 0) > 0 && typeof rup.soumise_cotisations === "number") {
+    const total = Number(rup.montant);
+    const soumise = Math.max(0, Math.min(total, Number(rup.soumise_cotisations) || 0));
+    if (rup.rupture_conventionnelle === true) {
+      sortie.push({ type: "001", montant: total, dansLeBrut: soumise,
+        libelle: "Indemnité spécifique de rupture conventionnelle" });
+    } else {
+      const legal = Math.round(Math.max(0, Math.min(total, Number(rup.legal) || 0)) * 100) / 100;
+      const enPlus = Math.round((total - legal) * 100) / 100;
+      // La part soumise a cotisations est d abord celle qui depasse le legal.
+      const soumiseEnPlus = Math.min(soumise, enPlus);
+      if (legal > 0) {
+        sortie.push({ type: "007", montant: legal,
+          dansLeBrut: Math.round((soumise - soumiseEnPlus) * 100) / 100,
+          libelle: "Indemnité légale de licenciement" });
+      }
+      if (enPlus > 0) {
+        sortie.push({ type: "021", montant: enPlus, dansLeBrut: soumiseEnPlus,
+          libelle: "Indemnité de licenciement au-delà du minimum légal" });
+      }
+    }
+  }
+
+  // L ordre des types, comme dans le fichier valide (001 avant 020).
+  sortie.sort(function (x: any, y: any) {
+    return String(x.type) < String(y.type) ? -1 : (String(x.type) > String(y.type) ? 1 : 0);
+  });
+
   return { lignes: sortie, inconnues: inconnues };
+}
+
+// 🆕 05/10 — LES AVANTAGES EN NATURE DU MOIS, pour le bloc S21.G00.54.
+// Le vehicule a son detail (`detail.vehicule`) ; les repas et le logement se
+// reconnaissent a la ligne du brut que le moteur ecrit lui-meme (« Avantage
+// en nature nourriture… », « … logement… »). La ligne « deduit du net », sous
+// les cotisations, n est pas un second avantage : elle est ecartee.
+function avantagesDsn(detail: any): { type: string; montant: number }[] {
+  const cumul: Record<string, number> = {};
+  const lignes: any[] = Array.isArray(detail && detail.lignes_brut) ? detail.lignes_brut : [];
+  for (const l of lignes) {
+    if (!l || l.hors_brut === true) continue;
+    const montant = Number(l.montant || 0);
+    if (!(montant > 0)) continue;
+    const lib = q(l.libelle).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    if (lib.indexOf("avantage en nature") !== 0) continue;
+    const type = lib.indexOf("nourriture") >= 0 || lib.indexOf("repas") >= 0 ? "02"
+      : lib.indexOf("logement") >= 0 ? "03"
+      : lib.indexOf("vehicule") >= 0 ? "04" : "";
+    if (!type) continue;
+    cumul[type] = (cumul[type] || 0) + montant;
+  }
+  return Object.keys(cumul).sort().map(function (type) {
+    return { type: type, montant: Math.round(cumul[type] * 100) / 100 };
+  });
 }
 
 function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: string } | null {
@@ -1137,6 +1321,51 @@ export async function POST(req: NextRequest) {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 05/10 — LES CHANGEMENTS DE CONTRAT DU MOIS (bloc S21.G00.41)
+  //
+  // Quand une caracteristique d un contrat change — temps plein vers temps
+  // partiel, passage cadre, nouvelle profession — la DSN du mois le dit, avec
+  // l ANCIENNE valeur et la date du changement. Sans ce bloc, l organisme
+  // voit un contrat dont la duree du travail change sans explication.
+  // 🚨 LE CONTRAT NE GARDE PAS SON HISTOIRE : seule la valeur du jour y
+  // figure. L ecran de paie (« modifier le contrat ») inscrit donc chaque
+  // changement au journal, avec l ancienne valeur et sa date d effet ; c est
+  // ce journal que l on relit ici.
+  // ⚠️ LECTURE TOLERANTE : journal illisible, la DSN se genere quand meme et
+  // le rappel le dit.
+  // ═══════════════════════════════════════════════════════════════════
+  const changementsParContrat: Record<string, any[]> = {};
+  {
+    const { data: chg, error: eChg } = await supabase
+      .from("compta_audit")
+      .select("reference, avant, apres, created_at")
+      .eq("societe_id", societeId)
+      .eq("action", "paie.changement_contrat")
+      .order("created_at", { ascending: true });
+
+    if (eChg) {
+      notesArrets.push("Les changements de contrat du mois n'ont pas pu être "
+        + "relus (" + eChg.message + ") : si la durée du travail, la catégorie "
+        + "ou la profession d'un salarié a changé ce mois-ci, ce changement "
+        + "n'est pas déclaré dans ce fichier. Régénérer.");
+    } else {
+      for (const ch of (chg || [])) {
+        const apres: any = (ch as any).apres || {};
+        const le = q(apres.a_compter_du).slice(0, 10) || q((ch as any).created_at).slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(le) || le < periode || le > finMoisPrev) continue;
+        const cle = String((ch as any).reference);
+        if (!changementsParContrat[cle]) changementsParContrat[cle] = [];
+        changementsParContrat[cle].push({ le: le, avant: (ch as any).avant || {}, apres: apres });
+      }
+      for (const cle of Object.keys(changementsParContrat)) {
+        changementsParContrat[cle].sort(function (a: any, b: any) {
+          return a.le < b.le ? -1 : a.le > b.le ? 1 : 0;
+        });
+      }
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // ══ S10 — L ENVOI ══
   //
   // 🚨 L ORDRE DES HUIT RUBRIQUES N EST PAS NEGOCIABLE. Il a ete verifie
@@ -1405,6 +1634,18 @@ export async function POST(req: NextRequest) {
   // part : elle sort du CTP 100 pour aller au CTP 726, et du 772 pour aller
   // au 423. Vide tant qu aucun apprenti n est declare.
   const assiettesApprenti: Record<string, number> = {};
+  // 🆕 05/10 — LES AUTRES PARTS QUI SORTENT DU CTP 100, cumulees a part :
+  //   · le MANDATAIRE SOCIAL se declare au CTP 863, qui porte aussi ses
+  //     complements maladie et allocations familiales (codes 907 et 102) ;
+  //   · l APPRENTI DU SECTEUR PUBLIC : sa part sous le seuil au CTP 803, le
+  //     reste au CTP 518 — et aucun complement, l employeur ne les doit pas.
+  const assiettesMandat: Record<string, number> = {};
+  const assiettesPublicSous: Record<string, number> = {};
+  const assiettesPublicAuDela: Record<string, number> = {};
+  // Les reductions et contributions qui ont leur propre ligne au bordereau.
+  let reductionHsUrssaf = 0;      // somme des codes 114, en positif
+  let deductionHsUrssaf = 0;      // somme des codes 021, en positif
+  let assietteRuptureConv = 0;    // somme des assiettes du code 093
 
   // 🆕 22/09 — CE QUI A ETE ECRIT, pour le confronter a la table DIDA en
   // fin de generation. `ctpDeclares` : les CTP portes au bordereau.
@@ -1440,6 +1681,37 @@ export async function POST(req: NextRequest) {
     // tort. ⚠️ Nul sur tout autre contrat.
     const detailApprenti = (detail as any).apprentissage || null;
     const qui = q(s.prenom) + " " + q(s.nom);
+
+    // 🆕 05/10 — CE QUE LE CONTRAT EST. Quatre formes ne se declarent pas
+    // comme un salarie ordinaire (voir l en-tete des douze points).
+    const typeCt = q(ct.type_contrat).toLowerCase();
+    const estMandat = typeCt === "mandat_social";
+    const estStagiaire = typeCt === "stage";
+    const estContratPro = typeCt === "professionnalisation";
+    const estApprentiPublic = typeCt === "apprentissage"
+      && (ct as any).apprenti_public === true;
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LA PERIODE D EMPLOI DANS LE MOIS
+    //
+    // Un salarie entre le 10 n a pas ete paye du 1er au 9 : ses blocs de
+    // remuneration (51) et ses bases assujetties (78) portent donc les dates
+    // de sa periode d emploi, pas celles du mois — valide par dsn-val dans
+    // les deux sens (entree le 10, sortie le 15).
+    // ⚠️ MEME REGLE QUE LE MOTEUR DE PAIE : debut = date de debut du contrat
+    // si elle tombe dans le mois ; fin = la plus proche de la date de fin et
+    // de la date de rupture.
+    // ═══════════════════════════════════════════════════════════════
+    let debutEmploiIso = periode;
+    let finEmploiIso = finMoisPrev;
+    {
+      const entree = q(ct.date_debut).slice(0, 10);
+      if (entree > debutEmploiIso && entree <= finEmploiIso) debutEmploiIso = entree;
+      for (const sortie of [q(ct.rompu_le).slice(0, 10), q(ct.date_fin).slice(0, 10)]) {
+        if (sortie && sortie >= debutEmploiIso && sortie < finEmploiIso) finEmploiIso = sortie;
+      }
+    }
+    const moisIncomplet = debutEmploiIso > periode || finEmploiIso < finMoisPrev;
 
     // 🚨 LE NIR EST LA CLE DE TOUTE LA DECLARATION. Sans lui, l organisme
     // ne sait a qui rattacher les cotisations, et le salarie ne voit rien
@@ -1574,7 +1846,7 @@ export async function POST(req: NextRequest) {
     //   07  bac+5 : master 2, diplome d ingenieur
     //   08  bac+8 : doctorat
     // ═══════════════════════════════════════════════════════════════
-    const estApprentiInd = q(ct.type_contrat).toLowerCase() === "apprentissage";
+    const estApprentiInd = typeCt === "apprentissage";
     if (estApprentiInd) {
       const niveauDiplome = q((ct as any).niveau_diplome_prepare);
       if (niveauDiplome) ecrire("S21.G00.30.025", niveauDiplome);
@@ -1642,12 +1914,17 @@ export async function POST(req: NextRequest) {
     // « apprentissage » et ecrivait l anomalie « ⛔ NON DECLARE » : le
     // contrat partait sans nature, et dsn-val l aurait rejete.
     // ═══════════════════════════════════════════════════════════════
-    const estApprenti = q(ct.type_contrat).toLowerCase() === "apprentissage";
-    const cleNature = estApprenti
+    // 🆕 05/10 — LE CONTRAT DE PROFESSIONNALISATION SUIT LA MEME REGLE : un
+    // CDD ou un CDI, que le dispositif « 61 » designe. Le MANDAT SOCIAL
+    // (« 80 ») et la CONVENTION DE STAGE (« 29 ») sont, eux, de vraies
+    // natures de contrat.
+    const estApprenti = typeCt === "apprentissage";
+    const cleNature = (estApprenti || estContratPro)
       ? (ct.date_fin ? "cdd" : "cdi")
       : q(ct.type_contrat);
 
-    const natureContrat = await code("S21.G00.40.007", cleNature, periode);
+    const natureContrat = (await code("S21.G00.40.007", cleNature, periode))
+      || NATURE_CONTRAT_REPLI[typeCt] || null;
     if (!natureContrat) {
       anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
         + q(ct.type_contrat) + " » (S21.G00.40.007). ⛔ NON DÉCLARÉ.");
@@ -1658,6 +1935,10 @@ export async function POST(req: NextRequest) {
     // 03 pour un cadre dirigeant. Le « 03 » ecrit en dur auparavant
     // declarait donc tout le monde CADRE DIRIGEANT.
     let statutConv = q(ct.statut_conventionnel);
+    // 🆕 05/10 — un dirigeant cadre est un « cadre dirigeant » (03) ; un
+    // stagiaire est declare « 06 », la valeur du fichier valide.
+    if (!statutConv && estMandat && q(ct.categorie) === "cadre") statutConv = "03";
+    if (!statutConv && estStagiaire) statutConv = "06";
     if (!statutConv) {
       statutConv = (await code("S21.G00.40.002", q(ct.categorie), periode)) || "";
     }
@@ -1669,8 +1950,15 @@ export async function POST(req: NextRequest) {
     // 🚨 LA DISTINCTION CADRE / NON-CADRE A SA PROPRE RUBRIQUE (40.003).
     // Controle CCH-11 : si elle vaut « 01 - cadre », le statut conventionnel
     // doit valoir 03, 04 ou 08.
-    const statutRc = await code("S21.G00.40.003",
+    // 🆕 05/10 — DEUX CAS SANS CADRE NI NON-CADRE :
+    //   · le STAGIAIRE n a pas de retraite complementaire → « 99 » ;
+    //   · l APPRENTI DU SECTEUR PUBLIC cotise a l Ircantec, qui ne connait
+    //     pas ce statut → « 98 » (exige par dsn-val des que le bloc 71 porte
+    //     « IRCANTEC »).
+    let statutRc = await code("S21.G00.40.003",
       q(ct.categorie) === "cadre" ? "rc_cadre" : "rc_non_cadre", periode);
+    if (estStagiaire) statutRc = "99";
+    else if (estApprentiPublic) statutRc = "98";
 
     ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
     ecrire("S21.G00.40.002", statutConv);
@@ -1710,6 +1998,10 @@ export async function POST(req: NextRequest) {
     // ci-dessous rend toujours vide aujourd hui. Elle est conservee pour le
     // jour ou la colonne sera creee, et ne coute rien.
     let dispositif = q((ct as any).dispositif_public);
+    // 🆕 05/10 — le secteur public (81) et le contrat de professionnalisation
+    // (61) se lisent sur le contrat : rien a deduire de l effectif.
+    if (!dispositif && estApprentiPublic) dispositif = "81";
+    if (!dispositif && estContratPro) dispositif = "61";
     if (!dispositif && estApprenti) {
       const effectifSoc = Number(societe.effectif || 0);
       dispositif = effectifSoc >= 11 ? "65" : "64";
@@ -1717,17 +2009,23 @@ export async function POST(req: NextRequest) {
       // l effectif ; seule l inscription au repertoire des metiers, que nous
       // ne connaissons pas, pourrait le changer. Il se relit avant le depot
       // (« Avant tout dépôt réel ») au lieu de compter parmi les anomalies.
-      notesArrets.push(qui + " : apprenti déclaré avec le dispositif « "
-        + dispositif + " », déduit d'un effectif de " + effectifSoc
-        + " salarié(s). ⚠️ LE CRITÈRE LÉGAL DU CODE 64 EST « entreprise "
-        + "ARTISANALE OU de moins de 11 salariés » : une entreprise "
-        + "artisanale d'au moins 11 salariés relève elle aussi du 64. "
-        + "Vérifier l'inscription au répertoire des métiers.");
+      notesArrets.push(qui + " : contrat d'apprentissage déclaré dans la "
+        + "catégorie des entreprises " + (dispositif === "64"
+          ? "de moins de 11 salariés" : "de 11 salariés et plus")
+        + ", d'après l'effectif de la fiche du dossier (" + effectifSoc
+        + "). À revoir seulement si l'entreprise est artisanale et compte "
+        + "11 salariés ou plus : elle relève alors de la première catégorie.");
     }
     ecrire("S21.G00.40.008", dispositif || "99");
 
     ecrire("S21.G00.40.009", numeroContrat);
     if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
+    else if (estStagiaire) {
+      // 🆕 05/10 — obligatoire sur une convention de stage (dsn-val).
+      anomalies.push(qui + " : convention de stage sans date de fin. ⛔ LA "
+        + "DÉCLARATION SERA REJETÉE. La renseigner : écran de paie → "
+        + "« modifier le contrat » → « Fin prévue ».");
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // 🆕🚨 22/09 — LE FORFAIT EN JOURS NE SE MESURE PAS EN HEURES
@@ -1759,9 +2057,13 @@ export async function POST(req: NextRequest) {
     // ⚠️ « forfait_jour » AU SINGULIER : c est la correspondance qui existe
     // dans dsn_codes depuis l origine, verifiee. La chercher au pluriel ne
     // rendait rien et le contrat serait parti sans unite de mesure.
-    const uniteQuotite = forfaitJours
-      ? (await code("S21.G00.40.011", "forfait_jour", periode))
-      : (await code("S21.G00.40.011", "heure", periode));
+    // 🆕 05/10 — LE MANDATAIRE N A PAS DE DUREE DU TRAVAIL : unite « 99 -
+    // salarie non concerne », les deux quotites a 0.00 et la modalite « 99 »
+    // (fichier valide par dsn-val).
+    const codeUniteHeure = await code("S21.G00.40.011", "heure", periode);
+    const codeUniteForfait = await code("S21.G00.40.011", "forfait_jour", periode);
+    const uniteQuotite = estMandat ? "99"
+      : (forfaitJours ? codeUniteForfait : codeUniteHeure);
     if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
     else if (forfaitJours) {
       anomalies.push(qui + " : aucun code DSN pour l'unité « forfait jours » "
@@ -1775,26 +2077,27 @@ export async function POST(req: NextRequest) {
     // diverger deux valeurs censees etre comparables — et la comparaison
     // est precisement ce que l organisme regarde pour savoir si le salarie
     // est a temps plein ou partiel.
-    if (dureeMensuelleRef > 0) {
-      ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
-
+    // 🆕 05/10 — la quotite d un contrat, pour un forfait ou une duree
+    // hebdomadaire donnes : la meme regle sert a la valeur du jour (40.013)
+    // et a l ANCIENNE valeur d un changement (41.007).
+    const quotiteDe = function (forfaitAn: number, hebdoH: number): string {
+      // 🚨 FORFAIT : LE NOMBRE DE JOURS DU MOIS, pas de l annee — on divise
+      // le forfait annuel par douze.
+      if (forfaitAn > 0) return montantDsn(Math.round(forfaitAn / 12 * 100) / 100);
       // ⚠️ 35 HEURES EST LA DUREE LEGALE : un contrat a 35 h est a temps
       // plein, donc sa quotite EGALE la reference. En dessous, elle est
       // proportionnelle.
-      if (forfaitJours) {
-        // 🚨 LE NOMBRE DE JOURS DU MOIS, pas de l annee : la rubrique
-        // decrit la periode declaree. On divise le forfait annuel par
-        // douze, comme le salaire mensuel divise le salaire annuel.
-        ecrire("S21.G00.40.013",
-          montantDsn(Math.round(joursAnnuels / 12 * 100) / 100));
-      } else {
-        // ⚠️ 35 HEURES EST LA DUREE LEGALE : un contrat a 35 h est a temps
-        // plein, donc sa quotite EGALE la reference. En dessous, elle est
-        // proportionnelle.
-        const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
-        const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
-        ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
-      }
+      const h = hebdoH > 0 ? hebdoH : 35;
+      return montantDsn(Math.round(dureeMensuelleRef * Math.min(h, 35) / 35 * 100) / 100);
+    };
+    const quotiteContrat = quotiteDe(joursAnnuels, ct.duree_hebdo ? Number(ct.duree_hebdo) : 35);
+
+    if (estMandat) {
+      ecrire("S21.G00.40.012", "0.00");
+      ecrire("S21.G00.40.013", "0.00");
+    } else if (dureeMensuelleRef > 0) {
+      ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
+      ecrire("S21.G00.40.013", quotiteContrat);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -1821,14 +2124,18 @@ export async function POST(req: NextRequest) {
     // cette rubrique.
     const tempsPlein = forfaitJours
       || !ct.duree_hebdo || Number(ct.duree_hebdo) >= 35;
-    ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
+    const modaliteTemps = estMandat ? "99" : (tempsPlein ? "10" : "20");
+    ecrire("S21.G00.40.014", modaliteTemps);
 
     // ⚠️ COMPLEMENT DE BASE AU REGIME OBLIGATOIRE : 01 regime local
     // Alsace-Moselle, 99 non applicable.
     ecrire("S21.G00.40.016", q(ct.regime_alsace_moselle) || "99");
 
     // 🚨 L IDCC VA ICI, PAS EN 40.009.
-    ecrire("S21.G00.40.017", q(ct.idcc) ? String(ct.idcc).padStart(4, "0") : "9999");
+    // 🆕 05/10 — un mandataire n est pas couvert par la convention
+    // collective : « 9999 », quelle que soit celle des salaries.
+    const idccContrat = (!estMandat && q(ct.idcc)) ? String(ct.idcc).padStart(4, "0") : "9999";
+    ecrire("S21.G00.40.017", idccContrat);
 
     // ⚠️ LES TROIS REGIMES DE BASE : maladie (CNAM), vieillesse (CNAV),
     // accidents du travail (CNAM). « 200 » est le regime general dans les
@@ -1884,7 +2191,9 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.40.024", q(ct.travailleur_etranger) || "99");
 
     // ⚠️ STATUT D EMPLOI : 04 non statutaire, pour un salarie de droit prive.
-    ecrire("S21.G00.40.026", q(ct.statut_emploi) || "04");
+    // 🆕 05/10 — « 99 - non concerne » pour un mandataire et un stagiaire.
+    ecrire("S21.G00.40.026", q(ct.statut_emploi)
+      || ((estMandat || estStagiaire) ? "99" : "04"));
 
     // ⚠️ EMPLOIS ET EMPLOYEURS MULTIPLES : 01 unique, 02 multiples,
     // 03 situation non connue.
@@ -2032,10 +2341,127 @@ export async function POST(req: NextRequest) {
     // ecrit plus haut, a sa place dans l ordre des rubriques.
 
     // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — ══ S21.G00.41 — LES CHANGEMENTS DU CONTRAT ══
+    //
+    // 🚨 SA PLACE : juste apres le contrat, avant l arret de travail (60).
+    // LES REGLES, lues au cahier technique (§ 4.4.14) et eprouvees :
+    //   · UN BLOC PAR CARACTERISTIQUE CHANGEE : la quotite (41.007) et la
+    //     modalite (41.008) d un passage a temps partiel font deux blocs ;
+    //   · chaque bloc porte la date du changement (41.001), l ANCIENNE
+    //     valeur, et la profondeur de recalcul de la paie (41.028) — le 1er
+    //     jour du mois du changement, ou le debut du contrat s il est plus
+    //     tardif. Declarer le 15 comme profondeur est refuse ;
+    //   · la profondeur ne s ecrit que sur le PREMIER changement du mois
+    //     d une meme caracteristique.
+    // ⚠️ ON NE DECLARE QUE CE QUI A REELLEMENT CHANGE : l ancienne valeur
+    // est comparee a la nouvelle, toutes deux traduites en codes DSN.
+    // ⛔ PAS POUR UN MANDATAIRE : son contrat n a ni quotite ni convention.
+    // ═══════════════════════════════════════════════════════════════
+    if (!estMandat) {
+      const profondeurVue: Record<string, boolean> = {};
+      const debutCt = q(ct.date_debut).slice(0, 10);
+      const statutDe = async function (cat: string): Promise<string> {
+        return (await code("S21.G00.40.002", cat, periode)) || "";
+      };
+      const rcDe = async function (cat: string): Promise<string> {
+        return (await code("S21.G00.40.003",
+          cat === "cadre" ? "rc_cadre" : "rc_non_cadre", periode)) || "";
+      };
+
+      for (const ch of (changementsParContrat[String(ct.id)] || [])) {
+        // Un « changement » date du premier jour du contrat n en est pas un.
+        if (debutCt && ch.le <= debutCt) continue;
+        const av: any = ch.avant || {};
+        const ap: any = ch.apres || {};
+        const anciens: { rub: string; val: string }[] = [];
+        const a = function (k: string): boolean {
+          return Object.prototype.hasOwnProperty.call(av, k);
+        };
+        const nouveau = function (k: string): any {
+          return Object.prototype.hasOwnProperty.call(ap, k) ? ap[k] : (ct as any)[k];
+        };
+
+        // ---- la duree du travail ----
+        if (a("duree_hebdo") || a("forfait_jours_annuel")) {
+          const ancForfait = Number((a("forfait_jours_annuel") ? av.forfait_jours_annuel
+            : nouveau("forfait_jours_annuel")) || 0);
+          const ancHebdo = Number((a("duree_hebdo") ? av.duree_hebdo : nouveau("duree_hebdo")) || 35);
+          const nvForfait = Number(nouveau("forfait_jours_annuel") || 0);
+          const nvHebdo = Number(nouveau("duree_hebdo") || 35);
+
+          const ancUnite = ancForfait > 0 ? codeUniteForfait : codeUniteHeure;
+          const nvUnite = nvForfait > 0 ? codeUniteForfait : codeUniteHeure;
+          if (ancUnite && ancUnite !== nvUnite) anciens.push({ rub: "S21.G00.41.006", val: ancUnite });
+
+          if (dureeMensuelleRef > 0 || ancForfait > 0) {
+            const ancQuotite = quotiteDe(ancForfait, ancHebdo);
+            if (ancQuotite !== quotiteDe(nvForfait, nvHebdo)) {
+              anciens.push({ rub: "S21.G00.41.007", val: ancQuotite });
+            }
+          }
+          const ancModalite = (ancForfait > 0 || ancHebdo >= 35) ? "10" : "20";
+          const nvModalite = (nvForfait > 0 || nvHebdo >= 35) ? "10" : "20";
+          if (ancModalite !== nvModalite) anciens.push({ rub: "S21.G00.41.008", val: ancModalite });
+        }
+
+        // ---- la categorie : statut conventionnel et statut de retraite ----
+        if (a("categorie") && q(av.categorie) && !q(ct.statut_conventionnel)
+            && !estStagiaire && !estApprentiPublic) {
+          const ancCat = q(av.categorie);
+          const nvCat = q(nouveau("categorie"));
+          const ancStatut = await statutDe(ancCat);
+          if (ancStatut && ancStatut !== (await statutDe(nvCat))) {
+            anciens.push({ rub: "S21.G00.41.002", val: ancStatut });
+          }
+          const ancRc = await rcDe(ancCat);
+          if (ancRc && ancRc !== (await rcDe(nvCat))) {
+            anciens.push({ rub: "S21.G00.41.003", val: ancRc });
+          }
+        }
+
+        // ---- la convention collective ----
+        if (a("idcc")) {
+          const ancIdcc = q(av.idcc) ? String(av.idcc).padStart(4, "0") : "9999";
+          const nvIdcc = q(nouveau("idcc")) ? String(nouveau("idcc")).padStart(4, "0") : "9999";
+          if (ancIdcc !== nvIdcc) anciens.push({ rub: "S21.G00.41.011", val: ancIdcc });
+        }
+
+        // ---- la profession ----
+        if (a("pcs_ese") && q(av.pcs_ese) && q(av.pcs_ese) !== q(nouveau("pcs_ese"))) {
+          anciens.push({ rub: "S21.G00.41.019", val: q(av.pcs_ese) });
+        }
+
+        // ---- le code risque accidents du travail ----
+        if (a("code_risque_at") && q(av.code_risque_at)
+            && q(av.code_risque_at) !== q(nouveau("code_risque_at"))) {
+          anciens.push({ rub: "S21.G00.41.024", val: q(av.code_risque_at) });
+        }
+
+        let profondeur = ch.le.slice(0, 8) + "01";
+        if (debutCt && debutCt > profondeur) profondeur = debutCt;
+
+        anciens.sort(function (x, y) { return x.rub < y.rub ? -1 : 1; });
+        for (const anc of anciens) {
+          ecrire("S21.G00.41.001", dateDsn(ch.le));
+          ecrire(anc.rub, anc.val);
+          if (!profondeurVue[anc.rub]) {
+            ecrire("S21.G00.41.028", dateDsn(profondeur));
+            profondeurVue[anc.rub] = true;
+          }
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // ⚠️ LES DEUX BORNES DU MOIS, calculees ici parce que le bloc versement
     // et tous ses enfants en ont besoin.
     const debutPeriode = dateDsn(periode);
     const finPeriode = finDeMois(periode);
+    // 🆕 05/10 — et celles de la PERIODE D EMPLOI, pour les remunerations et
+    // les bases assujetties (voir plus haut). Egales au mois pour un salarie
+    // present du premier au dernier jour.
+    const debutRemu = dateDsn(debutEmploiIso);
+    const finRemu = dateDsn(finEmploiIso);
 
     // ═══════════════════════════════════════════════════════════════
     // 🚨🚨 L ORDRE DES SOUS-GROUPES DU CONTRAT — LA REGLE, ENFIN COMPLETE
@@ -2270,7 +2696,27 @@ export async function POST(req: NextRequest) {
     // jours et porte le detail. La mensuelle n en garde que la trace.
     // ═══════════════════════════════════════════════════════════════
     {
-      const rup = rupturesParContrat[String(ct.id)];
+      // 🆕🚨 05/10 — LA RUPTURE SAISIE SUR LE CONTRAT COMPTE AUSSI.
+      // Jusqu ici la mensuelle ne declarait une fin de contrat que si un
+      // signalement de fin de contrat existait. Un CDI rompu depuis l ecran
+      // de paie (« modifier le contrat » : date et motif de rupture) sortait
+      // donc sans bloc 62 — avec son indemnite, mais sans la rupture qui
+      // l explique. Le signalement, quand il existe, garde la priorite.
+      let rup: any = rupturesParContrat[String(ct.id)];
+      const rompuLe = q(ct.rompu_le).slice(0, 10);
+      if (!rup && rompuLe && rompuLe >= periode && rompuLe <= finMoisPrev) {
+        rup = { date_fin: rompuLe, motif: q(ct.motif_rupture_dsn),
+          dernier_jour_travaille: null };
+      }
+      // ⚠️ UN CONTRAT QUI ARRIVE A SON TERME CE MOIS-CI SANS RIEN D
+      // ENREGISTRE : on ne devine pas le motif, on le dit.
+      const termeLe = q(ct.date_fin).slice(0, 10);
+      if (!rup && !estMandat && termeLe && termeLe >= periode && termeLe <= finMoisPrev) {
+        notesArrets.push(qui + " : son contrat se termine le " + dateLisible(termeLe)
+          + " et aucune fin de contrat n'est enregistrée. Elle n'est donc pas "
+          + "déclarée dans ce fichier : l'enregistrer dans l'écran de paie "
+          + "(« Documents de fin de contrat »), puis régénérer.");
+      }
       if (rup) {
         const dateRupture = q(rup.date_fin) || q(rup.date_debut);
         const motifBrut = q(ct.motif_rupture_dsn) || q(rup.motif);
@@ -2374,9 +2820,8 @@ export async function POST(req: NextRequest) {
           }
           if (!g) g = candidats[0];
           const note = "Plusieurs contrats de " + (nat === "prevoyance" ? "prévoyance" : "complémentaire santé")
-            + " couvrent les mêmes salariés : le rattachement de chaque "
-            + "cotisation à son contrat est à relire dans le fichier (blocs "
-            + "S21.G00.70 et base 31).";
+            + " couvrent les mêmes salariés : vérifier, avant le premier dépôt "
+            + "réel, que chaque cotisation est déclarée sous le bon contrat.";
           if (notesPrevoyance.indexOf(note) < 0) notesPrevoyance.push(note);
         }
 
@@ -2433,11 +2878,10 @@ export async function POST(req: NextRequest) {
           continue;
         }
         if (mode === "pct_pmss") {
-          const note = "Une cotisation est calculée en % du plafond de la "
-            + "Sécurité sociale : le fichier la déclare avec le composant "
-            + "« 18 - Base forfaitaire Prévoyance ». ⚠️ La norme ne fixe pas "
-            + "ce type : c'est la fiche de paramétrage DSN de l'organisme qui "
-            + "le donne. À confirmer avant tout dépôt réel.";
+          const note = "Une cotisation de mutuelle ou de prévoyance est "
+            + "calculée en pourcentage du plafond de la Sécurité sociale : la "
+            + "façon de la déclarer dépend de l'organisme. À confirmer avec sa "
+            + "fiche de paramétrage DSN avant le premier dépôt réel.";
           if (notesPrevoyance.indexOf(note) < 0) notesPrevoyance.push(note);
         }
 
@@ -2476,10 +2920,10 @@ export async function POST(req: NextRequest) {
         // travail. La rubrique 70.014 est reservee a des cas listes sur
         // net-entreprises : on ne l ecrit pas sans les avoir lus.
         if (aff.adhesion.nouveau && q(ct.date_debut).slice(0, 10) < periode) {
-          const note = aff.adhesion.quoi + " : le contrat collectif prend effet "
-            + "ce mois-ci alors que des salariés étaient déjà en poste. La "
-            + "date de début d'affiliation (S21.G00.70.014) n'est PAS "
-            + "déclarée : vérifier auprès de l'organisme s'il l'attend.";
+          const note = aff.adhesion.quoi + " : le contrat prend effet ce mois-ci "
+            + "alors que des salariés étaient déjà en poste. La date à "
+            + "laquelle ils y entrent n'est pas déclarée : demander à "
+            + "l'organisme s'il l'attend.";
           if (notesPrevoyance.indexOf(note) < 0) notesPrevoyance.push(note);
         }
       }
@@ -2504,7 +2948,10 @@ export async function POST(req: NextRequest) {
     // declaration ne dit pas a quelle caisse de retraite complementaire le
     // salarie est rattache — et personne ne peut lui ouvrir de droits.
     // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.71.002", q(ct.regime_retraite_c) || "RUAA");
+    // 🆕 05/10 — « 90000 » pour un stagiaire (pas de retraite
+    // complementaire), « IRCANTEC » pour un apprenti du secteur public.
+    ecrire("S21.G00.71.002", q(ct.regime_retraite_c)
+      || (estStagiaire ? "90000" : (estApprentiPublic ? "IRCANTEC" : "RUAA")));
 
     // ══ S21.G00.50 — LE VERSEMENT INDIVIDU ══
     //
@@ -2577,9 +3024,16 @@ export async function POST(req: NextRequest) {
     }
     // ⚠️ REVENU ENTIEREMENT NON IMPOSABLE (cahier technique, 50.004) : le
     // net verse est alors le brut moins les cotisations du salarie.
+    // 🆕 05/10 — LE STAGIAIRE : sa gratification en franchise de cotisations
+    // n est pas dans le brut declare, mais elle lui est bien versee. Son net
+    // verse est donc ce qu il a touche — le net avant impot du bulletin.
+    const netAvantImpotBulletin = Number((b as any).net_avant_impot)
+      || Number((detail as any).net_avant_impot) || 0;
     const netVerse = netFiscal > 0
       ? Math.round((netFiscal - csgCrdsNonDeductibles - patronalSanteReintegre) * 100) / 100
-      : Math.round(((Number(b.brut) || 0) - (Number(b.total_salarial) || 0)) * 100) / 100;
+      : (estStagiaire && netAvantImpotBulletin > 0
+        ? Math.round(netAvantImpotBulletin * 100) / 100
+        : Math.round(((Number(b.brut) || 0) - (Number(b.total_salarial) || 0)) * 100) / 100);
 
     ecrire("S21.G00.50.002", montantDsn(netFiscal));
     ecrire("S21.G00.50.003", "01");
@@ -2691,8 +3145,8 @@ export async function POST(req: NextRequest) {
 
     // ══ S21.G00.51 — LA REMUNERATION ══
     const codeBrut = await code("S21.G00.51.011", "brut", periode);
-    ecrire("S21.G00.51.001", debutPeriode);
-    ecrire("S21.G00.51.002", finPeriode);
+    ecrire("S21.G00.51.001", debutRemu);
+    ecrire("S21.G00.51.002", finRemu);
     // ⚠️ 51.010 RATTACHE LA REMUNERATION AU CONTRAT : sans lui, un salarie
     // qui a deux contrats dans la meme entreprise voit ses remunerations
     // melangees.
@@ -2705,6 +3159,31 @@ export async function POST(req: NextRequest) {
     // ⚠️ LE VOLUME DE TRAVAIL SE DECLARE DANS LE BLOC ACTIVITE
     // (S21.G00.53), ecrit plus haut, pas dans la remuneration.
     ecrire("S21.G00.51.013", montantDsn(b.brut));
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LE MOIS INCOMPLET : LES JOURS CALENDAIRES DE PRESENCE
+    //
+    // Entree ou sortie en cours de mois : le plafond de la Securite sociale
+    // se reduit aux jours calendaires de la periode d emploi (article R242-2
+    // du code de la securite sociale). La DSN les declare dans un bloc
+    // activite d unite « 40 », SOUS LA REMUNERATION 001 — c est le seul bloc
+    // activite admis a cette place (valide par dsn-val, entree le 10 et
+    // sortie le 15).
+    // ⛔ PAS POUR UN MANDATAIRE : son fichier valide ne porte aucun bloc
+    // activite. Le cas se relit avant le depot.
+    // ═══════════════════════════════════════════════════════════════
+    if (moisIncomplet) {
+      if (estMandat) {
+        notesArrets.push(qui + " : mandat commencé ou terminé en cours de mois. "
+          + "Les jours de présence qui réduisent le plafond de la Sécurité "
+          + "sociale ne sont pas déclarés pour un mandataire : cas à vérifier "
+          + "dans dsn-val avant le premier dépôt réel.");
+      } else {
+        ecrire("S21.G00.53.001", "01");
+        ecrire("S21.G00.53.002", montantDsn(compterJours(debutEmploiIso, finEmploiIso, null)));
+        ecrire("S21.G00.53.003", "40");
+      }
+    }
 
     // ═══════════════════════════════════════════════════════════════
     // ══ 🆕 LES REMUNERATIONS 003 ET 010 — REQUISES PAR LE CONTROLE CCH-11 ══
@@ -2739,8 +3218,8 @@ export async function POST(req: NextRequest) {
     // evite de redescendre puis remonter d un niveau au milieu des
     // remunerations.
     // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.51.001", debutPeriode);
-    ecrire("S21.G00.51.002", finPeriode);
+    ecrire("S21.G00.51.001", debutRemu);
+    ecrire("S21.G00.51.002", finRemu);
     ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", "003");
     // 🆕🚨 20/09 — LE SALAIRE RETABLI VIENT DU BULLETIN, PLUS DU BRUT.
@@ -2754,10 +3233,15 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.51.013",
       montantDsn(retabli > Number(b.brut) ? retabli : b.brut));
 
-    const base010 = salaireDeBaseDsn(detail, ct);
+    // 🆕 05/10 — LE STAGIAIRE N A PAS DE « SALAIRE DE BASE » : sa premiere
+    // ligne est la gratification entiere, franchise comprise. On declare ce
+    // qui cotise — son brut — comme dans le fichier valide.
+    const base010 = estStagiaire
+      ? { montant: Number(b.brut) || 0, repli: "" }
+      : salaireDeBaseDsn(detail, ct);
     if (base010) {
-      ecrire("S21.G00.51.001", debutPeriode);
-      ecrire("S21.G00.51.002", finPeriode);
+      ecrire("S21.G00.51.001", debutRemu);
+      ecrire("S21.G00.51.002", finRemu);
       ecrire("S21.G00.51.010", numeroContrat);
       ecrire("S21.G00.51.011", "010");
       ecrire("S21.G00.51.013", montantDsn(base010.montant));
@@ -2797,8 +3281,12 @@ export async function POST(req: NextRequest) {
     // voit qu au moment ou il en a besoin.
     // ═══════════════════════════════════════════════════════════════
     const primes = primesDsn(detail, ct);
+    // 🆕 05/10 — CE QUI SORT DE LA 002 EST LA PART DE CHAQUE INDEMNITE QUI EST
+    // DANS LE BRUT : une rupture conventionnelle de 500 EUR dont 450 sont
+    // exclus des cotisations ne retire que 50 EUR du brut (valide : 1 610,00
+    // de brut, 360,00 de conges, 50,00 soumis → 1 200,00).
     const totalPrimes = primes.lignes.reduce(function (s: number, p: any) {
-      return s + Number(p.montant || 0);
+      return s + Number(p.dansLeBrut !== undefined ? p.dansLeBrut : (p.montant || 0));
     }, 0);
 
     // ⚠️ LA 002 EST LE BRUT MOINS CE QUI PART EN BLOC 52.
@@ -2818,18 +3306,87 @@ export async function POST(req: NextRequest) {
       remu002 = Number(b.brut);
     }
 
-    ecrire("S21.G00.51.001", debutPeriode);
-    ecrire("S21.G00.51.002", finPeriode);
+    // 🆕🚨 05/10 — NI MANDATAIRE NI STAGIAIRE N OUVRENT DE DROITS AU
+    // CHOMAGE : leur remuneration 002 est a 0.00 (fichiers valides). Le
+    // mandataire n a pas non plus de bloc activite — il n a pas d horaire.
+    if (estMandat || estStagiaire) remu002 = 0;
+
+    ecrire("S21.G00.51.001", debutRemu);
+    ecrire("S21.G00.51.002", finRemu);
     ecrire("S21.G00.51.010", numeroContrat);
     ecrire("S21.G00.51.011", "002");
     ecrire("S21.G00.51.013", montantDsn(remu002));
 
-    // ⚠️ TYPE 01 = travail remunere, unite 10 = heure. Le type 02 sert aux
-    // absences, qui ne sont pas encore traitees.
-    if (dureeMensuelleRef > 0) {
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LES HEURES PAYEES DU MOIS (bloc activite, unite « 10 »)
+    //
+    // ⛔ ELLES VALAIENT 151,67 h POUR TOUT LE MONDE : un salarie a 24 heures
+    // par semaine, ou entre le 10 du mois, etait declare a temps plein sur
+    // le mois entier. France Travail calcule les droits sur ces heures.
+    // Desormais :
+    //   · la duree mensuelle DU CONTRAT, que le bulletin a retenue
+    //     (`parametres.duree_mensuelle_contrat`) ; a defaut, la quotite ;
+    //   · un salarie paye a l heure : les heures de sa ligne de salaire ;
+    //   · un mois incomplet : au prorata des jours travailles de la periode
+    //     d emploi, dans le meme rapport que le salaire ;
+    //   · PLUS les heures supplementaires et complementaires du mois.
+    // ⚠️ Le forfait en jours garde la duree de reference, comme avant.
+    // ═══════════════════════════════════════════════════════════════
+    const hs: any = (detail as any).heures_sup || null;
+    const heuresHs = hs ? Math.max(0, Number(hs.heures) || 0) : 0;
+    const brutHs = hs ? Math.max(0, Number(hs.brut) || 0) : 0;
+
+    if (!estMandat && dureeMensuelleRef > 0) {
+      let heuresMois = dureeMensuelleRef;
+      if (!forfaitJours) {
+        const param: any = (detail as any).parametres || {};
+        const dureeContrat = Number(param.duree_mensuelle_contrat) > 0
+          ? Number(param.duree_mensuelle_contrat) : Number(quotiteContrat);
+        // La ligne de salaire d un salarie paye a l heure porte ses heures.
+        let heuresLigne = 0;
+        for (const l of (Array.isArray((detail as any).lignes_brut) ? (detail as any).lignes_brut : [])) {
+          const lib = q(l && l.libelle).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+          if ((lib.indexOf("salaire de base") === 0 || lib.indexOf("heures normales") === 0)
+              && Number(l.quantite || 0) > 0 && Number(l.taux || 0) > 0) {
+            heuresLigne = Number(l.quantite);
+            break;
+          }
+        }
+        if (heuresLigne > 0) heuresMois = heuresLigne;
+        else {
+          heuresMois = dureeContrat > 0 ? dureeContrat : dureeMensuelleRef;
+          if (moisIncomplet) {
+            const jt = joursTravailDsn(ct);
+            const joursMois = compterJours(periode, finMoisPrev, jt);
+            const joursEmploi = compterJours(debutEmploiIso, finEmploiIso, jt);
+            if (joursMois > 0) heuresMois = heuresMois * Math.min(1, joursEmploi / joursMois);
+          }
+        }
+        heuresMois = Math.round((heuresMois + heuresHs) * 100) / 100;
+      }
       ecrire("S21.G00.53.001", "01");
-      ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
+      ecrire("S21.G00.53.002", montantDsn(heuresMois));
       ecrire("S21.G00.53.003", "10");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LES HEURES SUPPLEMENTAIRES ET COMPLEMENTAIRES
+    //
+    // Une remuneration de type « 017 - heures supplementaires ou
+    // complementaires aleatoires », avec le nombre d heures (51.012) et ce
+    // qu elles ont rapporte (51.013). C est elle que l URSSAF rapproche de
+    // la reduction salariale (code 114) et de la deduction patronale (021) :
+    // « les heures supplementaires sont a indiquer en bloc 51 » (tableur
+    // d equivalence, CTP 004). ⚠️ Le montant reste aussi dans la 001 et la
+    // 002 : le type 017 le detaille, il ne s y ajoute pas.
+    // ═══════════════════════════════════════════════════════════════
+    if (heuresHs > 0 && brutHs > 0) {
+      ecrire("S21.G00.51.001", debutRemu);
+      ecrire("S21.G00.51.002", finRemu);
+      ecrire("S21.G00.51.010", numeroContrat);
+      ecrire("S21.G00.51.011", "017");
+      ecrire("S21.G00.51.012", montantDsn(heuresHs));
+      ecrire("S21.G00.51.013", montantDsn(brutHs));
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -2858,6 +3415,35 @@ export async function POST(req: NextRequest) {
 
 
     // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — ══ S21.G00.54 — LES AVANTAGES EN NATURE ══
+    //
+    // 🚨 SA PLACE : apres les primes (52), avant le net social (58). Deux
+    // rubriques : le type et le montant. Valide par dsn-val pour le vehicule
+    // (« 04 ») ; les repas (« 02 ») et le logement (« 03 ») ont la meme forme.
+    // ⚠️ L avantage est DEJA dans le brut et dans les assiettes : ce bloc le
+    // nomme, il ne l ajoute pas.
+    // ═══════════════════════════════════════════════════════════════
+    for (const av of avantagesDsn(detail)) {
+      ecrire("S21.G00.54.001", av.type);
+      ecrire("S21.G00.54.002", montantDsn(av.montant));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕 05/10 — ══ S21.G00.58 — LES HEURES EXONEREES D IMPOT ══
+    //
+    // Type « 01 » : la remuneration NETTE des heures supplementaires et
+    // complementaires exoneree d impot sur le revenu, telle que le bulletin
+    // l a retiree du net imposable. Avant le net social (valide).
+    // ═══════════════════════════════════════════════════════════════
+    const hsExonere = hs ? Math.max(0, Number(hs.exonere_ir) || 0) : 0;
+    if (hsExonere > 0) {
+      ecrire("S21.G00.58.001", debutRemu);
+      ecrire("S21.G00.58.002", finPeriode);
+      ecrire("S21.G00.58.003", "01");
+      ecrire("S21.G00.58.004", montantDsn(hsExonere));
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.58 — LE MONTANT NET SOCIAL ══
     //
     // 🚨 CONTROLE CCH-14 : un versement date du mois declare exige un bloc
@@ -2867,7 +3453,8 @@ export async function POST(req: NextRequest) {
     // ⚠️ SI ELLE DIFFERE ENTRE LE BULLETIN ET LA DSN, c est le salarie qui
     // voit ses droits mal calcules.
     // ═══════════════════════════════════════════════════════════════
-    ecrire("S21.G00.58.001", debutPeriode);
+    // 🆕 05/10 — il commence avec la periode d emploi (valide : entree le 10).
+    ecrire("S21.G00.58.001", debutRemu);
     ecrire("S21.G00.58.002", finPeriode);
     ecrire("S21.G00.58.003", "03");
     ecrire("S21.G00.58.004", montantDsn(b.net_social));
@@ -2910,7 +3497,7 @@ export async function POST(req: NextRequest) {
       // renseigne n a rien a dire a l URSSAF.
       if (montant === 0) continue;
 
-      const { data: corr } = await supabase
+      const { data: corrTable } = await supabase
         .from("dsn_codes")
         .select("code, base_rattachement")
         .eq("rubrique", "S21.G00.81.001")
@@ -2920,6 +3507,14 @@ export async function POST(req: NextRequest) {
         .order("date_effet", { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      // 🆕 05/10 — LA TABLE D ABORD, SINON LES CODES DES FICHIERS VALIDES
+      // (reduction des heures supplementaires, contribution sur la rupture
+      // conventionnelle, forfait social, Ircantec, Apec).
+      const repli = COTISATION_REPLI[interne.toUpperCase()];
+      const corr: any = (corrTable && corrTable.code)
+        ? corrTable
+        : (repli ? { code: repli.code, base_rattachement: repli.base } : null);
 
       if (!corr || !corr.code) {
         anomalies.push("Aucun code DSN pour la cotisation « " + interne
@@ -2962,7 +3557,10 @@ export async function POST(req: NextRequest) {
         ? Number(baseSalariale) : Number(l.base);
 
       // ⚠️ L ASSIETTE DE LA BASE EST LA PLUS GRANDE DE SES COTISATIONS :
-      if (baseLigne > parAssiette[bAss].assiette) {
+      // 🆕 05/10 — sauf celles dont l « assiette » n est pas une part du brut
+      // (heures supplementaires, part exoneree d une indemnite de rupture).
+      if (baseLigne > parAssiette[bAss].assiette
+          && CODES_HORS_ASSIETTE.indexOf(String(corr.code)) < 0) {
         parAssiette[bAss].assiette = baseLigne;
       }
 
@@ -3040,6 +3638,27 @@ export async function POST(req: NextRequest) {
       if (corr.code === "131") patronaleT1 += Number(l.part_patronale || 0);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LA DEDUCTION FORFAITAIRE PATRONALE SUR LES HEURES
+    // SUPPLEMENTAIRES (code 021)
+    //
+    // Elle n est pas une ligne du bulletin : le moteur la range dans
+    // `detail.deduction_hs`. Elle se declare sous l assiette deplafonnee, en
+    // NEGATIF, avec pour assiette la remuneration des heures supplementaires
+    // — pas des heures complementaires, qui n y ouvrent pas droit.
+    // ═══════════════════════════════════════════════════════════════
+    {
+      const deduction = Math.max(0, Number((detail as any).deduction_hs) || 0);
+      if (deduction > 0 && parAssiette["03"]) {
+        const brutCompl = hs ? Math.max(0, Number(hs.brut_complementaires) || 0) : 0;
+        parAssiette["03"].codes[CODE_DEDUCTION_HS] = {
+          montant: -Math.round(deduction * 100) / 100,
+          base: Math.round(Math.max(0, brutHs - brutCompl) * 100) / 100,
+          parts: 1, tauxBareme: -1,
+        };
+      }
+    }
+
     // ⚠️ L ORDRE DES ASSIETTES : la deplafonnee en premier, parce que c est
     // sous elle que se rattache la reduction generale (controle CCH-17).
     // 🆕 20/09 — « 57 - Assiette du versement mobilite » ferme la marche.
@@ -3048,7 +3667,9 @@ export async function POST(req: NextRequest) {
     // brute deplafonnee. ⛔ SANS CETTE LIGNE, LE GROUPE « 57 » SERAIT
     // CALCULE PUIS JETE EN SILENCE — la cotisation disparaitrait du
     // nominatif sans aucun message.
-    const ordreAssiettes = ["03", "02", "04", "07", "57"];
+    // 🆕 05/10 — puis « 13 - Assiette du forfait social a 8 % » et « 28 -
+    // Base IRCANTEC cotisee » (apprenti du secteur public).
+    const ordreAssiettes = ["03", "02", "04", "07", "57", "13", "28"];
 
     for (const bAss of ordreAssiettes) {
       const grp = parAssiette[bAss];
@@ -3069,7 +3690,18 @@ export async function POST(req: NextRequest) {
       // ⛔ LA CSG (base 04) EST EXCLUE : elle se declare au CTP 260 quelle
       // que soit la fraction, et la table DIDA ne rattache aucune CSG au
       // CTP 726.
-      if (detailApprenti && Number(detailApprenti.seuil_exoneration) > 0
+      // 🆕 05/10 — L APPRENTI DU SECTEUR PUBLIC a ses propres CTP : la part
+      // sous le seuil au 803, le reste au 518. Il ne passe ni par le 726 ni
+      // par le 423 du secteur prive.
+      if (estApprentiPublic) {
+        if (bAss === "03" || bAss === "02") {
+          const seuilPub = detailApprenti ? Math.max(0, Number(detailApprenti.seuil_exoneration) || 0) : 0;
+          const sous = Math.min(Number(grp.assiette || 0), seuilPub);
+          assiettesPublicSous[bAss] = (assiettesPublicSous[bAss] || 0) + sous;
+          assiettesPublicAuDela[bAss] = (assiettesPublicAuDela[bAss] || 0)
+            + Math.max(0, Number(grp.assiette || 0) - sous);
+        }
+      } else if (detailApprenti && Number(detailApprenti.seuil_exoneration) > 0
           && bAss !== "04") {
         const part = Math.min(Number(grp.assiette || 0),
           Number(detailApprenti.seuil_exoneration));
@@ -3077,10 +3709,16 @@ export async function POST(req: NextRequest) {
           assiettesApprenti[bAss] = (assiettesApprenti[bAss] || 0) + part;
         }
       }
+      // 🆕 05/10 — LE MANDATAIRE : ses assiettes vont au CTP 863.
+      if (estMandat && (bAss === "03" || bAss === "02")) {
+        assiettesMandat[bAss] = (assiettesMandat[bAss] || 0) + Number(grp.assiette || 0);
+      }
 
+      // 🆕 05/10 — LES DATES SONT CELLES DE LA PERIODE D EMPLOI (controle
+      // SIG-17 : la base tient dans la periode d activite du contrat).
       ecrire("S21.G00.78.001", bAss);
-      ecrire("S21.G00.78.002", debutPeriode);
-      ecrire("S21.G00.78.003", finPeriode);
+      ecrire("S21.G00.78.002", debutRemu);
+      ecrire("S21.G00.78.003", finRemu);
       ecrire("S21.G00.78.004", montantDsn(grp.assiette));
       // ⚠️ 78.006 RATTACHE L ASSIETTE AU CONTRAT, meme raison qu en 51.010.
       ecrire("S21.G00.78.006", numeroContrat);
@@ -3277,12 +3915,36 @@ export async function POST(req: NextRequest) {
           exonere += Math.round(assietteL * Number(l.taux_salarial)) / 100;
           if (assietteL > assietteExo) assietteExo = assietteL;
         }
-        if (exonere > 0) {
+        if (exonere > 0 && !estApprentiPublic) {
           const codeExo = dispositif === "65" ? "002" : "001";
           grp.codes[codeExo] = {
             montant: -Math.round(exonere * 100) / 100,
             base: assietteExo, parts: 1, tauxBareme: -1,
           };
+        }
+        // ═══════════════════════════════════════════════════════════
+        // 🆕🚨 05/10 — L APPRENTI DU SECTEUR PUBLIC : CODE 003 (loi de 1992)
+        //
+        // Le tableur d equivalence l attend sous les deux bases, 03 et 02,
+        // aux CTP 803 et 518. 🚨 POUR UNE EXONERATION, L URSSAF N ATTEND QUE
+        // L ASSIETTE (cahier technique, rubrique 81.004 : « a renseigner
+        // pour une cotisation, reduction ») : c est la part du salaire sous
+        // le seuil. Le montant ne s ecrit que si le bulletin permet de le
+        // calculer — une part salariale reellement due au-dela du seuil.
+        // Sous le seuil, le bulletin ne porte aucune ligne de vieillesse
+        // (ni le salarie ni l employeur ne cotisent) : le bloc sort alors
+        // avec son assiette seule.
+        // ═══════════════════════════════════════════════════════════
+        if (estApprentiPublic) {
+          const assiette003 = assietteExo > 0
+            ? assietteExo : Math.min(Number(grp.assiette || 0), seuilApp);
+          if (assiette003 > 0) {
+            grp.codes["003"] = {
+              montant: -Math.round(exonere * 100) / 100,
+              base: Math.round(assiette003 * 100) / 100,
+              parts: 1, tauxBareme: -1, sansMontant: !(exonere > 0),
+            };
+          }
         }
       }
 
@@ -3291,7 +3953,14 @@ export async function POST(req: NextRequest) {
         ecrire("S21.G00.81.001", cd);
         codes81Ecrits[bAss + "/" + cd] = true;
         ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
-        ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
+        if (!grp.codes[cd].sansMontant) {
+          ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
+        }
+
+        // 🆕 05/10 — CE QUI AURA SA PROPRE LIGNE AU BORDEREAU.
+        if (cd === "114") reductionHsUrssaf += -Number(grp.codes[cd].montant || 0);
+        if (cd === CODE_DEDUCTION_HS) deductionHsUrssaf += -Number(grp.codes[cd].montant || 0);
+        if (cd === "093") assietteRuptureConv += Number(grp.codes[cd].base || 0);
 
         // ═══════════════════════════════════════════════════════════════
         // 🆕🚨 20/09 — LE TAUX AU NOMINATIF (S21.G00.81.007)
@@ -3325,8 +3994,7 @@ export async function POST(req: NextRequest) {
         // et le fichier etait refuse.
         const baseCode = Number(grp.codes[cd].base || 0);
         const montantCode = Number(grp.codes[cd].montant || 0);
-        const estReduction = cd === "018" || cd === "106"
-          || cd === "001" || cd === "002" || cd === "003";
+        const estReduction = CODES_SANS_TAUX.indexOf(cd) >= 0;
 
         // 🚨 UN CODE ALIMENTE PAR PLUSIEURS COTISATIONS N A PAS DE TAUX
         // UNIQUE. Le compteur `nb` comptait les LIGNES du bulletin — or une
@@ -3414,7 +4082,18 @@ export async function POST(req: NextRequest) {
         // qui releve de l Agirc-Arrco et se verse ailleurs.
         // ⚠️ LE CODE 142 EST UNE PART DEJA COMPTEE DANS LE 131 : l ajouter
         // compterait deux fois la meme cotisation.
-        if (cd !== "131" && cd !== "142" && cd !== "106") {
+        // 🆕 05/10 — NI L APEC (132), NI L IRCANTEC (060, 061) : l Apec se
+        // verse a l Agirc-Arrco, l Ircantec a sa propre caisse. L Apec etait
+        // comptee a tort dans le prelevement de l URSSAF.
+        // 🚨 NI L EXONERATION DE L APPRENTI (001, 002, 003). ⛔ DEFAUT TROUVE
+        // LE 05/10 : son montant etait retranche du prelevement, alors que
+        // la part salariale exoneree n est DEJA PAS dans la cotisation
+        // declaree (le code 076 de l apprenti ne porte que ce qui est du).
+        // L exoneration etait donc deduite deux fois : le prelevement
+        // d ATELIER HORIZON SAS sortait a 1 091 EUR au lieu de 1 150. Ce code
+        // nomme l exoneration, il ne la retire pas une seconde fois.
+        if (CODES_HORS_URSSAF.indexOf(cd) < 0
+            && CODES_EXONERATION_APPRENTI.indexOf(cd) < 0) {
           duUrssaf += Number(grp.codes[cd].montant || 0);
         }
 
@@ -3630,6 +4309,44 @@ export async function POST(req: NextRequest) {
         if (tx) tauxAtSociete = Number(tx.taux || 0);
       }
 
+      // 🆕 05/10 — UN CTP SE DECLARE S IL EXISTE ET N EST PAS CLOTURE A LA
+      // PERIODE : la meme question pour chaque nouvelle ligne du bordereau.
+      const ctpOuvert = async function (codeCtp: string): Promise<boolean> {
+        const { data: ctp } = await supabase
+          .from("urssaf_ctp")
+          .select("code, libelle")
+          .eq("code", codeCtp)
+          .lte("date_effet", periode)
+          .or("date_fin.is.null,date_fin.gte." + periode)
+          .order("date_effet", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        return !!ctp;
+      };
+      // Une ligne du bordereau, apres ce controle. `montant` pour les CTP de
+      // deduction (le montant s ecrit en POSITIF : « le CTP porte le signe »),
+      // `assiette` pour les autres.
+      const ligneBordereau = async function (p: { ctp: string; qualifiant: string;
+        assiette?: number; montant?: number; tauxAt?: boolean; quoi: string }): Promise<boolean> {
+        const valeur = p.montant !== undefined ? p.montant : (p.assiette || 0);
+        if (!(Math.round(valeur) > 0)) return false;
+        if (!(await ctpOuvert(p.ctp))) {
+          anomalies.push("Le code type de personnel " + p.ctp + " (" + p.quoi
+            + ") n'existe pas dans la table officielle des codes de l'URSSAF "
+            + "pour " + moisDsn(periode).slice(0, 2) + "/" + periode.slice(0, 4)
+            + ", ou il est clôturé. ⛔ CETTE LIGNE DU BORDEREAU N'EST PAS "
+            + "DÉCLARÉE.");
+          return false;
+        }
+        ecrireB("S21.G00.23.001", p.ctp);
+        ctpDeclares[p.ctp] = true;
+        ecrireB("S21.G00.23.002", p.qualifiant);
+        if (p.tauxAt && tauxAtSociete > 0) ecrireB("S21.G00.23.003", montantDsn(tauxAtSociete));
+        if (p.montant !== undefined) ecrireB("S21.G00.23.005", euroDsn(p.montant));
+        else ecrireB("S21.G00.23.004", euroDsn(p.assiette || 0));
+        return true;
+      };
+
       // ⚠️ LE FNAL DEPEND DE L EFFECTIF : sous cinquante salaries il est
       // plafonne (CTP 332), au-dela il porte sur la totalite (CTP 236).
       const effectif = Number(societe.effectif || 0);
@@ -3659,8 +4376,22 @@ export async function POST(req: NextRequest) {
           // l equivalence exigee par l URSSAF depuis 2022 tombait. On
           // arrondit donc le total et la part exoneree, puis on DEDUIT le
           // reste — la somme retombe alors exactement.
+          // 🆕 05/10 — sortent aussi du CTP 100 : le mandataire (CTP 863) et
+          // l apprenti du secteur public (CTP 803 et 518).
           assiette = Math.round(assiette)
-            - Math.round(assiettesApprenti[regle.assiette] || 0);
+            - Math.round(assiettesApprenti[regle.assiette] || 0)
+            - Math.round(assiettesMandat[regle.assiette] || 0)
+            - Math.round(assiettesPublicSous[regle.assiette] || 0)
+            - Math.round(assiettesPublicAuDela[regle.assiette] || 0);
+        } else if (regle.ctp === "430" || regle.ctp === "635") {
+          // 🆕 05/10 — LES DEUX COMPLEMENTS NE CONCERNENT NI LE MANDATAIRE
+          // (le CTP 863 porte deja ses codes 102 et 907) NI L APPRENTI DU
+          // SECTEUR PUBLIC (l employeur ne doit ni maladie ni allocations
+          // familiales pour lui).
+          assiette = Math.round(assiette)
+            - Math.round(assiettesMandat["03"] || 0)
+            - Math.round(assiettesPublicSous["03"] || 0)
+            - Math.round(assiettesPublicAuDela["03"] || 0);
         } else if (regle.ctp === "772") {
           assiette = Math.round(assiette) - Math.round(assiettesApprenti["07"] || 0);
         }
@@ -3768,6 +4499,44 @@ export async function POST(req: NextRequest) {
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 05/10 — LES LIGNES DES NOUVEAUX CAS
+      //
+      // Toutes lues dans le tableur d equivalence de l URSSAF, et presentes
+      // dans le fichier de 1 831 lignes valide par dsn-val :
+      //   863  mandataires sociaux — l equivalent du CTP 100 : la ligne 920
+      //        porte le taux accidents du travail, la 921 l assiette plafonnee ;
+      //   803  apprenti du secteur public, part sous le seuil : seule la
+      //        cotisation accidents du travail est due ;
+      //   518  apprenti du secteur public, part au-dela du seuil ;
+      //   003  reduction salariale sur les heures supplementaires — MONTANT ;
+      //   004  deduction patronale sur les heures supplementaires — MONTANT ;
+      //   719  contribution patronale sur la rupture conventionnelle ;
+      //   479  forfait social a 8 % sur la prevoyance.
+      // ⚠️ ELLES N EXISTENT QUE SI LE CAS SE PRESENTE : pour un employeur
+      // ordinaire, rien de tout cela ne s ecrit.
+      // ═══════════════════════════════════════════════════════════════
+      await ligneBordereau({ ctp: CTP_MANDATAIRE, qualifiant: "920", tauxAt: true,
+        assiette: assiettesMandat["03"] || 0, quoi: "mandataires sociaux" });
+      await ligneBordereau({ ctp: CTP_MANDATAIRE, qualifiant: "921",
+        assiette: assiettesMandat["02"] || 0, quoi: "mandataires sociaux" });
+
+      await ligneBordereau({ ctp: CTP_APPRENTI_PUBLIC_SOUS, qualifiant: "920", tauxAt: true,
+        assiette: assiettesPublicSous["03"] || 0, quoi: "apprenti du secteur public" });
+      await ligneBordereau({ ctp: CTP_APPRENTI_PUBLIC_AU_DELA, qualifiant: "920", tauxAt: true,
+        assiette: assiettesPublicAuDela["03"] || 0, quoi: "apprenti du secteur public" });
+      await ligneBordereau({ ctp: CTP_APPRENTI_PUBLIC_AU_DELA, qualifiant: "921",
+        assiette: assiettesPublicAuDela["02"] || 0, quoi: "apprenti du secteur public" });
+
+      await ligneBordereau({ ctp: CTP_REDUCTION_HS, qualifiant: "921",
+        montant: reductionHsUrssaf, quoi: "réduction salariale sur les heures supplémentaires" });
+      await ligneBordereau({ ctp: CTP_DEDUCTION_HS, qualifiant: "921",
+        montant: deductionHsUrssaf, quoi: "déduction patronale sur les heures supplémentaires" });
+      await ligneBordereau({ ctp: CTP_RUPTURE_CONV, qualifiant: "920",
+        assiette: assietteRuptureConv, quoi: "contribution sur la rupture conventionnelle" });
+      await ligneBordereau({ ctp: CTP_FORFAIT_SOCIAL_8, qualifiant: "920",
+        assiette: assiettesCumulees["13"] || 0, quoi: "forfait social à 8 %" });
+
+      // ═══════════════════════════════════════════════════════════════
       // 🆕🚨 22/09 — LE CONTROLE PAR LA TABLE DIDA DE L URSSAF
       //
       // 🚨 CE BLOC N ECRIT RIEN DANS LE FICHIER. Il compare ce que le
@@ -3822,6 +4591,12 @@ export async function POST(req: NextRequest) {
             // 25/09 — l alerte du 073 etait une fausse alerte.
             const precision = String((a as any).precisions || "");
             if (/en cas d['’e]/i.test(precision)) continue;
+
+            // 🆕 05/10 — LE FORFAIT SOCIAL (code 071) A DEUX BASES ADMISES :
+            // la base propre a son taux (« 13 » pour 8 %) et, depuis 2023, la
+            // base generale « 05 ». Le tableur liste les deux pour le meme
+            // CTP : l une suffit, l autre n est pas un manque.
+            if (code === "071" && (codes81Ecrits["13/071"] || codes81Ecrits["05/071"])) continue;
 
             const cle = base + "/" + code;
             if (codes81Ecrits[cle] || vus[cle]) continue;
@@ -4182,55 +4957,61 @@ export async function POST(req: NextRequest) {
   for (const n of notesArrets) avantDepot.push(n);
 
   // 🆕 05/10 — ce que la mutuelle et la prevoyance demandent de relire.
+  // 🆕 05/10 — CES RAPPELS SONT REDIGES POUR CELUI QUI FAIT LA PAIE, PAS POUR
+  // CELUI QUI LIT LA NORME : ni numero de rubrique, ni nom de bloc. Ce qui
+  // doit se voir dans le fichier se dit dans une anomalie, pas ici.
   if (adhesions.length > 0) {
     avantDepot.push("Mutuelle et prévoyance : " + adhesions.length
-      + " contrat(s) déclaré(s), " + nbAffiliations + " affiliation(s) "
-      + "(blocs S21.G00.15 et 70, base 31, cotisation 059). Les codes — "
-      + "organisme, contrat, délégataire, population, option — et le type de "
-      + "composant sont ceux de la FICHE DE PARAMÉTRAGE DSN de l'organisme : "
-      + "la relire avant le premier dépôt réel.");
-    avantDepot.push("Le PAIEMENT des cotisations de mutuelle et de prévoyance "
-      + "n'est pas porté par cette DSN (blocs 20 et 55 non écrits pour "
-      + "l'organisme complémentaire) : il se règle auprès de lui, hors DSN.");
+      + (adhesions.length > 1 ? " contrats déclarés" : " contrat déclaré") + ", "
+      + nbAffiliations + (nbAffiliations > 1 ? " salariés couverts" : " salarié couvert")
+      + ". Avant le premier dépôt réel, comparer le code de l'organisme et la "
+      + "référence du contrat avec la fiche de paramétrage DSN que l'organisme "
+      + "vous a remise.");
+    avantDepot.push("Cette déclaration ne paie pas la mutuelle ni la "
+      + "prévoyance : leurs cotisations se règlent directement auprès de "
+      + "l'organisme.");
   }
   for (const n of notesPrevoyance) avantDepot.push(n);
 
-  avantDepot.push("⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune "
-    + "DSN ne se dépose sans ce contrôle. Il se télécharge sur "
-    + "net-entreprises.fr et tourne sur un ORDINATEUR, pas dans le navigateur.");
+  avantDepot.push("Avant tout dépôt, passer le fichier dans dsn-val, l'outil "
+    + "de contrôle officiel : il est gratuit, se télécharge sur "
+    + "net-entreprises.fr et s'installe sur un ordinateur.");
 
   if (modeReel) {
-    avantDepot.push("🚨 CE FICHIER EST EN MODE RÉEL (S10.G00.00.005 = 02) : "
-      + "une fois déposé, il déclare pour de vrai.");
+    avantDepot.push("🚨 Ce fichier est un fichier RÉEL : une fois déposé, il "
+      + "déclare pour de vrai.");
   } else {
-    avantDepot.push("Ce fichier est en MODE ESSAI (S10.G00.00.005 = 01) : il "
-      + "peut être déposé autant de fois que voulu, aucune donnée n'est "
-      + "conservée par les organismes et RIEN N'EST DÉCLARÉ. Le mode réel "
-      + "s'active au moment du premier vrai dépôt.");
+    avantDepot.push("Ce fichier est un fichier d'essai : déposé, il est "
+      + "contrôlé mais ne déclare rien, et peut l'être autant de fois que "
+      + "voulu. Le mode réel s'active au moment du premier vrai dépôt.");
   }
 
   if (regimeAgricole) {
-    avantDepot.push("Le point de dépôt est la MSA (S10.G00.00.007 = 02), "
-      + "régime agricole.");
+    avantDepot.push("Régime agricole : ce fichier se dépose auprès de la MSA.");
   }
 
   if (nbTauxPersonnalises === 0) {
-    avantDepot.push("Aucun taux de prélèvement à la source personnalisé : tous "
-      + "les salariés sont au taux de la grille officielle. Les taux "
-      + "personnalisés arrivent dans le compte rendu de l'administration après "
-      + "le premier dépôt ; ils se reportent sur chaque salarié, avec leur "
-      + "date d'effet : écran de paie → ligne « Prélèvement à la source ».");
+    avantDepot.push("Prélèvement à la source : tous les salariés sont au taux "
+      + "de la grille officielle. Les taux personnalisés arrivent dans le "
+      + "compte rendu de l'administration après le premier dépôt ; ils se "
+      + "reportent sur chaque salarié, avec leur date d'effet : écran de paie "
+      + "→ ligne « Prélèvement à la source ».");
   } else {
-    avantDepot.push(nbTauxPersonnalises + " salarié(s) au taux personnalisé, "
-      + (bulletins.length - nbTauxPersonnalises) + " au taux de la grille officielle.");
+    const nbGrille = bulletins.length - nbTauxPersonnalises;
+    avantDepot.push("Prélèvement à la source : " + nbTauxPersonnalises
+      + (nbTauxPersonnalises > 1 ? " salariés au taux personnalisé" : " salarié au taux personnalisé")
+      + ", " + nbGrille + " au taux de la grille officielle.");
   }
 
-  avantDepot.push("La clé de ventilation de la réduction générale entre les "
-    + "codes 018 et 106 est proportionnelle aux cotisations éligibles — à "
-    + "recouper avec la règle URSSAF.");
-  avantDepot.push("Le code PCS-ESE de chaque contrat vient de la nomenclature "
-    + "INSEE : un code faux ne fait pas rejeter la déclaration, il fausse le "
-    + "rattachement conventionnel.");
+  if (totalReductions > 0) {
+    avantDepot.push("La réduction générale des cotisations patronales est "
+      + "partagée entre l'URSSAF et la retraite complémentaire, au prorata "
+      + "des cotisations qu'elle réduit : règle à confirmer auprès de "
+      + "l'URSSAF avant le premier dépôt réel.");
+  }
+  avantDepot.push("Vérifier le code de profession (PCS-ESE) de chaque "
+    + "salarié : un code faux n'empêche pas le dépôt, mais il classe le "
+    + "salarié dans le mauvais métier.");
   // 🆕 25/09 — DEUX RESERVES PERIMEES RETIREES : elles affirmaient que les
   // primes n etaient pas declarees en bloc 52 et que le salaire retabli
   // valait le brut. Les deux sont faits depuis le 20/09 (bloc 52 lu dans
