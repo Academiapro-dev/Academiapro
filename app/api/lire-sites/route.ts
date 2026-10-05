@@ -163,6 +163,34 @@ const TAILLE_MAX = 400000;
 const DUREE_SITE_MS = 60000;
 const LIMITE_SITE_MS = 75000;
 
+// 🆕 05/10 (apres-midi) — TROIS AJOUTS, pour trouver plus d adresses et n en
+// garder que de bonnes :
+//  1. LES LIENS DE L ACCUEIL D ABORD. Les vingt-deux chemins de CHEMINS sont
+//     devines ; or un site sur deux range sa page de contact ailleurs
+//     (« /nous-rencontrer », « /page-7 », « ?page_id=12 »). On suit donc
+//     d abord les liens que l accueil donne lui-meme vers ses pages contact,
+//     mentions legales, equipe — reconnus a leur adresse OU a leur texte
+//     (« Nous contacter ») — puis les chemins devines, comme avant.
+//  2. UN SITE QUI RENVOIE SON ACCUEIL A LA PLACE D UNE PAGE INCONNUE n est
+//     plus interroge vingt-deux fois : au bout de deux pages identiques a
+//     l accueil, on arrete de deviner.
+//  3. UNE ADRESSE N EST GARDEE QUE SI SON DOMAINE RECOIT DU COURRIER (une
+//     question a l annuaire des noms de domaine). Une adresse dont le domaine
+//     n existe pas, ou n a aucun serveur de courrier, reviendrait en erreur
+//     a l envoi : elle n entre plus en base.
+// Combien de liens de l accueil on suit, au plus.
+const MAX_LIENS_SUIVIS = 8;
+// Les mots qui designent une page utile, du plus au moins probable. Ils sont
+// cherches dans l adresse du lien et dans son texte, sans accents.
+const MOTS_LIENS = [
+  "contact", "coordonn", "nous-joindre", "nous joindre", "nous-ecrire", "nous ecrire",
+  "nous-trouver", "nous trouver", "mention", "legal",
+  "equipe", "qui-sommes", "qui sommes", "quisommes", "a-propos", "a propos", "apropos", "about",
+  "cabinet", "agence", "etude", "presentation", "infos-pratiques", "infos pratiques",
+];
+// Le delai d une question a l annuaire des noms de domaine.
+const DELAI_DNS_MS = 2500;
+
 const PAUSE_MS = 120;
 // 🆕 05/10 — 260 s → 205 s. Le dernier paquet commence avant cette limite
 // et dure au plus LIMITE_SITE_MS : 205 + 75 = 280 s, sous les 300 s ou
@@ -310,7 +338,37 @@ function adressesDe(html: string): string[] {
     if (m) ajouter(m[1] + "@" + m[2]);
   }
 
+  // 4. 🆕 05/10 — « contact(a)cabinet.fr », « contact[a]cabinet.fr » : un
+  //    masquage courant en France. ⚠️ CHERCHE HORS DES SCRIPTS SEULEMENT, et
+  //    seulement quand la lettre est collee des deux cotes : dans du code,
+  //    « if(a)b.call » y ressemble trait pour trait.
+  const visible = sansBlocs(sansBlocs(texte, "script"), "style")
+    .replace(/([a-zA-Z0-9._+-])[\[\(\{]a[\]\)\}](?=[a-zA-Z0-9-]+\.)/g, "$1@");
+  for (const b of adressesDuTexte(visible)) ajouter(b);
+
   return sortie;
+}
+
+// 🆕 05/10 — UN TEXTE SANS SES BLOCS <script> OU <style>. Ecrit sans
+// expression « tout jusqu a la fin du bloc » : chaque recherche avance, le
+// temps ne depend que de la longueur du texte. Un bloc jamais ferme est
+// laisse tel quel.
+function sansBlocs(texte: string, balise: string): string {
+  const ouvre = new RegExp("<" + balise + "[\\s>]", "gi");
+  const ferme = new RegExp("</" + balise + "\\s*>", "gi");
+  let sortie = "";
+  let i = 0;
+  while (i < texte.length) {
+    ouvre.lastIndex = i;
+    const a = ouvre.exec(texte);
+    if (!a) break;
+    ferme.lastIndex = a.index;
+    const b = ferme.exec(texte);
+    if (!b) break;
+    sortie += texte.slice(i, a.index) + " ";
+    i = b.index + b[0].length;
+  }
+  return sortie + texte.slice(i);
 }
 
 // 🆕 05/10 — UNE ADRESSE VALABLE, ET RIEN D AUTRE (texte deja en minuscules).
@@ -454,7 +512,20 @@ function demasquer(html: string): string {
     return decodable(c) ? String.fromCharCode(c) : m;
   });
   t = t.replace(/&commat;/gi, "@").replace(/&period;/gi, ".");
-  t = t.replace(/\s*[\[\(\{]\s*(?:at|arobase|@)\s*[\]\)\}]\s*/gi, "@");
+  // 🆕 05/10 (apres-midi) — TROIS FORMES DE PLUS, toutes vues sur des sites :
+  //   · « contact_@_cabinet.fr » (vu le 05/10 : contact_@_cabinet-etrillard.fr) ;
+  //   · une balise ou un commentaire colle a l arobase :
+  //     « contact<span>@</span>cabinet.fr », « contact<!-- -->@cabinet.fr » ;
+  //   · « [chez] », a cote de « [at] » et « [arobase] ».
+  // ⚠️ Chaque regle part de l arobase ecrite, ou d un mot entre crochets :
+  // rien n est devine. Les deux regles de balises sont passees deux fois,
+  // pour deux balises emboitees ; chacune ne lit que quelques caracteres.
+  t = t.replace(/([a-zA-Z0-9.+-])_@_([a-zA-Z0-9-]+\.)/g, "$1@$2");
+  for (let passe = 0; passe < 2; passe++) {
+    t = t.replace(/(?:<!--[^>]{0,80}-->|<\/?(?:span|b|i|em|strong|u|font)\b[^>]{0,80}>)(?=@)/gi, "");
+    t = t.replace(/@(?:<!--[^>]{0,80}-->|<\/?(?:span|b|i|em|strong|u|font)\b[^>]{0,80}>)/gi, "@");
+  }
+  t = t.replace(/\s*[\[\(\{]\s*(?:at|arobase|chez|@)\s*[\]\)\}]\s*/gi, "@");
   t = t.replace(/([a-zA-Z0-9._%+-])\s+arobase\s+([a-zA-Z0-9-])/gi, "$1@$2");
   t = t.replace(/\s*[\[\(\{]\s*(?:dot|point)\s*[\]\)\}]\s*/gi, ".");
   t = t.replace(/(@[a-zA-Z0-9-]+)\s+point\s+([a-zA-Z]{2,})\b/g, "$1.$2");
@@ -482,11 +553,13 @@ function linkedinDe(html: string): string | null {
 // ⚠️ ET ON PREFERE TOUJOURS UNE ADRESSE DU MEME DOMAINE QUE LE SITE : une
 // agence dont le site est agence.fr et qui affiche un gmail est suspecte —
 // c est souvent celle du prestataire, ou une adresse recopiee d ailleurs.
-function meilleure(adresses: string[], domaine: string): string | null {
+// 🆕 05/10 — `domaines` : le domaine du site, ET celui ou il renvoie quand
+// l accueil redirige ailleurs (« cabinet-asg.com » → « salas-gordo-coelho.com »).
+function meilleure(adresses: string[], domaines: string[]): string | null {
   if (adresses.length === 0) return null;
 
   const memeDomaine = adresses.filter(function (a) {
-    return a.split("@")[1] === domaine;
+    return domaines.indexOf(a.split("@")[1]) >= 0;
   });
   const pool = memeDomaine.length > 0 ? memeDomaine : adresses;
 
@@ -566,6 +639,8 @@ async function lire(url: string, etat?: any): Promise<string | null> {
     // l adresse n est jamais au-dela des 400 premiers kilooctets.
     const texte = await corpsBorne(r, TAILLE_MAX);
     if (stop.signal.aborted && etat) etat.delais++;
+    // 🆕 05/10 — l adresse ou la page est reellement servie, apres renvois.
+    if (etat) etat.finale = String(r.url || url);
     return texte;
   } catch {
     if (stop.signal.aborted && etat) etat.delais++;
@@ -607,22 +682,129 @@ function avecLimite(travail: () => Promise<string>, ms: number, enErreur: (e: an
 }
 
 // TOUT CE QU ON PEUT TIRER D UN SITE.
+// 🆕 05/10 — UNE ADRESSE DE PAGE RAMENEE A L ESSENTIEL, pour ne pas lire
+// deux fois la meme (« https://www.x.fr/contact/ » et « http://x.fr/contact »).
+function clePage(u: string): string {
+  try {
+    const x = new URL(u);
+    return x.hostname.toLowerCase().replace(/^www\./, "") + x.pathname.replace(/\/+$/, "") + x.search;
+  } catch {
+    return u;
+  }
+}
+
+function sansAccents(s: string): string {
+  return String(s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+// 🆕 05/10 — LES PAGES UTILES QUE L ACCUEIL DESIGNE LUI-MEME (meme site
+// seulement), de la plus a la moins probable.
+// ⚠️ LE TEXTE DU LIEN COMPTE AUTANT QUE SON ADRESSE : « /page-7 » ne dit
+// rien, « Nous contacter » dit tout.
+// ⚠️ Chaque lien est lu sur une longueur bornee (1 500 caracteres pour la
+// balise, 300 pour son texte) : une page mal formee ne ralentit rien.
+function liensUtiles(html: string, base: string): string[] {
+  let hote = "";
+  try { hote = new URL(base).hostname.toLowerCase().replace(/^www\./, ""); } catch { return []; }
+  const trouves: { url: string; rang: number; ordre: number }[] = [];
+  const vus: any = {};
+  vus[clePage(base)] = true;
+  const ouvre = /<a[\s>]/gi;
+  let m: RegExpExecArray | null = null;
+  let examines = 0;
+  while ((m = ouvre.exec(html)) !== null && examines < 800) {
+    examines++;
+    const debutBalise = m.index;
+    const finRelative = html.slice(debutBalise, debutBalise + 1501).indexOf(">");
+    if (finRelative < 0) continue;
+    const finBalise = debutBalise + finRelative;
+    const h = html.slice(debutBalise, finBalise + 1).match(/href\s*=\s*["']([^"'#]+)["']/i);
+    if (!h) continue;
+    const suite = html.slice(finBalise + 1, finBalise + 301);
+    const finLien = suite.search(/<\/a/i);
+    const texteLien = (finLien >= 0 ? suite.slice(0, finLien) : suite).replace(/<[^>]{0,200}>/g, " ");
+    let u: URL;
+    try { u = new URL(h[1].trim(), base); } catch { continue; }
+    if (u.protocol !== "http:" && u.protocol !== "https:") continue;
+    if (u.hostname.toLowerCase().replace(/^www\./, "") !== hote) continue;
+    if (/\.(pdf|jpe?g|png|gif|svg|webp|css|js|zip|docx?|xlsx?|mp4|ico)$/i.test(u.pathname)) continue;
+    const ou = sansAccents(u.pathname + " " + u.search + " " + texteLien);
+    let rang = -1;
+    for (let k = 0; k < MOTS_LIENS.length; k++) {
+      if (ou.indexOf(MOTS_LIENS[k]) >= 0) { rang = k; break; }
+    }
+    if (rang < 0) continue;
+    const page = u.origin + u.pathname + u.search;
+    const cle = clePage(page);
+    if (vus[cle]) continue;
+    vus[cle] = true;
+    trouves.push({ url: page, rang: rang, ordre: trouves.length });
+  }
+  trouves.sort(function (a, b) { return a.rang - b.rang || a.ordre - b.ordre; });
+  return trouves.slice(0, MAX_LIENS_SUIVIS).map(function (x) { return x.url; });
+}
+
 // 🆕 05/10 — `limite` : l heure a laquelle on s arrete pour ce site, en
 // gardant ce qui est deja trouve.
+// 🆕 05/10 (apres-midi) — L ORDRE DES PAGES : l accueil, puis les pages que
+// l accueil designe lui-meme (`liensUtiles`), puis les chemins devines.
 async function explorer(origine: string, limite: number): Promise<any> {
   let domaine = "";
   try { domaine = new URL(origine).hostname.replace(/^www\./, ""); } catch { domaine = ""; }
+  // Les domaines « du site » : le sien, et celui ou l accueil renvoie.
+  const domaines: string[] = [domaine];
 
   const trouvees: string[] = [];
   let pagesLues = 0;
   let echecs = 0;
   let linkedin: string | null = null;
   let tropLong = false;
-  const etat: any = { delais: 0 };
+  const etat: any = { delais: 0, finale: "" };
 
-  for (const chemin of CHEMINS) {
+  const file: { url: string; devine: boolean }[] = [{ url: origine, devine: false }];
+  const vues: any = {};
+  let premiere = true;
+  // Le debut de la page d accueil : un site qui la renvoie a la place d une
+  // page inconnue se reconnait a cela.
+  let accueil = "";
+  let identiques = 0;
+
+  while (file.length > 0) {
+    const p = file.shift() as { url: string; devine: boolean };
+    const cle = clePage(p.url);
+    if (vues[cle]) continue;
+    // 🆕 DEUX PAGES DEVINEES IDENTIQUES A L ACCUEIL : ce site renvoie son
+    // accueil pour toute page inconnue. Inutile de deviner les vingt autres.
+    if (p.devine && identiques >= 2) continue;
     if (Date.now() > limite) { tropLong = true; break; }
-    const html = await lire(origine + chemin, etat);
+    vues[cle] = true;
+
+    etat.finale = "";
+    const html = await lire(p.url, etat);
+    const estAccueil = premiere;
+    premiere = false;
+
+    if (estAccueil) {
+      // La suite part de l adresse ou l accueil est reellement servi (apres
+      // un renvoi vers « https », vers « www. », ou vers un autre nom).
+      let baseSuite = origine;
+      if (html && etat.finale) {
+        try {
+          const f = new URL(etat.finale);
+          baseSuite = f.origin;
+          const df = f.hostname.toLowerCase().replace(/^www\./, "");
+          if (df && domaines.indexOf(df) < 0) domaines.push(df);
+          vues[clePage(etat.finale)] = true;
+        } catch { baseSuite = origine; }
+      }
+      if (html) {
+        accueil = html.slice(0, 3000);
+        for (const u of liensUtiles(html, etat.finale || origine)) file.push({ url: u, devine: false });
+      }
+      for (const chemin of CHEMINS) {
+        if (chemin) file.push({ url: baseSuite + chemin, devine: true });
+      }
+    }
 
     if (!html) {
       echecs++;
@@ -637,6 +819,15 @@ async function explorer(origine: string, limite: number): Promise<any> {
       continue;
     }
 
+    // Une page devinee identique a l accueil n apprend rien de plus.
+    if (!estAccueil && accueil && html.slice(0, 3000) === accueil) {
+      if (p.devine) identiques++;
+      // La regle des trois delais vaut aussi ici : un site qui n envoie que
+      // le debut de ses pages rend chaque fois le meme debut.
+      if (etat.delais >= 3) { tropLong = true; break; }
+      continue;
+    }
+
     pagesLues++;
     if (!linkedin) linkedin = linkedinDe(html);
 
@@ -647,19 +838,85 @@ async function explorer(origine: string, limite: number): Promise<any> {
     // 🚨 ON S ARRETE DES QU ON A UNE ADRESSE DU BON DOMAINE. Continuer
     // couterait trois lectures pour rien — et sur 2 855 sites, ces lectures
     // inutiles feraient la difference entre un passage et cinq.
-    const bonne = trouvees.filter(function (a) { return a.split("@")[1] === domaine; });
+    const bonne = trouvees.filter(function (a) { return domaines.indexOf(a.split("@")[1]) >= 0; });
     if (bonne.length > 0) break;
     // 🆕 05/10 — meme regle quand les pages arrivent, mais a moitie.
     if (etat.delais >= 3) { tropLong = true; break; }
   }
 
   return {
-    adresse: meilleure(trouvees, domaine),
     toutes: trouvees,
+    domaines: domaines,
     pages_lues: pagesLues,
     linkedin: linkedin,
     trop_long: tropLong,
   };
+}
+
+// 🆕 05/10 (apres-midi) — LE DOMAINE D UNE ADRESSE RECOIT-IL DU COURRIER ?
+// Une question a l annuaire des noms de domaine (type MX), posee par un
+// service public en HTTPS (Cloudflare, puis Google en secours) — le meme
+// moyen que trouver-sites.
+//   · le domaine n existe pas                      → non
+//   · il existe, sans aucun serveur de courrier    → non
+//   · il declare qu il n en veut pas (« MX nul »)  → non
+//   · il a un serveur de courrier                  → oui
+//   · la question n a pas abouti                   → on ne sait pas
+// ⚠️ « ON NE SAIT PAS » NE REJETTE RIEN : une panne de l annuaire ne doit pas
+// faire perdre une bonne adresse.
+// La reponse est gardee en memoire : « orange.fr » ou « gmail.com » ne sont
+// demandes qu une fois.
+const boites: any = {};
+let nbBoites = 0;
+async function questionCourrier(domaine: string, service: string): Promise<boolean | null> {
+  const stop = new AbortController();
+  const minuteur = setTimeout(function () { stop.abort(); }, DELAI_DNS_MS);
+  try {
+    const r = await fetch(service + "?name=" + encodeURIComponent(domaine) + "&type=MX", {
+      signal: stop.signal,
+      cache: "no-store",
+      headers: { accept: "application/dns-json" },
+    });
+    if (!r.ok) return null;
+    const j: any = await r.json();
+    if (j.Status === 3) return false;
+    if (j.Status !== 0) return null;
+    const mx = (Array.isArray(j.Answer) ? j.Answer : []).filter(function (a: any) { return a && a.type === 15; });
+    if (mx.length === 0) return false;
+    const nuls = mx.filter(function (a: any) { return /^\d+\s+\.?$/.test(String(a.data || "").trim()); });
+    return nuls.length < mx.length;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(minuteur);
+    try { stop.abort(); } catch (e) { /* rien */ }
+  }
+}
+async function recoitDuCourrier(domaine: string): Promise<boolean | null> {
+  if (Object.prototype.hasOwnProperty.call(boites, domaine)) return boites[domaine];
+  let r = await questionCourrier(domaine, "https://cloudflare-dns.com/dns-query");
+  if (r === null) r = await questionCourrier(domaine, "https://dns.google/resolve");
+  if (r !== null && nbBoites < 5000) { boites[domaine] = r; nbBoites++; }
+  return r;
+}
+
+// 🆕 05/10 (apres-midi) — LA MEILLEURE ADRESSE DONT LE DOMAINE RECOIT DU
+// COURRIER. Si le domaine de la premiere ne recoit rien, toutes ses adresses
+// sont ecartees et on prend la suivante (quatre domaines au plus).
+async function choisir(toutes: string[], domaines: string[]): Promise<{ adresse: string | null; ecartees: number }> {
+  let reste = toutes.slice();
+  let ecartees = 0;
+  for (let essai = 0; essai < 4 && reste.length > 0; essai++) {
+    const a = meilleure(reste, domaines);
+    if (!a) break;
+    const d = a.split("@")[1];
+    const recoit = await recoitDuCourrier(d);
+    if (recoit !== false) return { adresse: a, ecartees: ecartees };
+    const avant = reste.length;
+    reste = reste.filter(function (x) { return x.split("@")[1] !== d; });
+    ecartees += avant - reste.length;
+  }
+  return { adresse: null, ecartees: ecartees };
 }
 
 async function traiter(nom: string, combien: number, depart: number): Promise<any> {
@@ -699,6 +956,9 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
   let premierRefus = "";
   let premiereErreur = "";
   let arret = "";
+  // 🆕 05/10 (apres-midi) — les adresses ecartees parce que leur domaine ne
+  // recoit pas de courrier.
+  let sansBoite = 0;
   const exemples: any[] = [];
 
   // UN SITE : le lire, puis ecrire ce qu on en tire. Rend ce qui s est passe.
@@ -712,6 +972,11 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     if (!origine) return "injoignable";
 
     const r = await explorer(origine, Date.now() + DUREE_SITE_MS);
+    // 🆕 05/10 (apres-midi) — l adresse n est retenue que si son domaine
+    // recoit du courrier (voir `choisir`).
+    const choix = await choisir(r.toutes, r.domaines);
+    r.adresse = choix.adresse;
+    sansBoite += choix.ecartees;
 
     // 🆕 05/10 — `site_lu_le` n est plus ecrit ici : il l est AVANT la
     // lecture. Il ne reste a ecrire que ce qu on a trouve.
@@ -838,6 +1103,7 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     sites_trop_longs: tropLongs,
     ecritures_refusees: refus,
     erreurs: erreurs,
+    adresses_sans_boite: sansBoite,
     premier_refus: premierRefus,
     premiere_erreur: premiereErreur,
     arret: arret,
@@ -926,7 +1192,7 @@ export async function GET(req: NextRequest) {
           table: r.table, sites_examines: 0, adresses_trouvees: 0,
           sans_adresse_visible: 0, sites_injoignables: 0,
           adresses_deja_en_base: 0, sites_trop_longs: 0,
-          ecritures_refusees: 0, erreurs: 0, exemples: [],
+          ecritures_refusees: 0, erreurs: 0, adresses_sans_boite: 0, exemples: [],
         };
       }
       const c = cumul[nom];
@@ -938,6 +1204,7 @@ export async function GET(req: NextRequest) {
       c.sites_trop_longs += r.sites_trop_longs || 0;
       c.ecritures_refusees += r.ecritures_refusees || 0;
       c.erreurs += r.erreurs || 0;
+      c.adresses_sans_boite += r.adresses_sans_boite || 0;
       if (r.premier_refus && !c.premier_refus) c.premier_refus = r.premier_refus;
       if (r.premiere_erreur && !c.premiere_erreur) c.premiere_erreur = r.premiere_erreur;
       for (const e of (r.exemples || [])) {
