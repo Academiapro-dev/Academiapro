@@ -759,7 +759,17 @@ export default function PageDsn() {
     setOccupe("");
   }
 
-  async function generer(m: any) {
+  async function generer(m: any, statut?: string) {
+    // 🆕 05/10 — UNE MARQUE POSÉE À TORT DOIT POUVOIR SE REPRENDRE À L ÉCRAN.
+    // « Passé dans dsn-val » faisait disparaitre « Regénérer » : il fallait
+    // une requete en base pour revenir en arriere (28/09, puis 05/10). Le
+    // generateur remplace deja un fichier seulement controle : l ecran le
+    // propose donc, apres une confirmation qui dit ce que cela defait.
+    if (statut === "controlee" && !confirm("Ce fichier est marqué « contrôlé dans dsn-val ».\n\n"
+      + "Le regénérer le remplace par un nouveau fichier, qui repasse en "
+      + "brouillon : il devra être contrôlé dans dsn-val à son tour.\n\n"
+      + "Regénérer ?")) return;
+
     setErr(""); setMsg(""); setOccupe("generer" + m.periode);
     const d = await appeler({ action: "generer", societe_id: m.societe_id, periode: m.periode });
     if (d.success) {
@@ -771,9 +781,20 @@ export default function PageDsn() {
   }
 
   async function voir(id: string) {
+    // 🆕🚨 05/10 — L ONGLET S OUVRE AU MOMENT DU GESTE, PAS APRÈS LA RÉPONSE.
+    // Ouvert apres l attente du serveur, le navigateur le prenait pour une
+    // fenetre surgissante et le bloquait (« Pop-up bloqués », vu sur l iPad) :
+    // le bouton semblait ne rien faire. On ouvre l onglet tout de suite, vide,
+    // puis on y charge le fichier quand son adresse arrive.
+    const w = window.open("about:blank", "_blank");
     const d = await appeler({ action: "voir", id: id });
-    if (d.success && d.url) window.open(d.url, "_blank");
-    else setErr(d.erreur || "ouverture impossible");
+    if (d.success && d.url) {
+      if (w) w.location.href = d.url;
+      else window.location.href = d.url;
+    } else {
+      if (w) w.close();
+      setErr(d.erreur || "ouverture impossible");
+    }
   }
 
   async function lire(id: string) {
@@ -1842,6 +1863,16 @@ export default function PageDsn() {
                     style={{ ...BOUTON, ...cache(dr(m.societe_id).preparer) }}>
                     {occupe === "generer" + m.periode ? "…"
                       : d ? "Regénérer" : "Générer la DSN"}
+                  </button>
+                )}
+
+                {/* 🆕 05/10 — fichier seulement « contrôlé » : on peut encore
+                    le regénérer (il repasse en brouillon). Bouton secondaire :
+                    l etape suivante reste le depot. */}
+                {m.siret && m.emis > 0 && d && d.statut === "controlee" && (
+                  <button onClick={() => generer(m, "controlee")} disabled={occupe !== ""}
+                    style={{ ...SECOND, ...cache(dr(m.societe_id).preparer) }}>
+                    {occupe === "generer" + m.periode ? "…" : "Regénérer"}
                   </button>
                 )}
 
