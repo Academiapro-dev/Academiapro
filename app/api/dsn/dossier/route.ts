@@ -326,11 +326,26 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       let garantiesLecture = "";
       {
         const aujourdhui = new Date().toISOString().slice(0, 10);
-        const { data: gar, error: eGar } = await supabase
+        // 🆕 05/10 — LES IDENTIFIANTS DSN DU CONTRAT (code de l organisme,
+        // delegataire, population, option) se lisent avec lui.
+        // ⚠️ LECTURE EN DEUX TEMPS : si ces colonnes n existent pas encore
+        // en base, on relit sans elles plutot que de faire disparaitre la
+        // mutuelle de l ecran.
+        const COLONNES_GAR = "id, societe_id, nature, categorie, mode, montant, taux, part_patronale_pct, organisme, reference_contrat, date_effet, date_fin";
+        let { data: gar, error: eGar } = await supabase
           .from("paie_garanties_societe")
-          .select("id, societe_id, nature, categorie, mode, montant, taux, part_patronale_pct, organisme, reference_contrat, date_effet, date_fin")
+          .select(COLONNES_GAR + ", organisme_code_dsn, delegataire_dsn, population_dsn, option_dsn")
           .or("date_fin.is.null,date_fin.gte." + aujourdhui)
           .order("date_effet", { ascending: true });
+        if (eGar) {
+          const repli = await supabase
+            .from("paie_garanties_societe")
+            .select(COLONNES_GAR)
+            .or("date_fin.is.null,date_fin.gte." + aujourdhui)
+            .order("date_effet", { ascending: true });
+          gar = repli.data as any;
+          eGar = repli.error;
+        }
         if (eGar) garantiesLecture = "mutuelle et prévoyance illisibles : " + eGar.message;
         else for (const g of (gar || [])) {
           const sid = String((g as any).societe_id);
@@ -865,6 +880,61 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       return json({ success: true, message: "Garantie arrêtée au " + dateFin.split("-").reverse().join("/") + "." });
     }
 
+    // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LES IDENTIFIANTS DSN D UN CONTRAT DE MUTUELLE OU DE
+    // PREVOYANCE
+    //
+    // ⛔ SANS EUX, LA COTISATION NE PEUT PAS SE DECLARER : la DSN rattache
+    // chaque salarie a un contrat par le CODE DE L ORGANISME (S21.G00.15.002)
+    // et la REFERENCE DU CONTRAT (15.001). Aucun ecran ne les demandait, et
+    // la premiere DSN d un dossier neuf sortait avec « Aucun code DSN pour la
+    // cotisation MUTUELLE — NON DÉCLARÉE ».
+    //
+    // D OU ILS VIENNENT : de la fiche de parametrage DSN que l organisme
+    // remet a l entreprise. Le delegataire, la population et l option ne se
+    // remplissent que si cette fiche les donne.
+    //
+    // ⚠️ ILS NE CHANGENT PAS LA PAIE : un brouillon de bulletin reste bon,
+    // seule la DSN du mois est a regenerer.
+    // 🚨 LA FORME DU CODE EST CONTROLEE ICI (rubrique 15.002 du cahier
+    // technique 2026.1) ; qu il existe se verifie dans dsn-val.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "garantie_dsn") {
+      const id = q(c.id);
+      if (!id) return json({ erreur: "garantie manquante." }, 400);
+
+      const codeOrg = q(c.organisme_code_dsn).replace(/[\s.\-]/g, "").toUpperCase();
+      const reference = q(c.reference_contrat).replace(/'/g, " ").trim();
+      const delegataire = q(c.delegataire_dsn).replace(/\s/g, "").toUpperCase();
+      const population = q(c.population_dsn).replace(/'/g, " ").trim();
+      const option = q(c.option_dsn).replace(/'/g, " ").trim();
+
+      if (!codeOrg) return json({ erreur: "indiquez le code de l'organisme : il figure sur sa fiche de paramétrage DSN." }, 400);
+      const formeAdmise = /^P[0-9]{4}$/.test(codeOrg)
+        || /^[0-9]{9}$/.test(codeOrg)
+        || /^A[A-Z0-9]{5}$/.test(codeOrg)
+        || (/^[A-Z0-9]{9}$/.test(codeOrg) && /[A-Z]/.test(codeOrg));
+      if (!formeAdmise) {
+        return json({ erreur: "code de l'organisme illisible : la lettre P et 4 chiffres pour une institution "
+          + "de prévoyance, 9 chiffres pour une mutuelle, la lettre A et 5 caractères pour une société d'assurance." }, 400);
+      }
+      if (!reference) return json({ erreur: "indiquez la référence du contrat : elle figure sur la fiche de paramétrage DSN de l'organisme." }, 400);
+      if (reference.length > 30) return json({ erreur: "référence du contrat trop longue : 30 caractères au plus." }, 400);
+      if (delegataire && !/^[A-Z0-9]{6}$/.test(delegataire)) {
+        return json({ erreur: "code délégataire illisible : 6 caractères. Laissez-le vide si l'organisme ne vous en a pas donné." }, 400);
+      }
+      if (population.length > 30) return json({ erreur: "code population trop long : 30 caractères au plus." }, 400);
+      if (option.length > 30) return json({ erreur: "code option trop long : 30 caractères au plus." }, 400);
+
+      const { error: eU } = await supabase.from("paie_garanties_societe").update({
+        organisme_code_dsn: codeOrg, reference_contrat: reference,
+        delegataire_dsn: delegataire || null, population_dsn: population || null, option_dsn: option || null,
+      }).eq("id", id);
+      if (eU) return json({ erreur: "enregistrement impossible : " + eU.message }, 500);
+      return json({ success: true, message: "Identifiants DSN enregistrés : organisme " + codeOrg
+        + ", contrat " + reference + ". Régénérez la DSN du mois pour qu'elle les porte." });
+    }
+
     // ---- OUVRIR LE FICHIER ----
     if (action === "voir") {
       const { data: d, error } = await supabase
@@ -1076,6 +1146,8 @@ const REGLES: Record<string, Regle> = {
   taux_at: { droit: "paie_contrats", cible: "societe", ecrit: true },
   garantie: { droit: "paie_contrats", cible: "societe", ecrit: true },
   garantie_fin: { droit: "paie_contrats", cible: "garantie", ecrit: true },
+  // 05/10 : les identifiants DSN du contrat (ils ne changent pas la paie).
+  garantie_dsn: { droit: "paie_contrats", cible: "garantie", ecrit: true },
   voir: { droit: null, cible: "declaration", ecrit: false },
   contenu: { droit: null, cible: "declaration", ecrit: false },
   controlee: { droit: "dsn_deposer", cible: "declaration", ecrit: true },
