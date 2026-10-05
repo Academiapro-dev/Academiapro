@@ -377,6 +377,106 @@ const CTP_APPRENTI_CHOMAGE = "423";
 const CTP_RGDU_AVEC_CHOMAGE = "668";
 const CTP_RGDU_SANS_CHOMAGE = "671";
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 05/10 — LA COMPLEMENTAIRE SANTE ET LA PREVOYANCE DANS LA DSN
+//
+// ⛔ JUSQU ICI ELLES N ETAIENT PAS DECLAREES : le generateur cherchait la
+// ligne « MUTUELLE » dans dsn_codes comme une cotisation URSSAF, ne la
+// trouvait pas et repondait « Aucun code DSN… ⛔ NON DÉCLARÉE ». La premiere
+// DSN d ATELIER HORIZON SAS (01/10) sortait avec cette anomalie pour chaque
+// salarie.
+//
+// 🚨 UNE COTISATION D ORGANISME COMPLEMENTAIRE NE SE DECLARE PAS COMME UNE
+// COTISATION URSSAF. Cahier technique 2026.1, lu le 05/10 :
+//
+//   S21.G00.15  ADHESION — un bloc par contrat collectif, sous
+//               l etablissement, APRES le bloc 11 et AVANT le bloc 20
+//                 15.001  reference du contrat            (1 a 30 caracteres)
+//                 15.002  code de l organisme             (Pnnnn institution
+//                         de prevoyance · 9 chiffres mutuelle · Axxxxx
+//                         societe d assurance · 9 caracteres dont une lettre
+//                         pour un organisme isole) — CRE-11 : valeur
+//                         controlee dans les tables PREV, MUT, ASSU, OCI
+//                 15.003  code delegataire — SEULEMENT sur instruction de
+//                         l organisme
+//                 15.004  personnel couvert : 01 oui, 02 non
+//                 15.005  identifiant technique de l adhesion (1, 2, 3…)
+//               CCH-13 : une adhesion « 01 » doit etre referencee par au
+//               moins une affiliation ; CCH-14 : une adhesion « 02 » par
+//               aucune.
+//   S21.G00.70  AFFILIATION — sous le contrat, APRES le bloc 62 et AVANT le
+//               bloc 71
+//                 70.004  code option      } seulement a la demande de
+//                 70.005  code population  } l organisme
+//                 70.012  identifiant technique de l affiliation (unique
+//                         pour le salarie)
+//                 70.013  = 15.005 de son adhesion
+//   S21.G00.78  BASE « 31 - Elements de cotisation Prevoyance, Sante,
+//               retraite supplementaire », sous le versement
+//                 78.004  TOUJOURS 0.00 (CCH-11)
+//                 78.005  = 70.012 (obligatoire, et interdite ailleurs)
+//                 78.002/003  dans le meme mois civil (SIG-11) et dans la
+//                         periode d activite du contrat (SIG-17)
+//   S21.G00.79  COMPOSANT — au moins un, de type 10 a 21, 23 ou 24 (CCH-12)
+//   S21.G00.81  UNE SEULE cotisation, code « 059 » (CCH-15) ; 81.004 = part
+//               salariale + part patronale (guide « cotisations OC en DSN »
+//               du GIP-MDS) ; 81.002, 81.003 et 81.005 ne s ecrivent pas.
+//
+// ⚠️ LE TYPE DE COMPOSANT DEPEND DU MODE DE CALCUL DU CONTRAT :
+//     forfait mensuel      → 20  Montant forfaitaire Prevoyance
+//     % du salaire brut    → 10  Salaire brut Prevoyance
+//     % de la tranche A    → 11  Tranche A Prevoyance
+//     % du plafond         → 18  Base forfaitaire Prevoyance
+// ⛔ LE DERNIER N EST PAS FIXE PAR LA NORME : c est la fiche de parametrage
+// DSN de l organisme qui commande. Une reserve le dit a chaque generation.
+//
+// ⛔ CE QUI N EST PAS ECRIT, ET POURQUOI
+//   · le PAIEMENT a l organisme (blocs 20 et 55) : facultatif, et il engage
+//     un prelevement — il se regle hors DSN tant qu aucun client ne le
+//     demande ;
+//   · la date de debut d affiliation (70.014) : reservee a « certains cas
+//     tres precis » listes sur net-entreprises, page non lue ;
+//   · le composant « 04 - Contributions patronales de prevoyance » sous
+//     l assiette CSG : aucun controle ne l exige, consigne non lue.
+// ⛔ RIEN DE TOUT CECI N EST « FAIT » AVANT UN PASSAGE DANS dsn-val.
+// ═══════════════════════════════════════════════════════════════════════
+const BASE_PREVOYANCE = "31";
+const COTISATION_PREVOYANCE = "059";
+const COMPOSANT_PREVOYANCE: Record<string, string> = {
+  forfait: "20",
+  pct_brut: "10",
+  pct_tranche_a: "11",
+  pct_pmss: "18",
+};
+
+// Une ligne de bulletin est-elle une cotisation de complementaire sante ou
+// de prevoyance ? Rend « sante », « prevoyance » ou « » (ni l une ni l autre).
+// ⚠️ LA LIGNE NE PORTE PAS L IDENTIFIANT DE SON CONTRAT : seulement son code
+// (« MUTUELLE », « PREVOYANCE ») et le drapeau `garantie_complementaire`.
+function natureComplementaire(l: any): string {
+  const c = q(l && l.code).toUpperCase();
+  const marque = !!(l && l.garantie_complementaire === true);
+  if (!marque && c.indexOf("MUTUELLE") !== 0 && c.indexOf("PREVOYANCE") !== 0) return "";
+  if (c.indexOf("PREVOYANCE") === 0) return "prevoyance";
+  if (c.indexOf("MUTUELLE") === 0) return "sante";
+  return /pr[eé]voyance/i.test(q(l && l.libelle)) ? "prevoyance" : "sante";
+}
+
+// « Non cadre », « non_cadre », « NON-CADRE » → « noncadre ».
+function categorieNormalisee(v: any): string {
+  return q(v).toLowerCase().normalize("NFD").replace(/[^a-z]/g, "");
+}
+
+// La forme du code de l organisme, telle que la rubrique 15.002 la decrit.
+// ⚠️ LA FORME SEULEMENT : que le code existe se verifie dans dsn-val.
+function codeOrganismeValide(v: string): boolean {
+  if (/^P[0-9]{4}$/.test(v)) return true;                 // institution de prevoyance
+  if (/^[0-9]{9}$/.test(v)) return true;                  // mutuelle
+  if (/^A[A-Z0-9]{5}$/.test(v)) return true;              // societe d assurance
+  if (/^[A-Z0-9]{9}$/.test(v) && /[A-Z]/.test(v)) return true;   // organisme isole
+  return false;
+}
+
 // 🚨 LES COTISATIONS QUI SE SCINDENT EN BASE ET COMPLEMENT (voir l en-tete).
 // Le taux du complement est lu dans urssaf_ctp a la periode declaree — il
 // n est pas ecrit ici, il changerait sans qu on le sache.
@@ -947,6 +1047,79 @@ export async function POST(req: NextRequest) {
   const anomalies: string[] = [];
   // 🆕 20/09 — l echec de lecture des arrets, retenu plus haut.
   if (arretsLectureEchec) anomalies.push(arretsLectureEchec);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 05/10 — LES CONTRATS DE MUTUELLE ET DE PREVOYANCE DE LA SOCIETE
+  //
+  // On lit ceux qui couvrent au moins un jour du mois declare. Un contrat
+  // dont le code de l organisme et la reference sont renseignes devient une
+  // ADHESION (bloc 15) ; les autres ne peuvent pas se declarer, et
+  // l anomalie dit ou les completer.
+  // 🚨 DEUX CONTRATS QUI PORTENT LE MEME ORGANISME ET LA MEME REFERENCE NE
+  // FONT QU UNE ADHESION : le controle CCH-11 du bloc 15 interdit deux
+  // blocs identiques sur ce couple.
+  // ⚠️ LECTURE TOLERANTE : si la table n est pas lisible, la DSN se genere
+  // quand meme et l anomalie le dit.
+  // ═══════════════════════════════════════════════════════════════════
+  const garantiesSociete: any[] = [];
+  const adhesions: any[] = [];
+  const adhesionDe: Record<string, any> = {};
+  const garantiesIncompletes: Record<string, { quoi: string; nb: number; montant: number }> = {};
+  const notesPrevoyance: string[] = [];
+  let nbAffiliations = 0;
+  // ⚠️ LE DERNIER JOUR DU MOIS, SANS PASSER PAR UNE DATE UTC : la borne ne
+  // doit pas dependre du fuseau horaire du serveur.
+  const finMoisPrev = periode.slice(0, 8) + finDeMois(periode).slice(0, 2);
+  {
+    const { data: gar, error: eGar } = await supabase
+      .from("paie_garanties_societe")
+      .select("*")
+      .eq("societe_id", societeId)
+      .lte("date_effet", finMoisPrev)
+      .or("date_fin.is.null,date_fin.gte." + periode)
+      .order("date_effet", { ascending: true });
+
+    if (eGar) {
+      anomalies.push("Les contrats de mutuelle et de prévoyance n'ont pas pu "
+        + "être lus (" + eGar.message + ") : leurs cotisations NE SONT PAS "
+        + "déclarées dans cette mensuelle.");
+    } else {
+      for (const g of (gar || [])) {
+        garantiesSociete.push(g);
+        const quoi = q(g.nature) === "prevoyance" ? "Prévoyance" : "Complémentaire santé";
+        const codeOrg = q(g.organisme_code_dsn).replace(/\s/g, "").toUpperCase();
+        const reference = latin(g.reference_contrat);
+        if (!codeOrg || !reference) continue;
+
+        if (!codeOrganismeValide(codeOrg)) {
+          anomalies.push(quoi + " : le code de l'organisme « " + codeOrg
+            + " » n'a pas une forme admise (S21.G00.15.002). ⛔ CONTRAT NON "
+            + "DÉCLARÉ. Le corriger dans l'écran DSN : « Mutuelle et "
+            + "prévoyance », bouton « pour la DSN ».");
+          continue;
+        }
+        if (reference.length > 30) {
+          anomalies.push(quoi + " : la référence du contrat dépasse 30 "
+            + "caractères (S21.G00.15.001). ⛔ CONTRAT NON DÉCLARÉ.");
+          continue;
+        }
+
+        const cle = codeOrg + "|" + reference;
+        let adh: any = null;
+        for (const a of adhesions) if (a.cle === cle) adh = a;
+        if (!adh) {
+          adh = {
+            id: adhesions.length + 1, cle: cle, code: codeOrg, reference: reference,
+            delegataire: q(g.delegataire_dsn).replace(/\s/g, "").toUpperCase(),
+            couvert: false, quoi: quoi,
+            nouveau: q(g.date_effet).slice(0, 10) >= periode,
+          };
+          adhesions.push(adh);
+        }
+        adhesionDe[String(g.id)] = adh;
+      }
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════
   // ══ S10 — L ENVOI ══
@@ -2125,6 +2298,162 @@ export async function POST(req: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — ══ S21.G00.70 — L AFFILIATION PREVOYANCE ══
+    //
+    // 🚨 SA PLACE : SOUS LE CONTRAT, APRES LA FIN DE CONTRAT (62) ET AVANT
+    // LA RETRAITE COMPLEMENTAIRE (71) — structure de la DSN mensuelle,
+    // cahier technique 2026.1. Entre freres, l ordre est celui de la norme,
+    // pas l ordre croissant des numeros : 70 passe avant 71.
+    //
+    // 🚨 ON PART DES LIGNES DU BULLETIN, PAS DES CONTRATS : le generateur ne
+    // recalcule jamais une paie. Un salarie sans ligne de mutuelle sur son
+    // bulletin (un stagiaire, un mandataire) n est pas affilie ici.
+    // ⚠️ LA LIGNE NE DIT PAS A QUEL CONTRAT ELLE APPARTIENT. On la rattache
+    // au contrat de la societe de meme nature qui couvre la categorie du
+    // salarie. S il y en a plusieurs, on prend d abord celui dont le
+    // forfait egale le montant de la ligne, sinon dans l ordre des dates
+    // d effet — et une reserve demande de le relire.
+    // ═══════════════════════════════════════════════════════════════
+    const affiliations: any[] = [];
+    {
+      const catSal = categorieNormalisee(ct.categorie);
+      const applicables: Record<string, any[]> = { sante: [], prevoyance: [] };
+      for (const g of garantiesSociete) {
+        const catG = categorieNormalisee(g.categorie) || "tous";
+        if (catG !== "tous" && catG !== catSal) continue;
+        applicables[q(g.nature) === "prevoyance" ? "prevoyance" : "sante"].push(g);
+      }
+      const pris: Record<string, boolean> = {};
+
+      for (const l of (detail.lignes_cotisations || [])) {
+        const nat = natureComplementaire(l);
+        if (!nat) continue;
+        const montantL = Math.round((Number(l.part_salariale || 0)
+          + Number(l.part_patronale || 0)) * 100) / 100;
+        if (montantL === 0) continue;
+
+        const candidats = applicables[nat].filter(function (g: any) { return !pris[String(g.id)]; });
+        let g: any = null;
+        if (candidats.length === 1) g = candidats[0];
+        else if (candidats.length > 1) {
+          for (const cand of candidats) {
+            if (!g && q(cand.mode) === "forfait"
+                && Math.abs(Number(cand.montant || 0) - montantL) < 0.005) g = cand;
+          }
+          if (!g) g = candidats[0];
+          const note = "Plusieurs contrats de " + (nat === "prevoyance" ? "prévoyance" : "complémentaire santé")
+            + " couvrent les mêmes salariés : le rattachement de chaque "
+            + "cotisation à son contrat est à relire dans le fichier (blocs "
+            + "S21.G00.70 et base 31).";
+          if (notesPrevoyance.indexOf(note) < 0) notesPrevoyance.push(note);
+        }
+
+        if (!g) {
+          anomalies.push(qui + " : cotisation « " + (q(l.libelle) || q(l.code))
+            + " » (" + montantDsn(montantL) + " EUR) sans contrat de "
+            + (nat === "prevoyance" ? "prévoyance" : "complémentaire santé")
+            + " en vigueur ce mois-ci pour sa catégorie. ⛔ NON DÉCLARÉE.");
+          continue;
+        }
+        pris[String(g.id)] = true;
+
+        const adh = adhesionDe[String(g.id)];
+        if (!adh) {
+          // Le contrat existe, mais sans ses identifiants DSN : une seule
+          // anomalie par contrat, ecrite apres la boucle des salaries.
+          const cleG = String(g.id);
+          if (!garantiesIncompletes[cleG]) {
+            garantiesIncompletes[cleG] = {
+              quoi: q(g.nature) === "prevoyance" ? "Prévoyance" : "Complémentaire santé",
+              nb: 0, montant: 0,
+            };
+          }
+          garantiesIncompletes[cleG].nb += 1;
+          garantiesIncompletes[cleG].montant += montantL;
+          continue;
+        }
+
+        // ---- LE COMPOSANT : ce qui a servi a calculer la cotisation ----
+        const mode = q(g.mode) || "forfait";
+        const typeComp = COMPOSANT_PREVOYANCE[mode] || "";
+        const param = (detail as any).parametres || {};
+        let montantComp = 0;
+        if (mode === "forfait") {
+          // Le forfait EST la cotisation du mois : on declare celle du
+          // bulletin, pas celle du contrat (il a pu changer depuis).
+          montantComp = montantL;
+        } else if (Number(l.base || 0) > 0) {
+          montantComp = Number(l.base);
+        } else if (mode === "pct_brut") {
+          montantComp = Number(b.brut || 0);
+        } else if (mode === "pct_tranche_a") {
+          const plaf = Number(param.plafond_contrat || param.plafond || 0);
+          montantComp = plaf > 0 ? Math.min(Number(b.brut || 0), plaf) : 0;
+        } else if (mode === "pct_pmss") {
+          montantComp = Number(param.plafond || 0);
+        }
+
+        if (!typeComp || !(montantComp > 0)) {
+          anomalies.push(qui + " : la base de calcul de la cotisation « "
+            + (q(l.libelle) || q(l.code)) + " » (" + montantDsn(montantL)
+            + " EUR) est introuvable sur le bulletin. ⛔ NON DÉCLARÉE : "
+            + "sans composant (S21.G00.79), la base 31 est rejetée.");
+          continue;
+        }
+        if (mode === "pct_pmss") {
+          const note = "Une cotisation est calculée en % du plafond de la "
+            + "Sécurité sociale : le fichier la déclare avec le composant "
+            + "« 18 - Base forfaitaire Prévoyance ». ⚠️ La norme ne fixe pas "
+            + "ce type : c'est la fiche de paramétrage DSN de l'organisme qui "
+            + "le donne. À confirmer avant tout dépôt réel.";
+          if (notesPrevoyance.indexOf(note) < 0) notesPrevoyance.push(note);
+        }
+
+        // 🚨 UNE SEULE AFFILIATION PAR ADHESION ET PAR SALARIE : deux lignes
+        // rattachees au meme contrat s additionnent sous la meme base 31
+        // (controles CCH-12 du bloc 70 et SIG-23 du bloc 78).
+        let aff: any = null;
+        for (const a of affiliations) if (a.adhesion.id === adh.id) aff = a;
+        if (!aff) {
+          aff = {
+            id: affiliations.length + 1, adhesion: adh,
+            option: latin(g.option_dsn), population: latin(g.population_dsn),
+            cotisation: 0, composants: [] as any[],
+          };
+          affiliations.push(aff);
+        }
+        aff.cotisation = Math.round((aff.cotisation + montantL) * 100) / 100;
+        let dejaComp: any = null;
+        for (const cp of aff.composants) if (cp.type === typeComp) dejaComp = cp;
+        if (!dejaComp) aff.composants.push({ type: typeComp, montant: montantComp });
+        else if (typeComp === "20") dejaComp.montant += montantComp;
+        // ⚠️ Deux composants de meme type 10 ou 11 sont interdits (CCH-16) :
+        // la base est la meme, on garde la premiere.
+        adh.couvert = true;
+      }
+
+      for (const aff of affiliations) {
+        if (aff.option) ecrire("S21.G00.70.004", aff.option);
+        if (aff.population) ecrire("S21.G00.70.005", aff.population);
+        ecrire("S21.G00.70.012", String(aff.id));
+        ecrire("S21.G00.70.013", String(aff.adhesion.id));
+        nbAffiliations += 1;
+
+        // ⚠️ CONTRAT COLLECTIF OUVERT CE MOIS-CI, SALARIE DEJA EN POSTE : la
+        // date de debut d affiliation differe de celle du contrat de
+        // travail. La rubrique 70.014 est reservee a des cas listes sur
+        // net-entreprises : on ne l ecrit pas sans les avoir lus.
+        if (aff.adhesion.nouveau && q(ct.date_debut).slice(0, 10) < periode) {
+          const note = aff.adhesion.quoi + " : le contrat collectif prend effet "
+            + "ce mois-ci alors que des salariés étaient déjà en poste. La "
+            + "date de début d'affiliation (S21.G00.70.014) n'est PAS "
+            + "déclarée : vérifier auprès de l'organisme s'il l'attend.";
+          if (notesPrevoyance.indexOf(note) < 0) notesPrevoyance.push(note);
+        }
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.71 — LA RETRAITE COMPLEMENTAIRE ══
     //
     // 🚨🚨 SA PLACE EST JUSTE APRES LE CONTRAT, et dsn-val l a dit deux
@@ -2459,6 +2788,12 @@ export async function POST(req: NextRequest) {
     let patronaleT1 = 0;
 
     for (const l of (detail.lignes_cotisations || [])) {
+      // 🆕🚨 05/10 — LA MUTUELLE ET LA PREVOYANCE NE PASSENT PAS ICI. Elles
+      // ne relevent d aucune assiette URSSAF et n ont pas de ligne dans
+      // dsn_codes : elles se declarent plus bas, sous la base « 31 », a
+      // partir des affiliations ecrites avant le bloc 71.
+      if (natureComplementaire(l)) continue;
+
       const interne = q(l.code);
       const montant = Number(l.part_salariale || 0) + Number(l.part_patronale || 0);
 
@@ -2990,6 +3325,44 @@ export async function POST(req: NextRequest) {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — ══ LA BASE « 31 » : MUTUELLE ET PREVOYANCE ══
+    //
+    // Une base par affiliation, apres les assiettes URSSAF. Voir l en-tete
+    // des constantes BASE_PREVOYANCE et COTISATION_PREVOYANCE.
+    //   78.004 vaut TOUJOURS 0.00 ; 78.005 porte l identifiant de
+    //   l affiliation ; un seul bloc 81, code 059, part salariale et part
+    //   patronale reunies.
+    // ⚠️ 78.006 (numero du contrat) NE S ECRIT PAS ICI : c est l affiliation
+    // qui rattache la base au contrat.
+    // 🚨 SIG-17 : la periode doit tenir dans la periode d activite du
+    // contrat. Un salarie entre le 15 se declare du 15 a la fin du mois ;
+    // un salarie sorti le 20, du 1er au 20.
+    // ═══════════════════════════════════════════════════════════════
+    if (affiliations.length > 0) {
+      let debut31 = periode;
+      let fin31 = finMoisPrev;
+      const entree = q(ct.date_debut).slice(0, 10);
+      if (entree > debut31 && entree <= fin31) debut31 = entree;
+      for (const sortie of [q(ct.rompu_le).slice(0, 10), q(ct.date_fin).slice(0, 10)]) {
+        if (sortie && sortie >= debut31 && sortie < fin31) fin31 = sortie;
+      }
+
+      for (const aff of affiliations) {
+        ecrire("S21.G00.78.001", BASE_PREVOYANCE);
+        ecrire("S21.G00.78.002", dateDsn(debut31));
+        ecrire("S21.G00.78.003", dateDsn(fin31));
+        ecrire("S21.G00.78.004", "0.00");
+        ecrire("S21.G00.78.005", String(aff.id));
+        for (const cp of aff.composants) {
+          ecrire("S21.G00.79.001", cp.type);
+          ecrire("S21.G00.79.004", montantDsn(cp.montant));
+        }
+        ecrire("S21.G00.81.001", COTISATION_PREVOYANCE);
+        ecrire("S21.G00.81.004", montantDsn(aff.cotisation));
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // ══ S21.G00.86 — L ANCIENNETE ══
     //
     // 🚨 CONTROLE CCH-14 : une anciennete de type « 07 - anciennete dans
@@ -3435,6 +3808,43 @@ export async function POST(req: NextRequest) {
   }
 
   // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 05/10 — ══ S21.G00.15 — LES ADHESIONS PREVOYANCE ══
+  //
+  // 🚨 SA PLACE : sous l etablissement, APRES le bloc 11 et AVANT le
+  // versement (20). On insere donc a la place reservee pour le bordereau,
+  // APRES lui : inserees au meme endroit, ces lignes passent devant.
+  // ⚠️ « PERSONNEL COUVERT » NE SE SAIT QU APRES LES SALARIES : « 01 » si au
+  // moins une affiliation renvoie a l adhesion, « 02 » sinon (CCH-13 et
+  // CCH-14). Une adhesion « 02 » se declare quand meme : c est elle qui
+  // fait parvenir la DSN a l organisme un mois sans salarie couvert.
+  // ═══════════════════════════════════════════════════════════════════
+  {
+    const A15: string[] = [];
+    const ecrireA = function (ref: string, valeur: any) {
+      const v = latin(valeur);
+      if (v === "") return;
+      A15.push(ref + ",'" + v + "'");
+    };
+    for (const adh of adhesions) {
+      ecrireA("S21.G00.15.001", adh.reference);
+      ecrireA("S21.G00.15.002", adh.code);
+      if (adh.delegataire) ecrireA("S21.G00.15.003", adh.delegataire);
+      ecrireA("S21.G00.15.004", adh.couvert ? "01" : "02");
+      ecrireA("S21.G00.15.005", String(adh.id));
+    }
+    if (A15.length > 0) L.splice(posBordereau, 0, ...A15);
+
+    for (const cleG of Object.keys(garantiesIncompletes)) {
+      const gi = garantiesIncompletes[cleG];
+      anomalies.push(gi.quoi + " : le code de l'organisme et la référence du "
+        + "contrat ne sont pas renseignés. ⛔ COTISATION NON DÉCLARÉE pour "
+        + gi.nb + " salarié(s) (" + montantDsn(gi.montant) + " EUR). Les "
+        + "saisir dans l'écran DSN : « Mutuelle et prévoyance », bouton "
+        + "« pour la DSN », puis régénérer.");
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
   // ══ S21.G00.85 — LES LIEUX DE TRAVAIL ET ETABLISSEMENTS UTILISATEURS ══
   //
   // 🚨🚨 SA PLACE EST ICI, APRES TOUS LES INDIVIDUS. C est la troisieme
@@ -3659,6 +4069,20 @@ export async function POST(req: NextRequest) {
 
   // 🆕 20/09 — ce que les arrets de travail demandent de relire.
   for (const n of notesArrets) avantDepot.push(n);
+
+  // 🆕 05/10 — ce que la mutuelle et la prevoyance demandent de relire.
+  if (adhesions.length > 0) {
+    avantDepot.push("Mutuelle et prévoyance : " + adhesions.length
+      + " contrat(s) déclaré(s), " + nbAffiliations + " affiliation(s) "
+      + "(blocs S21.G00.15 et 70, base 31, cotisation 059). Les codes — "
+      + "organisme, contrat, délégataire, population, option — et le type de "
+      + "composant sont ceux de la FICHE DE PARAMÉTRAGE DSN de l'organisme : "
+      + "la relire avant le premier dépôt réel.");
+    avantDepot.push("Le PAIEMENT des cotisations de mutuelle et de prévoyance "
+      + "n'est pas porté par cette DSN (blocs 20 et 55 non écrits pour "
+      + "l'organisme complémentaire) : il se règle auprès de lui, hors DSN.");
+  }
+  for (const n of notesPrevoyance) avantDepot.push(n);
 
   avantDepot.push("⛔ PASSER LE FICHIER DANS dsn-val (outil officiel) : aucune "
     + "DSN ne se dépose sans ce contrôle. Il se télécharge sur "
