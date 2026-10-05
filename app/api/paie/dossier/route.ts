@@ -212,6 +212,58 @@ function controlerBic(brut: string): { ok: boolean; message?: string; propre?: s
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 05/10 — CE QUE LE MOTIF DE RUPTURE REND OBLIGATOIRE
+//
+// Les memes listes que dans le signalement (app/api/dsn/evenement), lues au
+// cahier technique 2026.1, bloc S21.G00.62 et S21.G00.63. Le signalement de
+// fin de contrat les controle a la generation ; ICI, ON REFUSE A LA SAISIE :
+// c est le moment ou le cabinet a la lettre de rupture sous les yeux.
+//   · notification de la rupture (62.003) : licenciements, demission, essai ;
+//   · signature de la convention (62.004) : rupture conventionnelle ;
+//   · engagement de la procedure (62.005) : licenciements ;
+//   · preavis (63.001) : ses types, et ce que le motif en permet.
+// ⛔ SI CES LISTES CHANGENT DANS LA NORME, ELLES CHANGENT AUX DEUX ENDROITS.
+// ═══════════════════════════════════════════════════════════════════════
+const RUPT_NOTIFICATION = ["011", "012", "014", "015", "020", "025", "034",
+  "035", "036", "037", "058", "059", "082", "083", "087", "088", "089", "095",
+  "096", "097", "111", "112", "113", "115", "117"];
+const RUPT_CONVENTION = ["043", "110", "111"];
+const RUPT_PROCEDURE = ["011", "012", "014", "015", "020", "026", "086",
+  "087", "088", "089", "091", "092", "093", "111", "112", "113", "114", "115",
+  "117"];
+// Les motifs que le signalement declare « sans preavis » quand rien n est
+// saisi : fin de CDD, fin de mission, fin d essai du salarie, ruptures
+// conventionnelles.
+const RUPT_SANS_PREAVIS = ["031", "032", "035", "043", "110"];
+const PREAVIS_TYPES = ["01", "02", "03", "10", "50", "51", "60", "61", "90"];
+const PREAVIS_NON_FAITS = ["02", "03", "10", "50", "51", "61"];
+
+// Les caracteristiques d un contrat dont le CHANGEMENT se declare dans la
+// DSN du mois (bloc S21.G00.41), avec leur nom pour les messages.
+const CONTRAT_SUIVIS: Record<string, string> = {
+  duree_hebdo: "durée du travail",
+  forfait_jours_annuel: "forfait en jours",
+  categorie: "catégorie",
+  idcc: "convention collective",
+  pcs_ese: "profession",
+  code_risque_at: "code risque accidents du travail",
+};
+
+// La date du jour A PARIS : a 0 h 30, l heure du serveur est encore la veille.
+function aujourdhuiParis(): string {
+  try {
+    return new Date().toLocaleDateString("sv-SE", { timeZone: "Europe/Paris" }).slice(0, 10);
+  } catch (e) {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function jmaRoute(d: string): string {
+  const t = String(d || "");
+  return t.length < 10 ? t : t.slice(8, 10) + "/" + t.slice(5, 7) + "/" + t.slice(0, 4);
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // 🆕 28/09 — CE QUI ETAIT LE POST EST DEVENU `traiter`. La porte (session,
 // organisme, droits, journal) est dans le POST, en fin de fichier : quand
 // on arrive ici, tout a deja ete verifie.
@@ -249,6 +301,32 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       const { data, error } = await qContrats;
 
       if (error) return NextResponse.json({ erreur: error.message }, { status: 500 });
+
+      // 🆕 05/10 — LE LIEU DE NAISSANCE, pour pouvoir le corriger dans
+      // « modifier le contrat » (la DSN le declare). ⚠️ LECTURE A PART ET
+      // TOLERANTE : si elle echoue, la liste des contrats s affiche quand
+      // meme, sans lui.
+      {
+        const idsSal: string[] = [];
+        for (const k of (data || [])) {
+          const s = String((k as any).salarie_id || "");
+          if (s && idsSal.indexOf(s) < 0) idsSal.push(s);
+        }
+        if (idsSal.length > 0) {
+          const { data: lieux, error: eLieux } = await supabase
+            .from("paie_salaries").select("id, lieu_naissance").in("id", idsSal);
+          if (!eLieux && lieux) {
+            const parId: Record<string, string> = {};
+            for (const l of lieux) parId[String((l as any).id)] = String((l as any).lieu_naissance || "");
+            for (const k of (data || [])) {
+              const kk: any = k;
+              if (kk.paie_salaries && typeof kk.paie_salaries === "object") {
+                kk.paie_salaries.lieu_naissance = parId[String(kk.salarie_id)] || "";
+              }
+            }
+          }
+        }
+      }
 
       // Les societes, pour le choix a la creation.
       let qSocietes = supabase
@@ -305,6 +383,11 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           numero_secu: nirPropre,
           adresse: propre(c.adresse), code_postal: propre(c.code_postal),
           ville: propre(c.ville), email: propre(c.email),
+          // 🆕🚨 05/10 — LE LIEU DE NAISSANCE ETAIT DEMANDE A L ECRAN ET JAMAIS
+          // ENREGISTRE : le formulaire le portait, cette ligne manquait. La
+          // DSN le declare (S21.G00.30.014) ; pour Hugo et Ines il a fallu
+          // une requete SQL. Ecrit seulement s il est saisi.
+          ...(propre(c.lieu_naissance) ? { lieu_naissance: propre(c.lieu_naissance) } : {}),
         })
         .select().maybeSingle();
 
@@ -643,10 +726,91 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
         refus.push("il faut un salaire mensuel ou un taux horaire.");
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 05/10 — CE QUI CHANGE DANS LE CONTRAT SE DECLARE (bloc 41)
+      //
+      // Passage a temps partiel, passage cadre, nouvelle convention, nouvelle
+      // profession, nouveau code risque : la DSN du mois doit le dire, avec
+      // l ANCIENNE valeur et la DATE du changement. Le contrat ne garde que
+      // sa valeur du jour ; on inscrit donc le changement au journal, et le
+      // generateur de la DSN le relit (action « paie.changement_contrat »).
+      // LES REGLES :
+      //   · la date (« a compter du ») vaut aujourd hui si rien n est saisi ;
+      //     ni avant le debut du contrat, ni dans l avenir (le contrat prend
+      //     ses nouvelles valeurs tout de suite) ;
+      //   · ⛔ UN CONTRAT SANS AUCUN BULLETIN EMIS N A RIEN DECLARE : le
+      //     corriger n est pas un changement, on n inscrit rien ;
+      //   · une SECONDE saisie a la meme date (une faute de frappe corrigee)
+      //     REMPLACE la premiere au lieu de s y ajouter — sinon la DSN
+      //     declarerait deux changements, dont un qui n a jamais existe. Et
+      //     si l on revient a l ancienne valeur, il ne reste rien a declarer.
+      // ═══════════════════════════════════════════════════════════════
+      const memeValeur = function (k: string, a: any, b: any): boolean {
+        if (k === "duree_hebdo" || k === "forfait_jours_annuel" || k === "idcc") {
+          return Number(a || 0) === Number(b || 0);
+        }
+        if (k === "categorie") {
+          return (String(a || "").trim() || "non_cadre") === (String(b || "").trim() || "non_cadre");
+        }
+        return String(a === null || a === undefined ? "" : a).trim()
+          === String(b === null || b === undefined ? "" : b).trim();
+      };
+      const chgAvant: any = {};
+      const chgApres: any = {};
+      for (const k of Object.keys(CONTRAT_SUIVIS)) {
+        if (!Object.prototype.hasOwnProperty.call(maj, k)) continue;
+        if (memeValeur(k, (ct as any)[k], maj[k])) continue;
+        chgAvant[k] = (ct as any)[k] === undefined ? null : (ct as any)[k];
+        chgApres[k] = maj[k];
+      }
+      const auj = aujourdhuiParis();
+      let aCompterDu = "";
+      if (Object.keys(chgAvant).length > 0) {
+        aCompterDu = propre(c.a_compter_du) || auj;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(aCompterDu)) {
+          refus.push("date du changement (« à compter du ») : format AAAA-MM-JJ.");
+        } else if (debut && aCompterDu < debut) {
+          refus.push("le changement ne peut pas précéder le début du contrat (" + jmaRoute(debut) + ").");
+        } else if (aCompterDu > auj) {
+          refus.push("le changement est daté du " + jmaRoute(aCompterDu) + ", dans l'avenir : le contrat "
+            + "prend ses nouvelles valeurs dès l'enregistrement, et la paie en cours serait calculée "
+            + "avec elles. L'enregistrer ce jour-là, ou après.");
+        }
+      }
+
+      // 🆕 05/10 — LE LIEU DE NAISSANCE DU SALARIE, corrigeable ici (il est
+      // declare dans la DSN). Il vit sur la fiche du salarie, pas sur le
+      // contrat : mise a jour a part, apres les controles.
+      let lieuAChanger: string | null | undefined = undefined;
+      if (donne("lieu_naissance")) {
+        const t = propre(c.lieu_naissance);
+        if (t !== null && t.length > 30) {
+          refus.push("le lieu de naissance compte 30 caractères au plus (la commune seule, sans le département).");
+        } else lieuAChanger = t;
+      }
+
       if (refus.length > 0) {
         return NextResponse.json({ erreur: refus.join(" ") + " Rien n'a été enregistré." }, { status: 400 });
       }
-      if (Object.keys(maj).length === 0) {
+
+      let lieuChange = false;
+      if (lieuAChanger !== undefined && (ct as any).salarie_id) {
+        const { data: sal0, error: eSal0 } = await supabase
+          .from("paie_salaries").select("id, lieu_naissance").eq("id", (ct as any).salarie_id).maybeSingle();
+        if (eSal0) {
+          return NextResponse.json({ erreur: "lieu de naissance : " + eSal0.message + " — rien n'a été enregistré." }, { status: 500 });
+        }
+        if (sal0 && String((sal0 as any).lieu_naissance || "") !== String(lieuAChanger || "")) {
+          const { error: eLieu } = await supabase
+            .from("paie_salaries").update({ lieu_naissance: lieuAChanger }).eq("id", (ct as any).salarie_id);
+          if (eLieu) {
+            return NextResponse.json({ erreur: "lieu de naissance : " + eLieu.message + " — rien n'a été enregistré." }, { status: 500 });
+          }
+          lieuChange = true;
+        }
+      }
+
+      if (Object.keys(maj).length === 0 && !lieuChange) {
         return NextResponse.json({ success: true, contrat: ct, message: "Rien à changer." });
       }
       maj.maj_le = new Date().toISOString();
@@ -658,6 +822,88 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
         .select("*, paie_salaries(nom, prenom, taux_pas, taux_pas_date_effet, taux_pas_identifiant_crm)")
         .maybeSingle();
       if (eMaj) return NextResponse.json({ erreur: eMaj.message + " — rien n'a été enregistré." }, { status: 500 });
+      if (nv && (nv as any).paie_salaries && typeof (nv as any).paie_salaries === "object"
+          && lieuAChanger !== undefined) {
+        (nv as any).paie_salaries.lieu_naissance = lieuAChanger || "";
+      }
+
+      // ---- 🆕 05/10 — LE CHANGEMENT AU JOURNAL, pour la DSN du mois ----
+      let noteChangement = "";
+      if (aCompterDu && Object.keys(chgAvant).length > 0) {
+        const { data: dejaEmis } = await supabase
+          .from("paie_bulletins").select("id")
+          .eq("contrat_id", contratId).eq("statut", "emis").limit(1);
+        if (dejaEmis && dejaEmis.length > 0) {
+          const societeCt = String((ct as any).societe_id || "") || null;
+          // Les changements deja inscrits A LA MEME DATE pour ce contrat.
+          const { data: anciens, error: eAnc } = await supabase
+            .from("compta_audit").select("id, avant, apres, created_at")
+            .eq("action", "paie.changement_contrat").eq("reference", contratId)
+            .order("created_at", { ascending: true });
+          const memeJour: any[] = [];
+          if (!eAnc) {
+            for (const a of (anciens || [])) {
+              const ap: any = (a as any).apres || {};
+              if (String(ap.a_compter_du || "").slice(0, 10) === aCompterDu) memeJour.push(a);
+            }
+          }
+          let avantFinal: any = chgAvant;
+          let apresFinal: any = chgApres;
+          let fusion = false;
+          if (memeJour.length > 0) {
+            // L ANCIENNE valeur est celle d AVANT la premiere saisie du jour ;
+            // la NOUVELLE est celle de la derniere.
+            const av: any = {};
+            const ap: any = {};
+            const suite = memeJour.concat([{ avant: chgAvant, apres: chgApres }]);
+            for (const e of suite) {
+              const ea: any = (e as any).avant || {};
+              const ep: any = (e as any).apres || {};
+              for (const k of Object.keys(ea)) {
+                if (!Object.prototype.hasOwnProperty.call(av, k)) av[k] = ea[k];
+              }
+              for (const k of Object.keys(ep)) {
+                if (k !== "a_compter_du") ap[k] = ep[k];
+              }
+            }
+            for (const k of Object.keys(av)) {
+              if (Object.prototype.hasOwnProperty.call(ap, k) && memeValeur(k, av[k], ap[k])) {
+                delete av[k]; delete ap[k];
+              }
+            }
+            // Les lignes remplacees restent au journal, sous un autre nom :
+            // rien ne s efface, mais la DSN ne les relit plus.
+            const ids = memeJour.map(function (a: any) { return a.id; });
+            const { error: eRempl } = await supabase
+              .from("compta_audit").update({ action: "paie.changement_contrat.remplace" }).in("id", ids);
+            if (eRempl) {
+              console.error("[paie/dossier] changement de contrat, fusion :", eRempl.message);
+            } else {
+              avantFinal = av; apresFinal = ap; fusion = true;
+            }
+          }
+          const cles = Object.keys(avantFinal);
+          if (cles.length > 0) {
+            await journal(societeCt, ctx, "paie.changement_contrat", "contrat", contratId,
+              Object.assign({}, apresFinal, { a_compter_du: aCompterDu }), avantFinal);
+            const noms = cles.map(function (k: string) { return CONTRAT_SUIVIS[k] || k; });
+            noteChangement = " Changement (" + noms.join(", ") + ") à compter du " + jmaRoute(aCompterDu)
+              + " : la DSN " + (/^(04|08|10)$/.test(aCompterDu.slice(5, 7)) ? "d'" : "de ")
+              + moisEnClair(aCompterDu.slice(0, 7) + "-01") + " le déclarera.";
+            if (aCompterDu.slice(0, 7) < auj.slice(0, 7)) {
+              noteChangement += " ⚠️ Ce mois est passé : si sa DSN est déjà sortie, la regénérer.";
+            }
+            if (aCompterDu.slice(8, 10) !== "01" && (chgApres.duree_hebdo !== undefined
+                || chgApres.forfait_jours_annuel !== undefined)) {
+              noteChangement += " ⚠️ Changement en cours de mois : le bulletin de ce mois est calculé avec "
+                + "la nouvelle durée pour le mois entier.";
+            }
+          } else if (fusion) {
+            noteChangement = " Retour à la valeur d'avant le " + jmaRoute(aCompterDu)
+              + " : plus aucun changement à déclarer à cette date.";
+          }
+        }
+      }
 
       // ⚠️ Une rupture posee APRES des bulletins deja emis : ils sont a annuler.
       let avertissement = "";
@@ -674,7 +920,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       return NextResponse.json({
         success: true, contrat: nv,
         message: "Contrat enregistré. Les bulletins déjà émis ne changent pas ; les calculs à venir "
-          + "utilisent ces valeurs." + avertissement,
+          + "utilisent ces valeurs." + noteChangement + avertissement,
       });
     }
 
@@ -2259,6 +2505,225 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       }
 
       // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 05/10 — CE QUE LA SAISIE GARDE EN PLUS, SELON LA NATURE
+      //
+      // ⚠️ CES COLONNES NE S ECRIVENT QUE LORSQU ELLES ONT UNE VALEUR : un
+      // arret ordinaire ou une fin de CDD s enregistrent donc comme avant,
+      // meme si les colonnes du 05/10 n etaient pas encore en base.
+      // ═══════════════════════════════════════════════════════════════
+      const enPlus: any = {};
+      const estDate = function (x: string): boolean { return /^\d{4}-\d{2}-\d{2}$/.test(x); };
+
+      // ---- L ARRET : LE TEMPS PARTIEL THERAPEUTIQUE ----
+      // La DSN du mois declare la PERTE DE SALAIRE (bloc S21.G00.66) : c est
+      // sur elle que la caisse calcule l indemnite. Elle ne se calcule pas,
+      // elle se saisit, et se met a jour chaque mois tant que le temps
+      // partiel court. Concerne : un arret de motif « temps partiel
+      // therapeutique », ou une reprise a temps partiel therapeutique.
+      if (type === "arret") {
+        const { data: kArret } = await supabase
+          .from("dsn_codes").select("code, correspondance")
+          .eq("rubrique", "S21.G00.60.001").is("date_fin", null);
+        let codeArret = /^\d{2}$/.test(motif.trim()) ? motif.trim() : "";
+        for (const k of (kArret || [])) {
+          if (String((k as any).correspondance || "").trim() === motif.trim()) codeArret = String((k as any).code);
+        }
+        const estTpt = ["15", "16", "17", "18"].indexOf(codeArret) >= 0 || repriseMotif === "02";
+        const perteSaisie = propre(c.tpt_perte_salaire);
+        let tptDebut = String(c.tpt_debut || "").trim().slice(0, 10);
+        const tptFin = String(c.tpt_fin || "").trim().slice(0, 10);
+        if (estTpt) {
+          const refusTpt: string[] = [];
+          let perte: number | null = null;
+          if (perteSaisie !== null) {
+            perte = nombreFr(perteSaisie);
+            if (perte === null || !(perte > 0)) {
+              refusTpt.push("la perte de salaire du temps partiel thérapeutique (« " + perteSaisie
+                + " ») n'est pas un montant.");
+            }
+          }
+          if (tptDebut && !estDate(tptDebut)) refusTpt.push("début du temps partiel thérapeutique : format AAAA-MM-JJ.");
+          if (tptFin && !estDate(tptFin)) refusTpt.push("fin du temps partiel thérapeutique : format AAAA-MM-JJ.");
+          if (repriseMotif === "02" && !tptDebut) tptDebut = repriseDate;
+          if (tptDebut && tptDebut < dateDebut) {
+            refusTpt.push("le temps partiel thérapeutique ne peut pas commencer avant l'arrêt (" + jmaRoute(dateDebut) + ").");
+          }
+          if (tptDebut && tptFin && tptFin < tptDebut) {
+            refusTpt.push("la fin du temps partiel thérapeutique précède son début.");
+          }
+          if (repriseMotif === "02" && perte !== null && !tptFin) {
+            refusTpt.push("pour une reprise à temps partiel thérapeutique, la date de fin du temps partiel "
+              + "(celle de la prescription) est obligatoire avec la perte de salaire.");
+          }
+          if (refusTpt.length > 0) {
+            return NextResponse.json({ erreur: refusTpt.join(" ") + " Rien n'a été enregistré." }, { status: 400 });
+          }
+          if (perte !== null) enPlus.tpt_perte_salaire = Math.round(perte * 100) / 100;
+          if (tptDebut) enPlus.tpt_debut = tptDebut;
+          if (tptFin) enPlus.tpt_fin = tptFin;
+        }
+      }
+
+      // ---- LA FIN DE CONTRAT : LES DATES DU MOTIF ET LE PREAVIS ----
+      // 🚨 Le signalement de fin de contrat remplace l attestation employeur.
+      // Selon le motif, France Travail exige une ou plusieurs dates et un
+      // preavis coherent ; sans eux LE FICHIER EST REJETE. On le dit ici.
+      if (type === "fin_contrat") {
+        const finContrat = (dateFin || dateDebut).slice(0, 10);
+        const debutContrat = String((ct as any).date_debut || "").slice(0, 10);
+        const { data: kMotif } = await supabase
+          .from("dsn_codes").select("code, correspondance")
+          .eq("rubrique", "S21.G00.62.002").is("date_fin", null);
+        let codeMotif = "";
+        for (const k of (kMotif || [])) {
+          if (String((k as any).correspondance || "").trim() === motif.trim()) codeMotif = String((k as any).code);
+        }
+
+        const notification = String(c.date_notification || "").trim().slice(0, 10);
+        const convention = String(c.date_signature_convention || "").trim().slice(0, 10);
+        const procedure = String(c.date_engagement_procedure || "").trim().slice(0, 10);
+        const preavisType = String(c.preavis_type || "").trim();
+        const preavisDebut = String(c.preavis_debut || "").trim().slice(0, 10);
+        const preavisFin = String(c.preavis_fin || "").trim().slice(0, 10);
+        const dernierPaye = String(c.dernier_jour_paye || "").trim().slice(0, 10);
+        const refusFin: string[] = [];
+
+        for (const paire of [["date de notification", notification], ["date de signature de la convention", convention],
+          ["date d'engagement de la procédure", procedure], ["début du préavis", preavisDebut],
+          ["fin du préavis", preavisFin], ["dernier jour travaillé et payé", dernierPaye]]) {
+          if (paire[1] && !estDate(paire[1])) refusFin.push(paire[0] + " : format AAAA-MM-JJ.");
+        }
+
+        if (refusFin.length === 0) {
+          // La notification (62.003).
+          if (!notification && RUPT_NOTIFICATION.indexOf(codeMotif) >= 0) {
+            refusFin.push("la date de notification de la rupture est obligatoire pour ce motif (lettre de "
+              + "licenciement, de démission ou de fin d'essai).");
+          }
+          if (notification && ((debutContrat && notification < debutContrat) || notification > finContrat)) {
+            refusFin.push("la date de notification (" + jmaRoute(notification) + ") doit se situer entre le début "
+              + "du contrat et sa fin (" + jmaRoute(finContrat) + ").");
+          }
+          // La signature de la convention (62.004).
+          if (!convention && RUPT_CONVENTION.indexOf(codeMotif) >= 0) {
+            refusFin.push("la date de signature de la convention de rupture est obligatoire pour une rupture "
+              + "conventionnelle.");
+          }
+          if (convention && convention > finContrat) {
+            refusFin.push("la convention de rupture ne peut pas être signée après la fin du contrat.");
+          }
+          // L engagement de la procedure de licenciement (62.005).
+          if (!procedure && RUPT_PROCEDURE.indexOf(codeMotif) >= 0) {
+            refusFin.push("la date d'engagement de la procédure de licenciement (celle de l'entretien préalable) "
+              + "est obligatoire pour ce motif.");
+          }
+          if (procedure && procedure > finContrat) {
+            refusFin.push("l'engagement de la procédure de licenciement ne peut pas suivre la fin du contrat.");
+          }
+          // Le dernier jour travaille et paye (62.006).
+          if (dernierPaye && ((debutContrat && dernierPaye < debutContrat) || dernierPaye > finContrat)) {
+            refusFin.push("le dernier jour travaillé et payé (" + jmaRoute(dernierPaye) + ") doit se situer dans "
+              + "le contrat.");
+          }
+
+          // Le preavis (63.001 a 63.003).
+          if (preavisType && PREAVIS_TYPES.indexOf(preavisType) < 0) {
+            refusFin.push("type de préavis inconnu : « " + preavisType + " ».");
+          } else if (!preavisType) {
+            if (codeMotif && RUPT_SANS_PREAVIS.indexOf(codeMotif) < 0) {
+              refusFin.push("préciser le préavis : effectué ou non, payé ou non — ou « pas de préavis ». "
+                + "France Travail s'en sert pour fixer le début de l'indemnisation.");
+            }
+            if (preavisDebut || preavisFin) {
+              refusFin.push("des dates de préavis sont saisies sans le type de préavis.");
+            }
+          } else {
+            if ((codeMotif === "034" || codeMotif === "035") && preavisType !== "60" && preavisType !== "90") {
+              refusFin.push("fin de période d'essai : seuls un délai de prévenance ou « pas de préavis » se déclarent.");
+            }
+            if ((codeMotif === "043" || codeMotif === "110") && preavisType !== "90") {
+              refusFin.push("une rupture conventionnelle n'a pas de préavis : choisir « pas de préavis ».");
+            }
+            if (codeMotif === "026" && preavisType !== "10" && preavisType !== "90") {
+              refusFin.push("contrat de sécurisation professionnelle : le préavis est « non effectué, non payé "
+                + "(CSP) » ou « pas de préavis ».");
+            }
+            if (preavisType === "61" && codeMotif !== "114") {
+              refusFin.push("le préavis « parcours d'accompagnement personnalisé » ne se déclare qu'avec le motif "
+                + "de rupture correspondant.");
+            }
+            if (preavisType === "90") {
+              if (preavisDebut || preavisFin) {
+                refusFin.push("« pas de préavis » ne porte pas de dates : les vider.");
+              }
+            } else {
+              if (!preavisDebut || !preavisFin) {
+                refusFin.push("un préavis se déclare avec ses deux dates, début et fin.");
+              } else {
+                if (preavisFin < preavisDebut) refusFin.push("la fin du préavis précède son début.");
+                if (debutContrat && preavisDebut < debutContrat) refusFin.push("le préavis commence avant le contrat.");
+                if (notification && preavisDebut < notification) {
+                  refusFin.push("le préavis ne peut pas commencer avant la notification de la rupture ("
+                    + jmaRoute(notification) + ").");
+                }
+                if (procedure && RUPT_PROCEDURE.indexOf(codeMotif) >= 0 && preavisDebut <= procedure) {
+                  refusFin.push("le préavis doit commencer après l'engagement de la procédure de licenciement ("
+                    + jmaRoute(procedure) + ").");
+                }
+                if (PREAVIS_NON_FAITS.indexOf(preavisType) >= 0) {
+                  if (!dernierPaye) {
+                    refusFin.push("préavis non effectué : saisir le dernier jour travaillé et payé, qui précède "
+                      + "le début du préavis.");
+                  } else if (dernierPaye >= preavisDebut) {
+                    refusFin.push("préavis non effectué : le dernier jour travaillé et payé ("
+                      + jmaRoute(dernierPaye) + ") doit précéder le début du préavis (" + jmaRoute(preavisDebut) + ").");
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (refusFin.length > 0) {
+          const t0 = refusFin.join(" ");
+          return NextResponse.json({
+            erreur: t0.charAt(0).toUpperCase() + t0.slice(1) + " ⛔ Sans cela, France Travail rejette le "
+              + "signalement. Rien n'a été enregistré.",
+          }, { status: 400 });
+        }
+        if (convention) enPlus.date_signature_convention = convention;
+        if (procedure) enPlus.date_engagement_procedure = procedure;
+        if (preavisType) enPlus.preavis_type = preavisType;
+        if (preavisType && preavisType !== "90") {
+          enPlus.preavis_debut = preavisDebut;
+          enPlus.preavis_fin = preavisFin;
+        }
+      }
+
+      // ---- 🆕🚨 05/10 — « MODIFIER » NE PERD PLUS L AVIS D ARRET ----
+      // Modifier un signalement, c est en enregistrer un nouveau puis retirer
+      // l ancien. La piece jointe (l avis d arret) et la marque « affection
+      // de longue duree » restaient sur l ancien : apres une modification, le
+      // mois repassait au rouge « avis d arret manquant » et les indemnites
+      // redevenaient imposables. On les reprend sur le signalement remplace.
+      const remplace = propre(c.remplace);
+      if (remplace) {
+        const { data: vieux } = await supabase
+          .from("paie_evenements").select("*").eq("id", remplace).maybeSingle();
+        if (vieux && String((vieux as any).contrat_id) === contratId
+            && String((vieux as any).type_evenement) === type) {
+          const v: any = vieux;
+          if (v.preuve_chemin) {
+            enPlus.preuve_chemin = v.preuve_chemin;
+            enPlus.preuve_nom = v.preuve_nom || null;
+            enPlus.preuve_par = v.preuve_par || null;
+            enPlus.preuve_le = v.preuve_le || null;
+          }
+          if (type === "arret" && v.ald === true) enPlus.ald = true;
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
       // 🚨 LA SUBROGATION SE SAISIT EN ENTIER OU PAS DU TOUT.
       //
       // Elle etait deja refusee sans IBAN, a la saisie plutot qu a la
@@ -2342,10 +2807,19 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           date_notification: String(c.date_notification || "") || null,
           dernier_jour_paye: String(c.dernier_jour_paye || "") || null,
           statut: "brouillon",
+          ...enPlus,
         })
         .select()
         .maybeSingle();
       if (eIns) {
+        // 🆕 05/10 — une colonne du 05/10 absente de la base se dit en clair.
+        if (/column|schema cache/i.test(String(eIns.message || ""))
+            && /preavis|convention|procedure|tpt_/i.test(String(eIns.message || ""))) {
+          return NextResponse.json({
+            erreur: "la base n'a pas encore les colonnes du préavis et des dates de rupture (requête SQL "
+              + "du 05/10 à passer). Rien n'a été enregistré.",
+          }, { status: 500 });
+        }
         return NextResponse.json({ erreur: eIns.message }, { status: 500 });
       }
 
@@ -2358,8 +2832,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       return NextResponse.json({
         success: true,
         evenement: cree,
-        message: (type === "arret" ? "Arrêt" : "Fin de contrat")
-          + " enregistré. "
+        message: (type === "arret" ? "Arrêt enregistré. " : "Fin de contrat enregistrée. ")
           + (jours < 0
             ? "⚠️ DÉLAI DÉPASSÉ de " + nbAcc(Math.abs(jours), "jour", "jours") + " : "
               + "le signalement aurait dû partir le "
