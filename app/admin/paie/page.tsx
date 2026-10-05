@@ -185,7 +185,109 @@ const EV_VIDE: any = {
   // d une saisie. Un champ que le formulaire ne porte pas DISPARAIT a la
   // premiere modification, sans aucun message.
   reprise_date: "", reprise_motif: "",
+  // 🆕 05/10 — LA FIN DE CONTRAT : les dates que le motif exige et le
+  // preavis ; L ARRET : la perte de salaire du temps partiel therapeutique.
+  // ⛔ MEME REGLE QUE CI-DESSUS : tout champ que la route enregistre passe
+  // par ce formulaire, sinon il disparait a la premiere modification.
+  date_signature_convention: "", date_engagement_procedure: "",
+  preavis_type: "", preavis_debut: "", preavis_fin: "",
+  tpt_perte_salaire: "", tpt_fin: "",
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 05/10 — CE QUE LE MOTIF DE RUPTURE DEMANDE
+//
+// Les memes listes que la route (cahier technique de la DSN 2026.1, blocs
+// S21.G00.62 et S21.G00.63). ICI ELLES NE SERVENT QU A MONTRER LES BONS
+// CHAMPS : c est la route qui refuse, un ecran ne protege de rien.
+// ═══════════════════════════════════════════════════════════════════════
+const FIN_NOTIFICATION = ["011", "012", "014", "015", "020", "025", "034",
+  "035", "036", "037", "058", "059", "082", "083", "087", "088", "089", "095",
+  "096", "097", "111", "112", "113", "115", "117"];
+const FIN_CONVENTION = ["043", "110", "111"];
+const FIN_PROCEDURE = ["011", "012", "014", "015", "020", "026", "086",
+  "087", "088", "089", "091", "092", "093", "111", "112", "113", "114", "115",
+  "117"];
+// Fin de CDD, fin de mission, ruptures conventionnelles : jamais de preavis,
+// le champ ne s affiche pas.
+const FIN_SANS_PREAVIS = ["031", "032", "043", "110"];
+// Fin d essai du salarie : le preavis peut rester vide (« pas de preavis »).
+const FIN_PREAVIS_FACULTATIF = ["035"];
+const PREAVIS_LIBELLES: Record<string, string> = {
+  "01": "Préavis effectué et payé",
+  "02": "Préavis non effectué, payé",
+  "03": "Préavis non effectué, non payé",
+  "10": "Préavis non effectué, non payé — contrat de sécurisation professionnelle",
+  "50": "Préavis non effectué, payé — congé de reclassement",
+  "51": "Préavis non effectué, payé — congé de mobilité",
+  "60": "Délai de prévenance",
+  "61": "Préavis non effectué, non payé — parcours d'accompagnement personnalisé",
+  "90": "Pas de préavis",
+};
+const PREAVIS_NON_FAITS = ["02", "03", "10", "50", "51", "61"];
+
+function preavisPossibles(code: string): string[] {
+  if (code === "034" || code === "035") return ["60", "90"];
+  if (code === "026") return ["10", "90"];
+  if (code === "114") return ["61", "01", "02", "03", "90"];
+  return ["01", "02", "03", "50", "51", "90"];
+}
+
+// Quels champs le formulaire des signalements montre, selon la nature et le
+// motif. ⚠️ SERT DEUX FOIS : a l affichage, et a l envoi — un champ qui n est
+// pas montre part VIDE, meme s il garde une valeur d un motif precedent.
+function champsSignalement(ev: any, evenements: any): any {
+  const arret = ev.type_evenement === "arret";
+  const fin = ev.type_evenement === "fin_contrat";
+  const liste = evenements ? (arret ? evenements.motifs_arret : evenements.motifs_fin) : [];
+  let code = "";
+  for (const m of (liste || [])) {
+    if (String(m.correspondance) === String(ev.motif)) code = String(m.code);
+  }
+  const preavis = fin && !!ev.motif && FIN_SANS_PREAVIS.indexOf(code) < 0;
+  const preavisDates = preavis && !!ev.preavis_type && ev.preavis_type !== "90";
+  return {
+    code: code,
+    notificationObligatoire: fin && FIN_NOTIFICATION.indexOf(code) >= 0,
+    convention: fin && FIN_CONVENTION.indexOf(code) >= 0,
+    procedure: fin && FIN_PROCEDURE.indexOf(code) >= 0,
+    preavis: preavis,
+    preavisObligatoire: preavis && !!code && FIN_PREAVIS_FACULTATIF.indexOf(code) < 0,
+    preavisDates: preavisDates,
+    dernierPaye: fin && !!ev.motif,
+    dernierPayeObligatoire: preavisDates && PREAVIS_NON_FAITS.indexOf(String(ev.preavis_type)) >= 0,
+    tpt: arret && (["15", "16", "17", "18"].indexOf(code) >= 0
+      || (!!ev.reprise_date && ev.reprise_motif === "02")),
+    tptReprise: arret && !!ev.reprise_date && ev.reprise_motif === "02",
+  };
+}
+
+// 🆕 05/10 — CE QUI, DANS « MODIFIER LE CONTRAT », EST UN CHANGEMENT QUE LA
+// DSN DU MOIS DECLARE : duree du travail, forfait en jours, categorie,
+// convention, profession, code risque. La comparaison suit celle de la route.
+function changementDeclare(ct: any, cs: any): boolean {
+  if (!ct || !cs) return false;
+  const t = function (x: any): string { return String(x === null || x === undefined ? "" : x).trim(); };
+  const n = function (x: any): number {
+    const v = Number(t(x).replace(/\s/g, "").replace(",", "."));
+    return isFinite(v) ? v : 0;
+  };
+  if (ct.type_contrat !== "mandat_social"
+      && (t(cs.duree_hebdo) === "" ? 35 : n(cs.duree_hebdo)) !== n(ct.duree_hebdo)) return true;
+  const forfait = cs.categorie === "cadre" ? Math.round(n(cs.forfait_jours_annuel)) : 0;
+  if (forfait !== n(ct.forfait_jours_annuel)) return true;
+  if ((t(cs.categorie) || "non_cadre") !== (t(ct.categorie) || "non_cadre")) return true;
+  if (n(cs.idcc) !== n(ct.idcc)) return true;
+  if (t(cs.pcs_ese) !== t(ct.pcs_ese)) return true;
+  if (t(cs.code_risque_at).toUpperCase() !== t(ct.code_risque_at)) return true;
+  return false;
+}
+
+function aujourdhuiIso(): string {
+  const d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-"
+    + String(d.getDate()).padStart(2, "0");
+}
 
 function moisCourant(): string {
   const d = new Date();
@@ -605,6 +707,10 @@ export default function PagePaie() {
       categorie: v(choisi.categorie) || "non_cadre", idcc: v(choisi.idcc),
       coefficient: v(choisi.coefficient), position_conv: v(choisi.position_conv),
       lieu_travail_insee: v(choisi.lieu_travail_insee),
+      // 🆕 05/10 — le lieu de naissance du salarie (la DSN le declare), et
+      // la date d effet d un changement (vide = aujourd hui).
+      lieu_naissance: v(choisi.paie_salaries ? choisi.paie_salaries.lieu_naissance : ""),
+      a_compter_du: "",
       salaire_mensuel: v(choisi.salaire_mensuel).replace(".", ","),
       salaire_horaire: v(choisi.salaire_horaire).replace(".", ","),
       duree_hebdo: v(choisi.duree_hebdo).replace(".", ","),
@@ -642,6 +748,8 @@ export default function PagePaie() {
     // 🆕 28/09 — un contrat non cadre n a pas de forfait en jours.
     if (corps.categorie !== "cadre") { corps.forfait_jours_annuel = ""; corps.plafond_reduit_forfait = false; }
     if (choisi.type_contrat === "mandat_social") delete corps.duree_hebdo;
+    // 🆕 05/10 — la date ne part que s il y a un changement a declarer.
+    if (!changementDeclare(choisi, contratSaisie)) delete corps.a_compter_du;
     const d = await appeler(corps);
     if (d && d.success && d.contrat) {
       setMsg(d.message || "Contrat enregistré.");
@@ -1288,9 +1396,27 @@ export default function PagePaie() {
     // ═══════════════════════════════════════════════════════════════════
     const aRetirer = modifie ? String(modifie.id) : "";
 
+    // 🆕🚨 05/10 — UN CHAMP QUI N EST PAS MONTRE PART VIDE. En changeant de
+    // motif, le formulaire garde ce qui avait ete saisi pour le precedent (un
+    // preavis, une date de convention) : l envoyer tel quel ferait declarer
+    // un preavis sur une fin de CDD.
+    // 🆕 ET « MODIFIER » DIT QUEL SIGNALEMENT IL REMPLACE : la route reprend
+    // sur lui l avis d arret joint et la marque « affection de longue duree »,
+    // qui se perdaient a chaque modification.
+    const vus = champsSignalement(ev, evenements);
+    const envoi: any = Object.assign({}, ev);
+    if (!vus.convention) envoi.date_signature_convention = "";
+    if (!vus.procedure) envoi.date_engagement_procedure = "";
+    if (!vus.preavis) envoi.preavis_type = "";
+    if (!vus.preavisDates) { envoi.preavis_debut = ""; envoi.preavis_fin = ""; }
+    if (!vus.tpt) envoi.tpt_perte_salaire = "";
+    if (!vus.tptReprise) envoi.tpt_fin = "";
+    if (ev.type_evenement !== "fin_contrat") { envoi.date_notification = ""; envoi.dernier_jour_paye = ""; }
+    if (aRetirer) envoi.remplace = aRetirer;
+
     const d = await appeler(Object.assign({
       action: "ajouter_evenement", contrat_id: choisi.id,
-    }, ev));
+    }, envoi));
     if (!d || d.erreur) {
       setOccupe("");
       if (d && d.erreur) setErrEv(d.erreur);
@@ -1341,6 +1467,15 @@ export default function PagePaie() {
       dernier_jour_paye: d10(x.dernier_jour_paye),
       reprise_date: d10(x.reprise_date),
       reprise_motif: String(x.reprise_motif || ""),
+      // 🆕 05/10 — la fin de contrat et le temps partiel therapeutique.
+      date_signature_convention: d10(x.date_signature_convention),
+      date_engagement_procedure: d10(x.date_engagement_procedure),
+      preavis_type: String(x.preavis_type || ""),
+      preavis_debut: d10(x.preavis_debut),
+      preavis_fin: d10(x.preavis_fin),
+      tpt_perte_salaire: x.tpt_perte_salaire === null || x.tpt_perte_salaire === undefined
+        ? "" : String(x.tpt_perte_salaire).replace(".", ","),
+      tpt_fin: d10(x.tpt_fin),
     });
     setModifie(x);
     setErrEv(""); setErr(""); setMsg("");
@@ -2170,6 +2305,9 @@ export default function PagePaie() {
                           {champ("position_conv", "Position", "100px")}
                           {champ("lieu_travail_insee", "Lieu de travail (code INSEE)", "170px", { placeholder: "ex. 69382" })}
                           {champ("code_risque_at", "Code risque AT (CARSAT)", "140px", { placeholder: "ex. 745BD" })}
+                          {/* 🆕 05/10 — la DSN declare le lieu de naissance ; il
+                              ne se corrigeait que par une requete. */}
+                          {champ("lieu_naissance", "Lieu de naissance (commune)", "180px", { placeholder: "ex. Lyon" })}
                           {choisi.type_contrat === "apprentissage" && (
                             <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "14px" }}>
                               <input type="checkbox" checked={!!cs.apprenti_public}
@@ -2203,6 +2341,33 @@ export default function PagePaie() {
                             )}
                           </div>
                         </div>
+                        {/* ═══════════════════════════════════════════════════
+                            🆕🚨 05/10 — UN CHANGEMENT DU CONTRAT SE DATE
+                            Duree du travail, categorie, convention, profession,
+                            code risque : la DSN du mois le declare, avec
+                            l ancienne valeur et cette date. Le cadre n apparait
+                            que si l une d elles change ET qu un bulletin a deja
+                            ete emis (avant, rien n a ete declare : c est une
+                            correction, pas un changement).
+                            ═══════════════════════════════════════════════════ */}
+                        {changementDeclare(choisi, cs)
+                          && bulletins.some(function (b: any) { return b.statut === "emis"; }) && (
+                          <div style={{ marginTop: "12px", padding: "10px 12px", borderRadius: "8px",
+                            border: "1px solid rgba(200,169,110,0.4)", background: "rgba(200,169,110,0.06)" }}>
+                            <div style={{ maxWidth: "240px" }}>
+                              <span style={{ ...LIB, color: OR }}>Ce changement s&apos;applique à compter du</span>
+                              <input type="date" className="mc-date" style={CHAMP}
+                                value={cs.a_compter_du || aujourdhuiIso()} max={aujourdhuiIso()}
+                                onChange={(ev) => setContratSaisie({ ...cs, a_compter_du: ev.target.value })} />
+                            </div>
+                            <p style={{ margin: "8px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                              color: "rgba(255,255,255,0.76)" }}>
+                              La durée du travail, la catégorie, la convention, la profession ou le
+                              code risque change : la DSN du mois le déclarera, avec l&apos;ancienne
+                              valeur et cette date.
+                            </p>
+                          </div>
+                        )}
                         {/* 🆕 28/09 — LE VEHICULE DE FONCTION : l avantage en
                             nature se calcule seul chaque mois (forfait de
                             l arrete du 25 fevrier 2025). */}
@@ -3484,7 +3649,8 @@ export default function PagePaie() {
                     <span style={LIB}>Nature</span>
                     <select value={ev.type_evenement} style={CHAMP}
                       onChange={(x: any) => setEv(Object.assign({}, ev, {
-                        type_evenement: x.target.value, motif: "" }))}>
+                        type_evenement: x.target.value, motif: "",
+                        preavis_type: "", preavis_debut: "", preavis_fin: "" }))}>
                       <option value="arret">Arrêt de travail</option>
                       <option value="fin_contrat">Fin de contrat</option>
                     </select>
@@ -3494,7 +3660,8 @@ export default function PagePaie() {
                     <span style={LIB}>Motif</span>
                     <select value={ev.motif} style={CHAMP}
                       onChange={(x: any) => setEv(Object.assign({}, ev,
-                        { motif: x.target.value }))}>
+                        // 🆕 05/10 — le preavis depend du motif : il repart a vide.
+                        { motif: x.target.value, preavis_type: "", preavis_debut: "", preavis_fin: "" }))}>
                       <option value="">— choisir —</option>
                       {(ev.type_evenement === "arret"
                         ? evenements.motifs_arret
@@ -3547,7 +3714,10 @@ export default function PagePaie() {
 
                   {ev.type_evenement === "fin_contrat" && (
                     <div>
-                      <span style={LIB}>Date de notification</span>
+                      <span style={LIB}>
+                        Date de notification
+                        {champsSignalement(ev, evenements).notificationObligatoire ? " (obligatoire)" : ""}
+                      </span>
                       <input type="date" className="mc-date" value={ev.date_notification}
                         style={CHAMP}
                         onChange={(x: any) => setEv(Object.assign({}, ev,
@@ -3555,6 +3725,76 @@ export default function PagePaie() {
                     </div>
                   )}
                 </div>
+
+                {/* ═══════════════════════════════════════════════════════
+                    🆕🚨 05/10 — LA FIN DE CONTRAT : CE QUE LE MOTIF EXIGE
+
+                    Le signalement remplace l attestation employeur. Selon le
+                    motif, France Travail exige la date de signature de la
+                    convention (rupture conventionnelle), celle de l entretien
+                    prealable (licenciement), et un preavis avec ses dates.
+                    Aucun de ces champs n existait : une demission ou un
+                    licenciement ne pouvaient pas etre declares.
+                    ⚠️ SEULS LES CHAMPS DU MOTIF CHOISI S AFFICHENT.
+                    ⚠️ Chaque date porte son lien « effacer » : l iPad ne
+                    sait pas vider un champ date.
+                    ═══════════════════════════════════════════════════════ */}
+                {ev.type_evenement === "fin_contrat" && ev.motif && (function () {
+                  const vus = champsSignalement(ev, evenements);
+                  const dateEv = function (cle: string, libelle: string) {
+                    return (
+                      <div style={{ flex: "1 1 200px", maxWidth: "270px" }}>
+                        <span style={LIB}>{libelle}</span>
+                        <input type="date" className="mc-date" value={ev[cle] || ""} style={CHAMP}
+                          onChange={(x: any) => setEv(Object.assign({}, ev, { [cle]: x.target.value }))} />
+                        {ev[cle] && (
+                          <button onClick={() => setEv(Object.assign({}, ev, { [cle]: "" }))}
+                            style={{ ...LIEN, color: OR, marginTop: "4px" }}>effacer la date</button>
+                        )}
+                      </div>
+                    );
+                  };
+                  return (
+                    <>
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                        alignItems: "flex-start", marginTop: "12px" }}>
+                        {vus.convention && dateEv("date_signature_convention",
+                          "Convention signée le (obligatoire)")}
+                        {vus.procedure && dateEv("date_engagement_procedure",
+                          "Entretien préalable le (obligatoire)")}
+                        {vus.preavis && (
+                          <div style={{ flex: "2 1 280px", maxWidth: "440px" }}>
+                            <span style={LIB}>Préavis{vus.preavisObligatoire ? " (obligatoire)" : ""}</span>
+                            <select value={ev.preavis_type || ""} style={CHAMP}
+                              onChange={(x: any) => setEv(Object.assign({}, ev, x.target.value && x.target.value !== "90"
+                                ? { preavis_type: x.target.value }
+                                : { preavis_type: x.target.value, preavis_debut: "", preavis_fin: "" }))}>
+                              <option value="">— choisir —</option>
+                              {preavisPossibles(vus.code).map(function (k: string) {
+                                return <option key={k} value={k}>{PREAVIS_LIBELLES[k]}</option>;
+                              })}
+                            </select>
+                          </div>
+                        )}
+                        {vus.preavisDates && dateEv("preavis_debut", "Début du préavis")}
+                        {vus.preavisDates && dateEv("preavis_fin", "Fin du préavis")}
+                        {vus.dernierPaye && dateEv("dernier_jour_paye", vus.dernierPayeObligatoire
+                          ? "Dernier jour travaillé et payé (obligatoire)"
+                          : "Dernier jour travaillé et payé")}
+                      </div>
+                      <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
+                        margin: "8px 0 0", lineHeight: "1.6" }}>
+                        {(vus.convention || vus.procedure || vus.preavis)
+                          ? "Ces dates se lisent sur la lettre de rupture ou sur la convention. "
+                            + "France Travail les exige pour ce motif : sans elles, le signalement est rejeté. "
+                          : ""}
+                        {vus.dernierPayeObligatoire
+                          ? "Préavis non effectué : le dernier jour travaillé et payé précède le début du préavis."
+                          : "Dernier jour travaillé et payé : laissé vide, c'est la date de fin du contrat."}
+                      </p>
+                    </>
+                  );
+                })()}
 
                 {/* 🚨 LA SUBROGATION DECIDE QUI TOUCHE LES INDEMNITES.
                     Quand l employeur maintient le salaire, il les percoit
@@ -3670,6 +3910,53 @@ export default function PagePaie() {
                   </p>
                 )}
 
+                {/* ═══════════════════════════════════════════════════════
+                    🆕🚨 05/10 — LE TEMPS PARTIEL THERAPEUTIQUE
+
+                    La DSN du mois declare la PERTE DE SALAIRE : c est sur
+                    elle que la caisse calcule l indemnite du salarie. Elle ne
+                    se calcule pas, elle se saisit — et aucun ecran ne la
+                    demandait. ⚠️ Le cadre n apparait que pour un arret de
+                    motif « temps partiel therapeutique », ou une reprise a
+                    temps partiel therapeutique.
+                    ═══════════════════════════════════════════════════════ */}
+                {champsSignalement(ev, evenements).tpt && (
+                  <div style={{ marginTop: "12px", padding: "10px 12px", borderRadius: "8px",
+                    border: "1px solid rgba(200,169,110,0.4)", background: "rgba(200,169,110,0.06)" }}>
+                    <p style={{ margin: 0, fontSize: "14px", color: OR, fontWeight: "bold" }}>
+                      Temps partiel thérapeutique
+                    </p>
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
+                      alignItems: "flex-start", marginTop: "8px" }}>
+                      <div style={{ flex: "1 1 220px", maxWidth: "280px" }}>
+                        <span style={LIB}>Perte de salaire du mois (en euros)</span>
+                        <input value={ev.tpt_perte_salaire || ""} style={CHAMP}
+                          inputMode="decimal" placeholder="ex. 350,00"
+                          onChange={(x: any) => setEv(Object.assign({}, ev,
+                            { tpt_perte_salaire: x.target.value }))} />
+                      </div>
+                      {champsSignalement(ev, evenements).tptReprise && (
+                        <div style={{ flex: "1 1 220px", maxWidth: "280px" }}>
+                          <span style={LIB}>Temps partiel prescrit jusqu&apos;au (obligatoire)</span>
+                          <input type="date" className="mc-date" value={ev.tpt_fin || ""} style={CHAMP}
+                            onChange={(x: any) => setEv(Object.assign({}, ev,
+                              { tpt_fin: x.target.value }))} />
+                          {ev.tpt_fin && (
+                            <button onClick={() => setEv(Object.assign({}, ev, { tpt_fin: "" }))}
+                              style={{ ...LIEN, color: OR, marginTop: "4px" }}>effacer la date</button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "13.5px", color: "rgba(255,255,255,0.72)",
+                      margin: "8px 0 0", lineHeight: "1.6" }}>
+                      La DSN du mois déclare cette perte de salaire : c&apos;est sur elle que la
+                      caisse calcule l&apos;indemnité du salarié. À mettre à jour chaque mois, par
+                      « modifier », tant que le temps partiel dure.
+                    </p>
+                  </div>
+                )}
+
                 {/* 🆕🚨 LE MESSAGE EST ICI, AU-DESSUS DU BOUTON — 18/09.
                     Il partait dans le bandeau du haut de la page : on touchait
                     « Enregistrer », rien ne bougeait sous les yeux, et il
@@ -3780,13 +4067,31 @@ export default function PagePaie() {
                             ))}
                             <span style={{ marginLeft: "10px",
                               color: "rgba(255,255,255,0.76)" }}>
-                              {x.motif}
+                              {/* 🆕 05/10 — le motif en clair : la liste affichait le
+                                  mot de la base (« licenciement_autre »). */}
+                              {(function () {
+                                const liste = arret ? evenements.motifs_arret : evenements.motifs_fin;
+                                for (const m of (liste || [])) {
+                                  if (String(m.correspondance) === String(x.motif)) return String(m.libelle || x.motif);
+                                }
+                                return x.motif;
+                              })()}
                               {x.subrogation
                                 ? " · subrogation"
                                   + (x.subro_fin ? " jusqu'au " + jma(x.subro_fin) : "")
                                 : (arret ? " · sans subrogation" : "")}
                               {arret && x.reprise_date
                                 ? " · reprise le " + jma(x.reprise_date)
+                                : ""}
+                              {/* 🆕 05/10 — le temps partiel therapeutique et le
+                                  preavis se lisent sur la ligne. */}
+                              {arret && Number(x.tpt_perte_salaire || 0) > 0
+                                ? " · perte de salaire " + euros(x.tpt_perte_salaire) + " €"
+                                : ""}
+                              {!arret && x.preavis_type
+                                ? " · " + String(PREAVIS_LIBELLES[String(x.preavis_type)] || "préavis").toLowerCase()
+                                  + (x.preavis_debut && x.preavis_fin
+                                    ? " du " + jma(x.preavis_debut) + " au " + jma(x.preavis_fin) : "")
                                 : ""}
                               {" · "}{x.statut}
                               {/* 🚨 LE NUMERO D ORDRE SE VOIT : c est lui qui
@@ -3800,6 +4105,15 @@ export default function PagePaie() {
                                   + x.numero_ordre_reprise + " fois"
                                 : ""}
                             </span>
+                            {champsSignalement(x, evenements).tpt
+                              && !(Number(x.tpt_perte_salaire || 0) > 0) && (
+                              <span style={{ display: "block", marginTop: "3px",
+                                color: ORANGE, fontSize: "13.5px" }}>
+                                Temps partiel thérapeutique : la perte de salaire du mois
+                                n&apos;est pas saisie. Sans elle, la DSN ne le déclare pas —
+                                touchez « modifier ».
+                              </span>
+                            )}
                             {manques.length > 0 && (
                               <span style={{ display: "block", marginTop: "3px",
                                 color: ROUGE, fontSize: "13.5px" }}>
