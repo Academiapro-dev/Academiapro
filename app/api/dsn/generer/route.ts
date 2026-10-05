@@ -293,6 +293,20 @@ const TYPE_ENVOI = "01";
 // le cahier technique lui-meme.
 const TYPE_TAUX_NEUTRE = "13";
 
+// 🆕 05/10 — LA LISTE COMPLETE, LUE AU CAHIER TECHNIQUE 2026.1 (page 245) :
+//     01  Taux transmis par la DGFIP
+//     13  Bareme mensuel metropole
+//     17  Bareme mathematique sur base mensuelle metropole
+//     23  Bareme mensuel Guadeloupe, Reunion et Martinique
+//     27  Bareme mathematique, memes territoires
+//     33  Bareme mensuel Guyane et Mayotte
+//     37  Bareme mathematique, memes territoires
+//     99  Indu relatif a un exercice anterieur — pas de taux
+// ⚠️ LE MOTEUR DE PAIE N APPLIQUE QUE LA GRILLE DE METROPOLE (les grilles
+// d outre-mer ne sont pas chargees) : c est donc « 13 » qui decrit ce qui
+// a ete preleve, et le cas d outre-mer reste signale.
+const TYPE_TAUX_PERSONNALISE = "01";
+
 // 🚨 LES CODES DE COTISATION QUI RELEVENT DE LA RETRAITE COMPLEMENTAIRE.
 // La reduction generale se ventile entre deux codes DSN, et c est cette
 // liste qui decide de quel cote va chaque euro.
@@ -815,7 +829,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       erreur: "la société n'a pas de SIRET à 14 chiffres. ⛔ AUCUNE DSN N'EST "
         + "POSSIBLE SANS LUI : c'est l'identifiant de l'établissement déclarant. "
-        + "Le renseigner dans compta_societes.siret.",
+        + "Le renseigner sur la fiche du dossier : « Mes dossiers » → « Sa fiche » → bloc « L'employeur — pour la paie et la DSN ».",
     }, { status: 400 });
   }
 
@@ -826,8 +840,9 @@ export async function POST(req: NextRequest) {
   if (!cleLuhnValide(siret)) {
     return NextResponse.json({
       erreur: "le SIRET " + siret + " ne respecte pas la clé de Luhn. "
-        + "⛔ LA DÉCLARATION SERAIT REJETÉE. Vérifier le numéro dans "
-        + "compta_societes.siret — un chiffre a probablement été mal saisi.",
+        + "⛔ LA DÉCLARATION SERAIT REJETÉE. Vérifier le numéro sur la fiche "
+        + "du dossier (« Mes dossiers » → « Sa fiche » → bloc « L'employeur — pour la paie et la DSN ») — un chiffre a "
+        + "probablement été mal saisi.",
     }, { status: 400 });
   }
   if (!cleLuhnValide(siret.slice(0, 9))) {
@@ -1183,7 +1198,7 @@ export async function POST(req: NextRequest) {
     anomalies.push("Le téléphone du contact déclaré est le numéro par défaut "
       + "« " + TELEPHONE_DEFAUT + " », qui n'existe pas. ⚠️ C'est le numéro "
       + "que la CPAM ou France Travail composera en cas de question sur un "
-      + "salarié. Renseigner compta_societes.contact_tel.");
+      + "salarié. Le renseigner sur la fiche du dossier : « Mes dossiers » → « Sa fiche » → bloc « L'employeur — pour la paie et la DSN », « Téléphone ».");
   }
 
   // ══ S20 — LA DECLARATION ══
@@ -1246,10 +1261,12 @@ export async function POST(req: NextRequest) {
       ? "Code APE « " + q(societe.code_ape) + " » mal formé : il s'écrit sur "
         + "quatre chiffres et une lettre (7820Z). ⛔ NON DÉCLARÉ — les "
         + "rubriques S21.G00.06.003 et S21.G00.11.002 sont obligatoires, LA "
-        + "DÉCLARATION SERA REJETÉE. Corriger compta_societes.code_ape."
+        + "DÉCLARATION SERA REJETÉE. Le corriger sur la fiche du dossier "
+        + "(« Mes dossiers » → « Sa fiche » → bloc « L'employeur — pour la paie et la DSN »)."
       : "Code APE absent. ⛔ Les rubriques S21.G00.06.003 (APEN) et "
         + "S21.G00.11.002 (APET) sont obligatoires : LA DÉCLARATION SERA "
-        + "REJETÉE. Renseigner compta_societes.code_ape.");
+        + "REJETÉE. Le renseigner sur la fiche du dossier "
+        + "(« Mes dossiers » → « Sa fiche » → bloc « L'employeur — pour la paie et la DSN »).");
   }
 
   // ══ S21.G00.11 — L ETABLISSEMENT ══
@@ -1357,10 +1374,12 @@ export async function POST(req: NextRequest) {
   }
 
   // 🆕 LE CODE DU TYPE DE TAUX PERSONNALISE, lu une seule fois pour tout le
-  // fichier. Voir le commentaire de TYPE_TAUX_NEUTRE : cette valeur n est
-  // pas ecrite en dur parce qu elle n a pas ete lue au cahier technique.
-  const codeTauxPersonnalise = await code("S21.G00.50.007",
-    "taux_pas_personnalise", periode);
+  // fichier.
+  // 🆕 05/10 — LU AU CAHIER TECHNIQUE 2026.1 (page 245, S21.G00.50.007) :
+  // « 01 - Taux transmis par la DGFIP ». La table reste la premiere source ;
+  // la valeur du cahier technique sert si la table ne la porte pas.
+  const codeTauxPersonnalise = (await code("S21.G00.50.007",
+    "taux_pas_personnalise", periode)) || TYPE_TAUX_PERSONNALISE;
 
   // ═══════════════════════════════════════════════════════════════════
   // 🆕 LA PLACE DU BORDEREAU EST RESERVEE ICI.
@@ -1467,8 +1486,21 @@ export async function POST(req: NextRequest) {
     // et doit s ecrire AVANT l adresse (30.008) — l ordre croissant des
     // rubriques ne souffre aucune exception.
     const deptNaissance = nirComplet.length >= 7 ? nirComplet.slice(5, 7) : "";
+    // 🆕🚨 05/10 — UN LIEU DE NAISSANCE ABSENT NE S OMET PLUS EN SILENCE.
+    // dsn-val (S21.G00.30.007/CCH-11), premier dossier cree depuis l ecran :
+    // « Vous avez renseigne la rubrique Code departement de naissance avec
+    // une valeur differente de 99 sans renseigner la rubrique Lieu de
+    // naissance ». La rubrique vide ne s ecrivait pas, et rien ne le disait.
+    // ⚠️ TRENTE CARACTERES AU PLUS (cahier technique : X [1,30]).
     if (deptNaissance && deptNaissance !== "99") {
-      ecrire("S21.G00.30.007", s.lieu_naissance);
+      const lieuNaissance = q(s.lieu_naissance).slice(0, 30).trim();
+      if (lieuNaissance) ecrire("S21.G00.30.007", lieuNaissance);
+      else {
+        anomalies.push(qui + " : lieu de naissance absent (S21.G00.30.007). "
+          + "⛔ RUBRIQUE OBLIGATOIRE pour une personne née en France — LA "
+          + "DÉCLARATION SERA REJETÉE. Le renseigner sur la fiche du salarié : "
+          + "écran de paie → « modifier le contrat » → « Lieu de naissance ».");
+      }
     }
 
     ecrire("S21.G00.30.008", s.adresse);
@@ -2491,89 +2523,166 @@ export async function POST(req: NextRequest) {
     //     50.009  Montant de prelevement a la source
     // ═══════════════════════════════════════════════════════════════
     ecrire("S21.G00.50.001", finPeriode);
-    ecrire("S21.G00.50.002", montantDsn(b.net_imposable));
+
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 05/10 — LE BLOC 50 RELU AU CAHIER TECHNIQUE 2026.1, APRES LE
+    // PREMIER PASSAGE DANS dsn-val D UN BULLETIN DONT LE PRELEVEMENT A LA
+    // SOURCE N EST PAS NUL (S21.G00.50.009/CCH-11).
+    //
+    // Depuis le 27/09 le moteur CALCULE le prelevement (grille officielle
+    // ou taux personnalise). Ce bloc, lui, declarait encore un taux de 0 —
+    // et dsn-val refuse : le montant (50.009) doit etre egal au montant
+    // soumis (50.013) multiplie par le taux (50.006), a un euro pres.
+    //
+    // QUATRE REGLES, lues pages 60, 244 et 245 :
+    //
+    //   50.002  LA REMUNERATION NETTE FISCALE NE COMPTE PAS LES INDEMNITES
+    //           JOURNALIERES, meme versees par subrogation : « L employeur
+    //           ne doit pas declarer les indemnites journalieres imposables.
+    //           A defaut ces indemnites seraient prises en compte deux
+    //           fois » (c est la caisse qui les declare). Le « net
+    //           imposable » du bulletin, lui, les compte : c est l ASSIETTE
+    //           DU PRELEVEMENT. On retire donc leur part imposable.
+    //   50.004  LE MONTANT NET VERSE = la remuneration nette fiscale, moins
+    //           la CSG non deductible, la CRDS et la part patronale « frais
+    //           de sante » reintegree. « Le montant du prelevement a la
+    //           source n est pas a deduire » — nous declarions le net a
+    //           payer, donc APRES prelevement.
+    //   50.006  LE TAUX REELLEMENT APPLIQUE : celui de la grille quand il
+    //           n y a pas de taux personnalise, jamais zero par principe.
+    //   50.013  LE MONTANT SOUMIS = l assiette reellement retenue : la
+    //           remuneration nette fiscale, PLUS l avance d indemnites
+    //           journalieres en subrogation, MOINS l abattement des
+    //           contrats courts.
+    //
+    // 🚨 LE GENERATEUR NE RECALCULE PAS LA PAIE : taux, assiette et montant
+    // se lisent dans le bulletin emis (`detail.prelevement`), qui dit ce
+    // qui a REELLEMENT ete preleve. La fiche du salarie ne sert plus que
+    // pour l identifiant du compte rendu, et pour les bulletins d avant le
+    // 27/09, qui n ont pas ce detail.
+    // ═══════════════════════════════════════════════════════════════
+    const prel: any = (detail as any).prelevement || null;
+    const netImposableBulletin = Number(b.net_imposable) || 0;
+    const ijImposables = Math.max(0, Number((detail as any).ijss_imposables) || 0);
+    const netFiscal = Math.round((netImposableBulletin - ijImposables) * 100) / 100;
+
+    let csgCrdsNonDeductibles = 0;
+    let patronalSanteReintegre = 0;
+    for (const lc of (((detail as any).lignes_cotisations || []) as any[])) {
+      const codeLc = q(lc && lc.code).toUpperCase();
+      if (codeLc === "CSG_NON_DED" || codeLc === "CRDS") {
+        csgCrdsNonDeductibles += Number(lc.part_salariale) || 0;
+      }
+      if (codeLc === "MUTUELLE") patronalSanteReintegre += Number(lc.part_patronale) || 0;
+    }
+    // ⚠️ REVENU ENTIEREMENT NON IMPOSABLE (cahier technique, 50.004) : le
+    // net verse est alors le brut moins les cotisations du salarie.
+    const netVerse = netFiscal > 0
+      ? Math.round((netFiscal - csgCrdsNonDeductibles - patronalSanteReintegre) * 100) / 100
+      : Math.round(((Number(b.brut) || 0) - (Number(b.total_salarial) || 0)) * 100) / 100;
+
+    ecrire("S21.G00.50.002", montantDsn(netFiscal));
     ecrire("S21.G00.50.003", "01");
-    ecrire("S21.G00.50.004", montantDsn(b.net_a_payer));
+    ecrire("S21.G00.50.004", montantDsn(netVerse));
 
-    // ═══════════════════════════════════════════════════════════════
-    // 🆕🚨 LE TAUX DE PRELEVEMENT A LA SOURCE — 18/09
-    //
-    // Il valait 0 au taux neutre pour tout le monde, en dur. Il vient
-    // desormais du salarie, avec sa date d effet.
-    //
-    // ⚠️ DEUX CAS, ET UN SEUL EST ECRIT :
-    //   · un taux personnel connu ET applicable au mois declare → on ecrit
-    //     ce taux, avec son type ;
-    //   · tout le reste → taux neutre, valeur legale et sans risque.
-    //
-    // ⛔ LE TYPE DU TAUX PERSONNALISE N EST PAS INVENTE. S il manque dans
-    // dsn_codes, le generateur GARDE LE TAUX NEUTRE et le signale : mieux
-    // vaut un prelevement legalement correct qu un type de taux devine.
-    // ═══════════════════════════════════════════════════════════════
-    const pas = tauxPasDe(s, periode);
+    // ── Le taux : ce que le bulletin a applique ──
+    const pasFiche = tauxPasDe(s, periode);
+    const bulletinDitLeTaux = !!prel
+      && (prel.nature === "personnalise" || prel.nature === "non_personnalise");
+    const tauxPersonnalise = bulletinDitLeTaux
+      ? prel.nature === "personnalise" : pasFiche.personnalise;
+    const tauxApplique = bulletinDitLeTaux
+      ? Math.max(0, Number(prel.taux) || 0)
+      : (pasFiche.personnalise ? pasFiche.taux : 0);
+    const abattementCourt = bulletinDitLeTaux && !tauxPersonnalise
+      ? Math.max(0, Number(prel.abattement) || 0) : 0;
+    const montantPreleve = Math.max(0, Number(b.prelevement_source) || 0);
 
-    if (pas.personnalise && codeTauxPersonnalise) {
-      ecrire("S21.G00.50.006", montantDsn(pas.taux));
+    // ── Le montant soumis : l assiette reellement retenue ──
+    let montantSoumis = Math.max(0, netImposableBulletin);
+    if (bulletinDitLeTaux && !tauxPersonnalise
+        && prel.assiette_apres_abattement !== undefined
+        && prel.assiette_apres_abattement !== null
+        && isFinite(Number(prel.assiette_apres_abattement))) {
+      montantSoumis = Math.max(0, Number(prel.assiette_apres_abattement));
+    }
+
+    ecrire("S21.G00.50.006", montantDsn(tauxApplique));
+
+    if (tauxPersonnalise) {
       ecrire("S21.G00.50.007", codeTauxPersonnalise);
 
       // 🆕🚨 S21.G00.50.008 — L IDENTIFIANT DU COMPTE RENDU METIER.
       //
-      // Elle ne se renseigne QUE sur un taux personnalise, et elle dit DE
-      // QUEL compte rendu le taux a ete tire. C est ce qui permet a la DGFiP
-      // de rattacher le prelevement a la transmission qui l a fonde.
-      // ⚠️ SANS ELLE, LE TAUX EST DECLARE SANS SA SOURCE. Le fichier passe,
-      // mais l administration ne peut plus verifier d ou vient le taux
-      // applique au salarie.
-      if (pas.identifiantCrm) {
-        ecrire("S21.G00.50.008", pas.identifiantCrm);
+      // Elle dit DE QUEL compte rendu le taux a ete tire. C est ce qui
+      // permet a la DGFiP de rattacher le prelevement a la transmission qui
+      // l a fonde. 🚨 OBLIGATOIRE avec le type « 01 » (controle CCH-11).
+      const identifiantCrm = pasFiche.identifiantCrm || q(s.taux_pas_identifiant_crm);
+      if (identifiantCrm) {
+        ecrire("S21.G00.50.008", identifiantCrm);
       } else {
-        anomalies.push(qui + " : taux personnalisé de " + montantDsn(pas.taux)
+        anomalies.push(qui + " : taux personnalisé de " + montantDsn(tauxApplique)
           + " % déclaré SANS l'identifiant du compte rendu métier "
-          + "(S21.G00.50.008). ⚠️ La DGFiP ne pourra pas rattacher ce taux à "
-          + "la transmission qui l'a fourni. Renseigner "
-          + "paie_salaries.taux_pas_identifiant_crm, il figure dans le compte "
-          + "rendu d'où le taux a été repris.");
+          + "(S21.G00.50.008). ⛔ OBLIGATOIRE avec un taux transmis par "
+          + "l'administration : LA DÉCLARATION SERA REJETÉE. Il figure dans le "
+          + "compte rendu d'où le taux a été repris ; le saisir avec le taux, "
+          + "écran de paie → ligne « Prélèvement à la source ».");
       }
 
       nbTauxPersonnalises++;
     } else {
-      ecrire("S21.G00.50.006", montantDsn(0));
       ecrire("S21.G00.50.007", TYPE_TAUX_NEUTRE);
 
-      if (pas.personnalise && !codeTauxPersonnalise) {
-        anomalies.push(qui + " : un taux de prélèvement à la source de "
-          + montantDsn(pas.taux) + " % est enregistré, mais le code du type "
-          + "de taux personnalisé est absent de dsn_codes (S21.G00.50.007). "
-          + "⚠️ LE TAUX NEUTRE A ÉTÉ DÉCLARÉ À LA PLACE — le salarié paiera "
-          + "plus que son taux réel ce mois-ci. Renseigner la correspondance "
-          + "« taux_pas_personnalise » depuis le cahier technique.");
+      // ⚠️ CONTRAT COURT (deux mois au plus, abattement applique) : le
+      // cahier technique demande « -1 » comme identifiant du taux.
+      if (abattementCourt > 0) ecrire("S21.G00.50.008", "-1");
+
+      // 🚨 UN TAUX ENREGISTRE APRES L EMISSION NE CHANGE PAS LE BULLETIN :
+      // la DSN declare ce qui a ete preleve, et le dit.
+      if (bulletinDitLeTaux && pasFiche.personnalise) {
+        anomalies.push(qui + " : un taux personnalisé de " + montantDsn(pasFiche.taux)
+          + " % est enregistré pour ce mois, mais le bulletin émis a prélevé "
+          + "au taux de la grille (" + montantDsn(tauxApplique) + " %). La DSN "
+          + "déclare ce qui a réellement été prélevé. ⚠️ Pour appliquer le "
+          + "taux personnalisé à ce mois, ouvrir un bulletin rectificatif.");
       }
 
       // 🆕🚨 LE BAREME NEUTRE DEPEND DE LA SITUATION GEOGRAPHIQUE.
       //
-      // « 13 » est le bareme de METROPOLE. Les codes 23 et 33 existent pour
-      // les autres situations geographiques — mais je n ai pas lu a quel
-      // territoire chacun correspond, et l inventer ferait prelever au
-      // salarie un montant calcule sur le mauvais bareme.
-      // ⚠️ ON GARDE « 13 » ET ON LE DIT : un taux legalement defendable et
-      // une anomalie visible valent mieux qu une valeur devinee.
+      // « 13 » est le bareme de METROPOLE ; « 23 » celui de la Guadeloupe,
+      // de la Reunion et de la Martinique ; « 33 » celui de la Guyane et de
+      // Mayotte (cahier technique 2026.1, page 245).
+      // ⚠️ LE MOTEUR DE PAIE N A QUE LA GRILLE DE METROPOLE : le bulletin a
+      // donc ete calcule sur elle, et c est elle qui est declaree. On le dit.
       const cpSalarie = q(s.code_postal);
       if (cpSalarie.length >= 2 && (cpSalarie.slice(0, 2) === "97"
           || cpSalarie.slice(0, 2) === "98")) {
         anomalies.push(qui + " : adresse hors métropole (code postal "
-          + cpSalarie + ") et taux neutre déclaré au barème « 13 », qui est "
-          + "celui de la métropole. ⚠️ Les barèmes 23 et 33 existent pour les "
-          + "autres situations géographiques — la correspondance exacte n'a "
-          + "PAS été vérifiée au cahier technique. À trancher avant tout "
-          + "dépôt réel concernant ce salarié.");
+          + cpSalarie + "). Le prélèvement à la source a été calculé et déclaré "
+          + "sur la grille de métropole (« 13 »), la seule chargée. ⚠️ Les "
+          + "grilles de la Guadeloupe, de la Réunion et de la Martinique "
+          + "(« 23 ») et de la Guyane et de Mayotte (« 33 ») ne le sont pas "
+          + "encore : à régler avant tout dépôt réel concernant ce salarié.");
       }
     }
 
-    ecrire("S21.G00.50.009", montantDsn(b.prelevement_source));
-    // 🚨 LE MONTANT SOUMIS AU PAS (50.013) EST OBLIGATOIRE : c est l assiette
-    // sur laquelle l administration calculera le prelevement, et elle n est
-    // pas le net verse mais le NET IMPOSABLE.
-    ecrire("S21.G00.50.013", montantDsn(b.net_imposable));
+    ecrire("S21.G00.50.009", montantDsn(montantPreleve));
+    // 🚨 LE MONTANT SOUMIS AU PAS (50.013) EST OBLIGATOIRE, « meme s il est
+    // egal a la remuneration nette fiscale ».
+    ecrire("S21.G00.50.013", montantDsn(montantSoumis));
+
+    // 🆕🚨 05/10 — LE GENERATEUR REFAIT LE CONTROLE DE dsn-val AVANT LUI
+    // (S21.G00.50.009/CCH-11) : montant = montant soumis x taux, a un euro
+    // pres. Un ecart se lit ici, pas a la Surface.
+    const attenduPas = Math.round(montantSoumis * tauxApplique) / 100;
+    if (Math.abs(montantPreleve - attenduPas) > 1) {
+      anomalies.push(qui + " : le prélèvement à la source déclaré ("
+        + montantDsn(montantPreleve) + " €) ne correspond pas au montant soumis ("
+        + montantDsn(montantSoumis) + " €) multiplié par le taux ("
+        + montantDsn(tauxApplique) + " %), soit " + montantDsn(attenduPas)
+        + " €. ⛔ LA DÉCLARATION SERA REJETÉE (contrôle S21.G00.50.009/CCH-11). "
+        + "Ressortir le bulletin du mois avant de régénérer.");
+    }
 
     // ⚠️ LE BLOC S21.G00.58 (montant net social) EST ECRIT PLUS BAS, apres
     // la remuneration et les assiettes : les sous-groupes d un meme parent
@@ -3447,14 +3556,14 @@ export async function POST(req: NextRequest) {
       if (org && q(org.siret)) siretUrssaf = q(org.siret).replace(/\D/g, "");
       else {
         anomalies.push("La codification URSSAF « " + codification + " » de la "
-          + "société est introuvable dans urssaf_organismes. ⛔ LE BORDEREAU "
-          + "N'EST PAS DÉCLARÉ. Importer la table des Urssaf, ou corriger "
-          + "compta_societes.urssaf_codification.");
+          + "société est introuvable dans la table officielle des URSSAF. ⛔ LE "
+          + "BORDEREAU N'EST PAS DÉCLARÉ. Choisir à nouveau l'URSSAF de la "
+          + "société : écran DSN → bloc « Recouvrement URSSAF » → « modifier ».");
       }
     } else {
       anomalies.push("L'URSSAF de rattachement de la société n'est pas renseignée "
-        + "(compta_societes.urssaf_codification, par exemple « U827 » pour "
-        + "Rhône-Alpes). ⛔ LE BORDEREAU N'EST PAS DÉCLARÉ : sans lui, la DSN "
+        + "(écran DSN → bloc « Recouvrement URSSAF » → « renseigner »). "
+        + "⛔ LE BORDEREAU N'EST PAS DÉCLARÉ : sans lui, la DSN "
         + "décrit les salariés mais ne déclare aucune cotisation à l'URSSAF.");
     }
 
@@ -3486,7 +3595,8 @@ export async function POST(req: NextRequest) {
       } else {
         anomalies.push("Coordonnées bancaires absentes : le bloc « Versement "
           + "organisme de protection sociale » (S21.G00.20) n'est pas déclaré. "
-          + "Renseigner compta_societes.iban_prelevement et bic_prelevement — "
+          + "Renseigner l'IBAN et le BIC du compte à prélever (écran DSN → "
+          + "bloc « Recouvrement URSSAF ») — "
           + "c'est le compte d'où l'URSSAF prélèvera " + euroDsn(duArrondi) + " EUR.");
       }
 
@@ -3891,7 +4001,8 @@ export async function POST(req: NextRequest) {
     else {
       anomalies.push("Code INSEE de la commune absent pour l'établissement "
         + "employeur (S21.G00.85.011). ⛔ LE BLOC LIEU DE TRAVAIL SERA "
-        + "REJETÉ. Renseigner compta_societes.code_insee.");
+        + "REJETÉ. Le renseigner sur la fiche du dossier "
+        + "(« Mes dossiers » → « Sa fiche » → bloc « L'employeur — pour la paie et la DSN », « Code INSEE de la commune »).");
     }
   }
 
@@ -4090,13 +4201,12 @@ export async function POST(req: NextRequest) {
 
   if (modeReel) {
     avantDepot.push("🚨 CE FICHIER EST EN MODE RÉEL (S10.G00.00.005 = 02) : "
-      + "une fois déposé, il déclare pour de vrai. Le mode vient de "
-      + "compta_societes.dsn_mode.");
+      + "une fois déposé, il déclare pour de vrai.");
   } else {
     avantDepot.push("Ce fichier est en MODE ESSAI (S10.G00.00.005 = 01) : il "
       + "peut être déposé autant de fois que voulu, aucune donnée n'est "
-      + "conservée par les organismes et RIEN N'EST DÉCLARÉ. Passer "
-      + "compta_societes.dsn_mode à « reel » pour un vrai dépôt.");
+      + "conservée par les organismes et RIEN N'EST DÉCLARÉ. Le mode réel "
+      + "s'active au moment du premier vrai dépôt.");
   }
 
   if (regimeAgricole) {
@@ -4106,12 +4216,13 @@ export async function POST(req: NextRequest) {
 
   if (nbTauxPersonnalises === 0) {
     avantDepot.push("Aucun taux de prélèvement à la source personnalisé : tous "
-      + "les salariés sont au taux neutre. Les vrais taux arrivent dans le "
-      + "compte rendu métier après le premier dépôt, à reporter dans "
-      + "paie_salaries.taux_pas avec leur date d'effet.");
+      + "les salariés sont au taux de la grille officielle. Les taux "
+      + "personnalisés arrivent dans le compte rendu de l'administration après "
+      + "le premier dépôt ; ils se reportent sur chaque salarié, avec leur "
+      + "date d'effet : écran de paie → ligne « Prélèvement à la source ».");
   } else {
     avantDepot.push(nbTauxPersonnalises + " salarié(s) au taux personnalisé, "
-      + (bulletins.length - nbTauxPersonnalises) + " au taux neutre.");
+      + (bulletins.length - nbTauxPersonnalises) + " au taux de la grille officielle.");
   }
 
   avantDepot.push("La clé de ventilation de la réduction générale entre les "
