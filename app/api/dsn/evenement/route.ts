@@ -194,6 +194,52 @@ const NORME = "P26V01";
 // se devine pas.
 const MOTIFS_SANS_PREAVIS = ["031", "032", "035", "043"];
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 05/10 — CE QUE LE MOTIF DE RUPTURE REND OBLIGATOIRE (cahier technique
+// 2026.1, bloc S21.G00.62, rubriques 003, 004 et 005)
+//
+// Un signalement de fin de contrat remplace l attestation employeur : selon
+// le motif, France Travail exige une ou plusieurs dates, et rejette le
+// fichier qui ne les porte pas.
+//   · 62.003 date de NOTIFICATION de la rupture (controle CCH-12) :
+//     licenciements, demission, fin d essai…
+//   · 62.004 date de SIGNATURE DE LA CONVENTION (controle CCH-11) : rupture
+//     conventionnelle ;
+//   · 62.005 date d ENGAGEMENT DE LA PROCEDURE de licenciement (CCH-12) :
+//     celle de l entretien prealable.
+// ⛔ AUCUNE NE SE DEVINE : elles se saisissent sur le signalement.
+// ═══════════════════════════════════════════════════════════════════════
+const MOTIFS_NOTIFICATION = ["011", "012", "014", "015", "020", "025", "034",
+  "035", "036", "037", "058", "059", "082", "083", "087", "088", "089", "095",
+  "096", "097", "111", "112", "113", "115", "117"];
+const MOTIFS_CONVENTION = ["043", "110", "111"];
+const MOTIFS_PROCEDURE = ["011", "012", "014", "015", "020", "026", "086",
+  "087", "088", "089", "091", "092", "093", "111", "112", "113", "114", "115",
+  "117"];
+// Les motifs qui admettent une indemnite legale de licenciement (types 007 a
+// 010 du bloc 52) — controle CCH-24 de la rubrique S21.G00.52.001.
+const MOTIFS_LICENCIEMENT = ["011", "012", "014", "015", "020", "025", "026",
+  "082", "086", "087", "089", "091", "092", "093", "098", "099", "111", "112",
+  "113", "114", "115", "117"];
+// Fin de periode d essai : seul un delai de prevenance (60) ou l absence de
+// preavis (90) se declare — controle CCH-11 de la rubrique 63.001.
+const MOTIFS_ESSAI = ["034", "035"];
+// Rupture conventionnelle : jamais de preavis — controle CCH-12.
+const MOTIFS_SANS_PREAVIS_STRICT = ["043", "110"];
+// Les types de preavis qui portent leurs deux dates (tous sauf « 90 »).
+const PREAVIS_AVEC_DATES = ["01", "02", "03", "10", "50", "51", "60", "61"];
+// Les preavis NON EFFECTUES : le dernier jour travaille et paye precede alors
+// le debut du preavis — controle CCH-12 de la rubrique 62.006.
+const PREAVIS_NON_EFFECTUES = ["02", "03", "10", "50", "51", "61"];
+
+// 🆕 05/10 — CE QUE LE SIGNALEMENT NE REDIT PAS. Ces lignes du bulletin se
+// declarent dans la DSN du mois, a l URSSAF ou a l organisme de prevoyance ;
+// France Travail ne s en sert pas, et aucune n a ete vue par dsn-val dans un
+// signalement. ⛔ ON NE LES SIGNALE PLUS COMME « non declarees » : elles le
+// sont, ailleurs.
+const HORS_SIGNALEMENT = ["REDUCTION_HS", "CONTRIBUTION_PATRONALE_RC",
+  "FORFAIT_SOCIAL_PREVOYANCE", "IRCANTEC_TA", "IRCANTEC_TB"];
+
 function q(v: any): string {
   if (v === null || v === undefined) return "";
   return String(v).trim();
@@ -287,6 +333,111 @@ function salaireDeBaseDsn(detail: any, ct: any): { montant: number; repli: strin
     return { montant: Number(ct.salaire_mensuel), repli: "salaire mensuel du contrat" };
   }
   return null;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 05/10 — LES MEMES LECTURES QUE LA DSN DU MOIS
+//
+// Le signalement de fin de contrat porte la derniere paie ; la DSN du mois
+// la redira. ⛔ LES DEUX DOIVENT DIRE LA MEME CHOSE : memes primes et
+// indemnites (bloc 52), meme periode d emploi, memes heures. Ces trois
+// fonctions sont donc celles du generateur du mois, recopiees a l identique.
+// ═══════════════════════════════════════════════════════════════════════
+function joursTravailDsn(ct: any): number[] {
+  const brut = q(ct && ct.jours_travailles);
+  if (!brut) return [1, 2, 3, 4, 5];
+  const vus: number[] = [];
+  for (const morceau of brut.split(/[^0-9]+/)) {
+    if (!morceau) continue;
+    const n = Number(morceau);
+    if (n >= 0 && n <= 6 && vus.indexOf(n) < 0) vus.push(n);
+  }
+  return vus.length > 0 ? vus : [1, 2, 3, 4, 5];
+}
+
+function compterJours(debut: string, fin: string, jours: number[] | null): number {
+  if (!debut || !fin || fin < debut) return 0;
+  let n = 0;
+  const d = new Date(debut + "T00:00:00Z");
+  const f = new Date(fin + "T00:00:00Z").getTime();
+  while (d.getTime() <= f) {
+    if (!jours || jours.indexOf(d.getUTCDay()) >= 0) n += 1;
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return n;
+}
+
+// LE DERNIER JOUR D UN MOIS, en AAAA-MM-JJ cette fois : il sert a comparer.
+function finDeMoisIso(periode: string): string {
+  const p = periode.split("-");
+  const d = new Date(Number(p[0]), Number(p[1]), 0);
+  return p[0] + "-" + p[1] + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+// LES PRIMES ET INDEMNITES DU BLOC S21.G00.52 — chacune dit combien d elle
+// est DANS LE BRUT (`dansLeBrut`) : c est ce montant qui sort de la
+// remuneration 002, pas le montant declare.
+//   · IFM  → 012 sur une mission, 011 sur un CDD ; ICCP → 020 ;
+//   · conges non pris d un CDI (`detail.iccp_cdi`) → 020 ;
+//   · rupture conventionnelle → 001, pour son montant TOTAL ;
+//   · licenciement → 007 jusqu au minimum legal, 021 pour ce qui le depasse.
+function primesDsn(detail: any, ct: any): { lignes: any[]; inconnues: string[] } {
+  const lignes: any[] = Array.isArray(detail && detail.lignes_mission)
+    ? detail.lignes_mission : [];
+  const sortie: any[] = [];
+  const inconnues: string[] = [];
+  const estMission = q(ct && ct.type_contrat).toLowerCase() === "mission";
+
+  for (const l of lignes) {
+    const montant = Number(l && l.montant || 0);
+    if (!(montant > 0)) continue;
+    const cd = q(l && l.code).toUpperCase();
+    let type = "";
+    if (cd === "IFM") type = estMission ? "012" : "011";
+    else if (cd === "ICCP") type = "020";
+    if (type) {
+      sortie.push({ type: type, montant: montant, dansLeBrut: montant,
+        libelle: q(l.libelle) });
+    } else {
+      // ⛔ ON N INVENTE PAS DE TYPE : la ligne reste dans la remuneration.
+      inconnues.push(q(l.libelle) + " (code « " + cd + " », "
+        + montant.toFixed(2) + " EUR)");
+    }
+  }
+
+  const iccpCdi = detail && detail.iccp_cdi ? Number(detail.iccp_cdi.montant || 0) : 0;
+  if (iccpCdi > 0 && !sortie.some(function (p: any) { return p.type === "020"; })) {
+    sortie.push({ type: "020", montant: iccpCdi, dansLeBrut: iccpCdi,
+      libelle: "Indemnité compensatrice de congés payés" });
+  }
+
+  const rup: any = detail && detail.rupture ? detail.rupture : null;
+  if (rup && Number(rup.montant || 0) > 0 && typeof rup.soumise_cotisations === "number") {
+    const total = Number(rup.montant);
+    const soumise = Math.max(0, Math.min(total, Number(rup.soumise_cotisations) || 0));
+    if (rup.rupture_conventionnelle === true) {
+      sortie.push({ type: "001", montant: total, dansLeBrut: soumise,
+        libelle: "Indemnité spécifique de rupture conventionnelle" });
+    } else {
+      const legal = Math.round(Math.max(0, Math.min(total, Number(rup.legal) || 0)) * 100) / 100;
+      const enPlus = Math.round((total - legal) * 100) / 100;
+      const soumiseEnPlus = Math.min(soumise, enPlus);
+      if (legal > 0) {
+        sortie.push({ type: "007", montant: legal,
+          dansLeBrut: Math.round((soumise - soumiseEnPlus) * 100) / 100,
+          libelle: "Indemnité légale de licenciement" });
+      }
+      if (enPlus > 0) {
+        sortie.push({ type: "021", montant: enPlus, dansLeBrut: soumiseEnPlus,
+          libelle: "Indemnité de licenciement au-delà du minimum légal" });
+      }
+    }
+  }
+
+  sortie.sort(function (x: any, y: any) {
+    return String(x.type) < String(y.type) ? -1 : (String(x.type) > String(y.type) ? 1 : 0);
+  });
+  return { lignes: sortie, inconnues: inconnues };
 }
 
 export async function POST(req: NextRequest) {
@@ -495,6 +646,9 @@ export async function POST(req: NextRequest) {
     };
 
     const anomalies: string[] = [];
+    // 🆕 05/10 — CE QUI SE RELIT SANS ETRE UNE ANOMALIE : une reprise deduite
+    // de la fin prevue d un arret, par exemple. Rendu avec les reserves.
+    const rappels: string[] = [];
     const L: string[] = [];
     const dernierePar: Record<string, number> = {};
 
@@ -1084,10 +1238,177 @@ export async function POST(req: NextRequest) {
       //     C est lui qui permet a l organisme de rapprocher le signalement
       //     de la mensuelle, et de ne pas compter deux fois la meme paie.
       // ═══════════════════════════════════════════════════════════════
+      const finCt = dateFinContrat.slice(0, 10);
+      const debutCtIso = q(ct.date_debut).slice(0, 10);
+      const aujourdhui = new Date().toISOString().slice(0, 10);
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 05/10 — S21.G00.60 : LES ARRETS DE TRAVAIL DANS LE SIGNALEMENT
+      // DE FIN DE CONTRAT
+      //
+      // Un arret intervenu LE MOIS DE LA RUPTURE OU LE PRECEDENT se redit
+      // ici : France Travail neutralise ces jours dans le calcul des droits.
+      // ✅ VALIDE PAR dsn-val le 05/10 (fichier de 189 lignes) : le bloc se
+      // place entre le contrat (40) et la fin du contrat (62), et porte
+      //     001 motif · 002 dernier jour travaille · 003 fin previsionnelle
+      //     010 date de la reprise · 011 motif de la reprise (si connue)
+      // ⛔ PAS DE SUBROGATION ICI : les rubriques 004 a 008 sont INTERDITES
+      // dans ce signalement (cahier technique : « I »). Elle a ete declaree
+      // par le signalement d arret.
+      // ⚠️ LA REPRISE EST CELLE DE LA DSN DU MOIS : la date saisie (reprise
+      // anticipee), sinon LE LENDEMAIN de la fin prevue. Elle ne s ecrit que
+      // si elle a eu lieu — au plus tard le jour de la fin du contrat, et pas
+      // dans le futur.
+      // ⛔ UN ARRET ANNULE NE SE REDIT PAS.
+      // ═══════════════════════════════════════════════════════════════
+      {
+        const dPrec = new Date(finCt.slice(0, 7) + "-01T00:00:00Z");
+        dPrec.setUTCMonth(dPrec.getUTCMonth() - 1);
+        const debutFenetre = dPrec.toISOString().slice(0, 10);
+
+        const { data: arretsLus, error: eArr } = await supabase
+          .from("paie_evenements")
+          .select("*")
+          .eq("contrat_id", (ev as any).contrat_id)
+          .eq("type_evenement", "arret")
+          .order("date_debut", { ascending: true });
+        if (eArr) {
+          anomalies.push("⛔ Lecture des arrêts de travail du contrat "
+            + "impossible (" + eArr.message + ") : ils ne sont pas redits "
+            + "dans ce signalement.");
+        }
+
+        const { data: codesArret } = await supabase
+          .from("dsn_codes")
+          .select("*")
+          .eq("rubrique", "S21.G00.60.001")
+          .is("date_fin", null);
+
+        for (const a of (arretsLus || [])) {
+          const ar: any = a;
+          if (q(ar.annule_le)) continue;
+          const debutA = q(ar.date_debut).slice(0, 10);
+          if (!debutA || debutA > finCt) continue;
+
+          const finPrevA = q(ar.date_fin).slice(0, 10);
+          const anticipee = !!q(ar.reprise_date);
+          let repriseA = q(ar.reprise_date).slice(0, 10);
+          if (!repriseA && finPrevA) {
+            const dr = new Date(finPrevA + "T00:00:00Z");
+            dr.setUTCDate(dr.getUTCDate() + 1);
+            repriseA = dr.toISOString().slice(0, 10);
+          }
+          // Repris avant le mois precedent : il ne regarde plus la rupture.
+          if (repriseA && repriseA < debutFenetre) continue;
+
+          let codeArret = "";
+          for (const k of (codesArret || [])) {
+            if (q((k as any).correspondance) === q(ar.motif)) codeArret = q((k as any).code);
+          }
+          if (!codeArret && /^\d{2}$/.test(q(ar.motif))) codeArret = q(ar.motif);
+          if (!codeArret) {
+            anomalies.push("⛔ L'arrêt de travail du " + dateDsn(debutA).slice(0, 2)
+              + "/" + debutA.slice(5, 7) + "/" + debutA.slice(0, 4) + " (motif « "
+              + q(ar.motif) + " ») n'a pas de code DSN : il n'est PAS redit "
+              + "dans ce signalement, qui l'attend.");
+            continue;
+          }
+
+          let djtA = q(ar.dernier_jour_travaille).slice(0, 10);
+          if (!djtA) {
+            const dd = new Date(debutA + "T00:00:00Z");
+            dd.setUTCDate(dd.getUTCDate() - 1);
+            djtA = dd.toISOString().slice(0, 10);
+            if (debutCtIso && djtA < debutCtIso) djtA = debutA;
+          }
+
+          ouvrir("S21.G00.60");
+          ecrire("S21.G00.60.001", codeArret);
+          ecrire("S21.G00.60.002", dateDsn(djtA));
+          if (finPrevA) {
+            ecrire("S21.G00.60.003", dateDsn(finPrevA));
+          } else {
+            anomalies.push("⛔ L'arrêt de travail du " + debutA.slice(8, 10) + "/"
+              + debutA.slice(5, 7) + "/" + debutA.slice(0, 4) + " n'a pas de date "
+              + "de fin prévisionnelle : elle est obligatoire, LE SIGNALEMENT "
+              + "SERA REJETÉ. La saisir sur l'arrêt.");
+          }
+          if (repriseA && repriseA <= finCt && repriseA <= aujourdhui
+              && repriseA >= djtA) {
+            ecrire("S21.G00.60.010", dateDsn(repriseA));
+            const mrA = q(ar.reprise_motif);
+            ecrire("S21.G00.60.011",
+              (mrA === "01" || mrA === "02" || mrA === "03") ? mrA : "01");
+            if (!anticipee) {
+              rappels.push("Reprise déclarée le " + repriseA.slice(8, 10) + "/"
+                + repriseA.slice(5, 7) + "/" + repriseA.slice(0, 4) + ", lendemain "
+                + "de la fin prévue de l'arrêt. ⚠️ Si l'arrêt a été prolongé, "
+                + "corriger sa date de fin avant de générer ce signalement.");
+            }
+          }
+          if (["15", "16", "17", "18"].indexOf(codeArret) >= 0) {
+            rappels.push("Temps partiel thérapeutique du " + debutA.slice(8, 10)
+              + "/" + debutA.slice(5, 7) + "/" + debutA.slice(0, 4) + " : il est "
+              + "redit ici sans le montant de la perte de salaire, que ce "
+              + "signalement n'admet pas. ⚠️ Cette forme n'a pas été vue par "
+              + "dsn-val : y passer le fichier avant tout dépôt.");
+          }
+        }
+      }
+
       ecrire("S21.G00.62.001", dateDsn(dateFinContrat));
       ecrire("S21.G00.62.002", codeMotif);
-      if (q((ev as any).date_notification)) {
-        ecrire("S21.G00.62.003", dateDsn((ev as any).date_notification));
+
+      // 🆕🚨 05/10 — 62.003 : LA DATE DE NOTIFICATION. Obligatoire pour un
+      // licenciement, une demission, une fin d essai (CCH-12), et comprise
+      // entre le debut et la fin du contrat (CCH-11).
+      const notification = q((ev as any).date_notification).slice(0, 10);
+      if (notification) {
+        ecrire("S21.G00.62.003", dateDsn(notification));
+        if ((debutCtIso && notification < debutCtIso) || notification > finCt) {
+          anomalies.push("⛔ LA DATE DE NOTIFICATION DE LA RUPTURE ("
+            + notification.slice(8, 10) + "/" + notification.slice(5, 7) + "/"
+            + notification.slice(0, 4) + ") n'est pas comprise entre le début "
+            + "et la fin du contrat : LE SIGNALEMENT SERA REJETÉ. La corriger "
+            + "sur le signalement.");
+        }
+      } else if (MOTIFS_NOTIFICATION.indexOf(codeMotif) >= 0) {
+        anomalies.push("⛔ DATE DE NOTIFICATION DE LA RUPTURE ABSENTE. Elle est "
+          + "obligatoire pour ce motif (lettre de licenciement, de démission "
+          + "ou de fin d'essai) : LE SIGNALEMENT SERA REJETÉ. La saisir sur le "
+          + "signalement.");
+      }
+
+      // 🆕🚨 05/10 — 62.004 : LA SIGNATURE DE LA CONVENTION DE RUPTURE,
+      // obligatoire pour une rupture conventionnelle (CCH-11).
+      if (MOTIFS_CONVENTION.indexOf(codeMotif) >= 0) {
+        const convention = q((ev as any).date_signature_convention).slice(0, 10);
+        if (convention) ecrire("S21.G00.62.004", dateDsn(convention));
+        else {
+          anomalies.push("⛔ DATE DE SIGNATURE DE LA CONVENTION DE RUPTURE "
+            + "ABSENTE. Elle est obligatoire pour une rupture conventionnelle : "
+            + "LE SIGNALEMENT SERA REJETÉ. La saisir sur le signalement.");
+        }
+      }
+
+      // 🆕🚨 05/10 — 62.005 : L ENGAGEMENT DE LA PROCEDURE DE LICENCIEMENT
+      // (l entretien prealable), obligatoire pour un licenciement (CCH-12) et
+      // au plus tard le jour de la fin du contrat (CCH-11).
+      const procedure = q((ev as any).date_engagement_procedure).slice(0, 10);
+      if (MOTIFS_PROCEDURE.indexOf(codeMotif) >= 0) {
+        if (procedure) {
+          ecrire("S21.G00.62.005", dateDsn(procedure));
+          if (procedure > finCt) {
+            anomalies.push("⛔ LA DATE D'ENGAGEMENT DE LA PROCÉDURE DE "
+              + "LICENCIEMENT est postérieure à la fin du contrat : LE "
+              + "SIGNALEMENT SERA REJETÉ. La corriger sur le signalement.");
+          }
+        } else {
+          anomalies.push("⛔ DATE D'ENGAGEMENT DE LA PROCÉDURE DE LICENCIEMENT "
+            + "ABSENTE (celle de l'entretien préalable). Elle est obligatoire "
+            + "pour un licenciement : LE SIGNALEMENT SERA REJETÉ. La saisir sur "
+            + "le signalement.");
+        }
       }
       ecrire("S21.G00.62.006", dateDsn((ev as any).dernier_jour_paye
         || dateFinContrat));
@@ -1113,20 +1434,60 @@ export async function POST(req: NextRequest) {
         || (MOTIFS_SANS_PREAVIS.indexOf(codeMotif) >= 0 ? "90" : "");
       if (typePreavis) {
         ecrire("S21.G00.63.001", typePreavis);
-        if (typePreavis !== "90") {
-          ecrire("S21.G00.63.002", dateDsn((ev as any).preavis_debut));
-          ecrire("S21.G00.63.003", dateDsn((ev as any).preavis_fin));
-          if (!dateDsn((ev as any).preavis_debut) || !dateDsn((ev as any).preavis_fin)) {
-            anomalies.push("⛔ PRÉAVIS DE TYPE « " + typePreavis + " » SANS SES DEUX "
-              + "DATES (S21.G00.63.002 et 003). Elles sont obligatoires dès "
-              + "qu'un préavis s'applique.");
+        // 🆕 05/10 — CE QUE LE MOTIF PERMET (controles CCH-11 et CCH-12 de la
+        // rubrique 63.001).
+        if (MOTIFS_ESSAI.indexOf(codeMotif) >= 0
+            && typePreavis !== "60" && typePreavis !== "90") {
+          anomalies.push("⛔ FIN DE PÉRIODE D'ESSAI : seuls un délai de "
+            + "prévenance ou l'absence de préavis se déclarent. LE SIGNALEMENT "
+            + "SERA REJETÉ : corriger le préavis sur le signalement.");
+        }
+        if (MOTIFS_SANS_PREAVIS_STRICT.indexOf(codeMotif) >= 0 && typePreavis !== "90") {
+          anomalies.push("⛔ UNE RUPTURE CONVENTIONNELLE N'A PAS DE PRÉAVIS. LE "
+            + "SIGNALEMENT SERA REJETÉ : choisir « pas de préavis » sur le "
+            + "signalement.");
+        }
+        if (PREAVIS_AVEC_DATES.indexOf(typePreavis) >= 0) {
+          const pDebut = q((ev as any).preavis_debut).slice(0, 10);
+          const pFin = q((ev as any).preavis_fin).slice(0, 10);
+          ecrire("S21.G00.63.002", dateDsn(pDebut));
+          ecrire("S21.G00.63.003", dateDsn(pFin));
+          if (!dateDsn(pDebut) || !dateDsn(pFin)) {
+            anomalies.push("⛔ PRÉAVIS SANS SES DEUX DATES. Elles sont "
+              + "obligatoires dès qu'un préavis s'applique : LE SIGNALEMENT "
+              + "SERA REJETÉ. Les saisir sur le signalement.");
+          } else {
+            // CCH-13, 14 et 16 de la rubrique 63.002 ; CCH-13 de la 63.003.
+            if (pFin < pDebut) {
+              anomalies.push("⛔ LA FIN DU PRÉAVIS PRÉCÈDE SON DÉBUT : LE "
+                + "SIGNALEMENT SERA REJETÉ.");
+            }
+            if (debutCtIso && pDebut < debutCtIso) {
+              anomalies.push("⛔ LE PRÉAVIS COMMENCE AVANT LE CONTRAT : LE "
+                + "SIGNALEMENT SERA REJETÉ.");
+            }
+            if (notification && pDebut < notification) {
+              anomalies.push("⛔ LE PRÉAVIS COMMENCE AVANT LA NOTIFICATION DE LA "
+                + "RUPTURE : LE SIGNALEMENT SERA REJETÉ.");
+            }
+            if (procedure && MOTIFS_PROCEDURE.indexOf(codeMotif) >= 0
+                && pDebut <= procedure) {
+              anomalies.push("⛔ LE PRÉAVIS DOIT COMMENCER APRÈS L'ENGAGEMENT DE "
+                + "LA PROCÉDURE DE LICENCIEMENT : LE SIGNALEMENT SERA REJETÉ.");
+            }
+            // CCH-12 de la rubrique 62.006 : preavis non effectue.
+            const djp = q((ev as any).dernier_jour_paye).slice(0, 10) || finCt;
+            if (PREAVIS_NON_EFFECTUES.indexOf(typePreavis) >= 0 && djp >= pDebut) {
+              anomalies.push("⛔ PRÉAVIS NON EFFECTUÉ : le dernier jour travaillé "
+                + "et payé doit précéder le début du préavis. LE SIGNALEMENT "
+                + "SERA REJETÉ : saisir ce jour sur le signalement.");
+            }
           }
         }
       } else if (codeMotif) {
         anomalies.push("⛔ LE MOTIF « " + codeMotif + " » OUVRE UN PRÉAVIS, et "
-          + "il n'est pas renseigné sur l'événement (type, date de début, date "
-          + "de fin). Le bloc S21.G00.63 est obligatoire : LE SIGNALEMENT SERA "
-          + "REJETÉ. La saisie du préavis n'existe pas encore à l'écran.");
+          + "il n'est pas renseigné : LE SIGNALEMENT SERA REJETÉ. Saisir sur "
+          + "le signalement s'il a été effectué et payé, et ses deux dates.");
       }
     }
 
@@ -1175,8 +1536,30 @@ export async function POST(req: NextRequest) {
           + "BULLETIN : France Travail calcule les droits sur la dernière paie.");
       }
 
-      const debutPeriode = dateDsn(periode);
-      const finPeriode = finDeMois(periode);
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 05/10 — LA PERIODE D EMPLOI DANS LE MOIS, comme dans la DSN du
+      // mois : un salarie sorti le 15 n a pas ete paye du 16 au 30. Ses
+      // remunerations (51) et ses bases assujetties (78) portent les dates
+      // de sa periode d emploi. ✅ Forme validee par dsn-val dans la DSN du
+      // mois (entree le 10, sortie le 15).
+      // ⚠️ La date de versement (50.001) reste la fin du mois.
+      // ═══════════════════════════════════════════════════════════════
+      const finMoisIso = finDeMoisIso(periode);
+      let debutEmploiIso = periode;
+      let finEmploiIso = finMoisIso;
+      {
+        const entree = q(ct.date_debut).slice(0, 10);
+        if (entree > debutEmploiIso && entree <= finEmploiIso) debutEmploiIso = entree;
+        for (const sortieCt of [dateFinContrat.slice(0, 10),
+          q(ct.rompu_le).slice(0, 10), q(ct.date_fin).slice(0, 10)]) {
+          if (sortieCt && sortieCt >= debutEmploiIso && sortieCt < finEmploiIso) {
+            finEmploiIso = sortieCt;
+          }
+        }
+      }
+      const moisIncomplet = debutEmploiIso > periode || finEmploiIso < finMoisIso;
+      const debutPeriode = dateDsn(debutEmploiIso);
+      const finPeriode = dateDsn(finEmploiIso);
 
       // ── S21.G00.50 — LE VERSEMENT, REDUIT A SON IDENTIFICATION ──
       //
@@ -1201,7 +1584,7 @@ export async function POST(req: NextRequest) {
       // VERSEMENTS — le dernier mois et celui d avant, quand aucun des deux
       // n a encore ete depose dans une mensuelle. Ce generateur n en porte
       // qu un : il ne faudra pas l oublier en lui en ajoutant un second.
-      ecrire("S21.G00.50.001", finPeriode);
+      ecrire("S21.G00.50.001", finDeMois(periode));
       ecrire("S21.G00.50.003", "01");
       ecrire("S21.G00.50.020", "01");
 
@@ -1222,7 +1605,10 @@ export async function POST(req: NextRequest) {
       };
 
       remuneration("001", Number(b.brut || 0));
-      remuneration("003", Number(b.brut || 0));
+      // 🆕 05/10 — LE SALAIRE RETABLI, comme dans la DSN du mois : ce que le
+      // salarie aurait percu sans son arret. ⛔ JAMAIS MOINS QUE LE BRUT.
+      remuneration("003", Math.max(Number(b.brut || 0),
+        Number((detail as any).salaire_retabli || 0)));
 
       const base010 = salaireDeBaseDsn(detail, ct);
       if (base010) {
@@ -1238,14 +1624,99 @@ export async function POST(req: NextRequest) {
           + "PAS DÉCLARÉE.");
       }
 
-      remuneration("002", Number(b.brut || 0));
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 05/10 — LES PRIMES ET INDEMNITES SORTENT DE LA REMUNERATION 002
+      //
+      // Le signalement ne portait AUCUN bloc 52 : l indemnite de fin de
+      // mission, l indemnite de conges, l indemnite de licenciement ou de
+      // rupture conventionnelle restaient noyees dans le salaire. Or c est
+      // sur elles que France Travail calcule le differe d indemnisation, et
+      // la DSN du mois, elle, les declare a part : les deux se contredisaient.
+      // Le cahier technique admet ici le bloc 52 sous la meme forme que dans
+      // la DSN du mois (001 type, 002 montant, 006 numero du contrat).
+      // ⚠️ Cette forme n a pas encore ete vue par dsn-val DANS UN SIGNALEMENT.
+      // ═══════════════════════════════════════════════════════════════
+      const primes = primesDsn(detail, ct);
+      let primesRetenues: any[] = primes.lignes;
+      let dansLeBrut = 0;
+      for (const p of primesRetenues) dansLeBrut += Number(p.dansLeBrut || 0);
+      let remu002 = Math.round((Number(b.brut || 0) - dansLeBrut) * 100) / 100;
+      if (remu002 < 0) {
+        anomalies.push(qui + " : les primes et indemnités reconnues dépassent "
+          + "le brut du bulletin. ⛔ AUCUNE N'EST DÉCLARÉE À PART : une ligne a "
+          + "été mal reconnue.");
+        primesRetenues = [];
+        remu002 = Number(b.brut || 0);
+      }
+      for (const inconnue of primes.inconnues) {
+        anomalies.push(qui + " : la ligne « " + inconnue + " » n'a pas de type "
+          + "de prime connu. Elle reste dans le salaire déclaré.");
+      }
+
+      remuneration("002", remu002);
 
       // ── S21.G00.53 — L ACTIVITE, sous la remuneration 002 ──
       // 🚨 C EST LE VOLUME DE TRAVAIL QUI FONDE LES DROITS AU CHOMAGE.
+      // 🆕 05/10 — LES HEURES PAYEES, comme dans la DSN du mois : la duree
+      // mensuelle DU CONTRAT (elle valait 151,67 h pour tout le monde), au
+      // prorata des jours travailles quand le mois est incomplet, plus les
+      // heures supplementaires. Le forfait en jours garde la reference.
       if (dureeMensuelleRef > 0) {
+        let heuresMois = dureeMensuelleRef;
+        if (!(Number(ct.forfait_jours_annuel) > 0)) {
+          const param: any = (detail as any).parametres || {};
+          const hebdoCt = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
+          const dureeContrat = Number(param.duree_mensuelle_contrat) > 0
+            ? Number(param.duree_mensuelle_contrat)
+            : dureeMensuelleRef * Math.min(hebdoCt, 35) / 35;
+          let heuresLigne = 0;
+          for (const l of (Array.isArray((detail as any).lignes_brut) ? (detail as any).lignes_brut : [])) {
+            const lib = q(l && l.libelle).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+            if ((lib.indexOf("salaire de base") === 0 || lib.indexOf("heures normales") === 0)
+                && Number(l.quantite || 0) > 0 && Number(l.taux || 0) > 0) {
+              heuresLigne = Number(l.quantite);
+              break;
+            }
+          }
+          if (heuresLigne > 0) heuresMois = heuresLigne;
+          else {
+            heuresMois = dureeContrat > 0 ? dureeContrat : dureeMensuelleRef;
+            if (moisIncomplet) {
+              const jt = joursTravailDsn(ct);
+              const joursMois = compterJours(periode, finMoisIso, jt);
+              const joursEmploi = compterJours(debutEmploiIso, finEmploiIso, jt);
+              if (joursMois > 0) heuresMois = heuresMois * Math.min(1, joursEmploi / joursMois);
+            }
+          }
+          const hs: any = (detail as any).heures_sup || null;
+          heuresMois = Math.round((heuresMois
+            + (hs ? Math.max(0, Number(hs.heures) || 0) : 0)) * 100) / 100;
+        }
         ecrire("S21.G00.53.001", "01");
-        ecrire("S21.G00.53.002", montantDsn(dureeMensuelleRef));
+        ecrire("S21.G00.53.002", montantDsn(heuresMois));
         ecrire("S21.G00.53.003", "10");
+      }
+
+      // ── S21.G00.52 — LES PRIMES ET INDEMNITES, apres les remunerations ──
+      // CCH-21 : le type 001 n existe que pour une rupture conventionnelle ;
+      // CCH-24 : le type 007 que pour un licenciement.
+      for (const p of primesRetenues) {
+        if (p.type === "001" && codeMotif && MOTIFS_SANS_PREAVIS_STRICT.indexOf(codeMotif) < 0) {
+          anomalies.push("⛔ L'INDEMNITÉ DE RUPTURE CONVENTIONNELLE du bulletin ne "
+            + "s'accorde pas avec le motif « " + codeMotif + " » du signalement : "
+            + "LE SIGNALEMENT SERA REJETÉ. Corriger le motif de rupture du "
+            + "contrat ou celui du signalement.");
+        }
+        if (p.type === "007" && codeMotif && MOTIFS_LICENCIEMENT.indexOf(codeMotif) < 0) {
+          anomalies.push("⛔ L'INDEMNITÉ DE LICENCIEMENT du bulletin ne s'accorde "
+            + "pas avec le motif « " + codeMotif + " » du signalement : LE "
+            + "SIGNALEMENT SERA REJETÉ. Corriger le motif de rupture du contrat "
+            + "ou celui du signalement.");
+        }
+        ouvrir("S21.G00.52");
+        ecrire("S21.G00.52.001", p.type);
+        ecrire("S21.G00.52.002", montantDsn(p.montant));
+        ecrire("S21.G00.52.006", numeroContrat);
       }
 
       // ⛔ PAS DE BLOC S21.G00.58 ICI — dsn-val : « le sous-groupe S21.G00.58
@@ -1267,6 +1738,16 @@ export async function POST(req: NextRequest) {
         const interne = q(l.code);
         const montant = Number(l.part_salariale || 0) + Number(l.part_patronale || 0);
         if (montant === 0) continue;
+
+        // 🆕 05/10 — LA MUTUELLE, LA PREVOYANCE et les lignes propres a
+        // l URSSAF ne se redisent pas ici (voir HORS_SIGNALEMENT) : elles
+        // sont declarees dans la DSN du mois.
+        if (l.garantie_complementaire === true
+            || interne.toUpperCase().indexOf("MUTUELLE") === 0
+            || interne.toUpperCase().indexOf("PREVOYANCE") === 0
+            || HORS_SIGNALEMENT.indexOf(interne.toUpperCase()) >= 0) {
+          continue;
+        }
 
         const { data: corr } = await supabase
           .from("dsn_codes")
@@ -1466,7 +1947,7 @@ export async function POST(req: NextRequest) {
       lignes: L.length,
       contenu: contenu,
       anomalies: anomalies,
-      reserves: [
+      reserves: rappels.concat([
         "⛔ PASSER LE FICHIER DANS dsn-val avant tout dépôt réel.",
         "L'envoi est en MODE ESSAI (S10.G00.00.005 = 01). Passer à 02 pour "
           + "un dépôt réel.",
@@ -1477,12 +1958,14 @@ export async function POST(req: NextRequest) {
         commeArret
           ? "La date de fin prévisionnelle, la fin de subrogation et le BIC "
             + "sont obligatoires : l'écran doit encore les exiger à la saisie."
-          : "Le préavis ne se saisit pas encore à l'écran : seuls les motifs "
-            + "sans préavis (fin de CDD, fin de mission, fin d'essai, rupture "
-            + "conventionnelle) peuvent être déposés.",
+          : "Le préavis et les dates que le motif exige (notification, "
+            + "signature de la convention, engagement de la procédure) se "
+            + "saisissent sur le signalement. La mutuelle, la prévoyance et les "
+            + "lignes propres à l'URSSAF ne sont déclarées que dans la DSN du "
+            + "mois.",
         "Le canal de transmission n'est pas branché : le fichier se dépose "
           + "à la main sur net-entreprises.",
-      ],
+      ]),
       message: anomalies.length > 0
         ? "⚠️ " + anomalies.length + " anomalie(s) à corriger avant dépôt."
         : "Signalement généré. Aucune anomalie détectée à la génération.",
