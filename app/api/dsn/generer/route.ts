@@ -482,6 +482,33 @@ const CTP_FORMATION: Record<string, { ctp: string; quoi: string }> = {
 };
 // L ordre d ecriture au bordereau.
 const ORDRE_CTP_FORMATION = ["959", "971", "987", "992", "993", "027"];
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 06/10 — LES CONTRIBUTIONS CONVENTIONNELLES RECOUVREES PAR L URSSAF
+//
+// Depuis la periode d emploi de janvier 2026, les branches qui ont designe
+// l URSSAF comme collecteur (hotels, cafes, restaurants entre autres)
+// declarent chaque mois leurs contributions conventionnelles. Tableau
+// d equivalence de l URSSAF (fichier du projet), lu le 06/10 :
+//   844  contribution conventionnelle au dialogue social      code 140
+//   845  contribution conventionnelle a la formation          code 141
+// format « V » : le TAUX se declare (S21.G00.23.003) avec l assiette,
+// qualifiant 920, base « 03 ». Les codes 140 et 141 figurent au cahier
+// technique 2026.1 (rubrique S21.G00.81.001).
+// 🚨 LE BAREME LES NOMME PAR UN PREFIXE : toute ligne de `paie_cotisations`
+// dont le code commence par CONV_DIALOGUE ou CONV_FORMATION suit ce chemin,
+// quelle que soit la convention.
+// ═══════════════════════════════════════════════════════════════════════
+function regleConventionnelle(interne: string): { code: string; base: string; ctp: string; quoi: string } | null {
+  const k = String(interne || "").toUpperCase();
+  if (k.indexOf("CONV_DIALOGUE") === 0) {
+    return { code: "140", base: "03", ctp: "844", quoi: "contribution conventionnelle au dialogue social" };
+  }
+  if (k.indexOf("CONV_FORMATION") === 0) {
+    return { code: "141", base: "03", ctp: "845", quoi: "contribution conventionnelle à la formation professionnelle" };
+  }
+  return null;
+}
 // La deduction forfaitaire patronale sur les heures supplementaires n est pas
 // une ligne du bulletin : le moteur la range dans `detail.deduction_hs`.
 const CODE_DEDUCTION_HS = "021";
@@ -1699,6 +1726,9 @@ export async function POST(req: NextRequest) {
   // 🆕 06/10 — par CTP de formation (959, 971, 987, 992, 993, 027) : la somme
   // des assiettes des codes 128, 129, 130 et 100 ecrits au nominatif.
   const assiettesFormation: Record<string, number> = {};
+  // 🆕 06/10 — les contributions conventionnelles (CTP 844 et 845) : la somme
+  // des assiettes et le taux du bareme, qui se declare au bordereau.
+  const assiettesConv: Record<string, { assiette: number; taux: number; quoi: string; tauxDivers: boolean }> = {};
 
   // 🆕 22/09 — CE QUI A ETE ECRIT, pour le confronter a la table DIDA en
   // fin de generation. `ctpDeclares` : les CTP portes au bordereau.
@@ -3564,7 +3594,9 @@ export async function POST(req: NextRequest) {
       // 🆕 05/10 — LA TABLE D ABORD, SINON LES CODES DES FICHIERS VALIDES
       // (reduction des heures supplementaires, contribution sur la rupture
       // conventionnelle, forfait social, Ircantec, Apec).
-      const repli = COTISATION_REPLI[interne.toUpperCase()];
+      const regleConv = regleConventionnelle(interne);
+      const repli = COTISATION_REPLI[interne.toUpperCase()]
+        || (regleConv ? { code: regleConv.code, base: regleConv.base } : undefined);
       const corr: any = (corrTable && corrTable.code)
         ? corrTable
         : (repli ? { code: repli.code, base_rattachement: repli.base } : null);
@@ -3628,6 +3660,17 @@ export async function POST(req: NextRequest) {
         const regleF = CTP_FORMATION[interne.toUpperCase()];
         if (regleF && bAss === "03") {
           assiettesFormation[regleF.ctp] = (assiettesFormation[regleF.ctp] || 0) + baseLigne;
+        }
+        // 🆕 06/10 — et les contributions conventionnelles, avec leur taux.
+        if (regleConv && bAss === "03") {
+          const tx = Number(l.taux_patronal || 0);
+          const deja = assiettesConv[regleConv.ctp];
+          if (!deja) {
+            assiettesConv[regleConv.ctp] = { assiette: baseLigne, taux: tx, quoi: regleConv.quoi, tauxDivers: false };
+          } else {
+            deja.assiette += baseLigne;
+            if (Math.abs(deja.taux - tx) > 0.0000001) deja.tauxDivers = true;
+          }
         }
       }
       // 🆕 20/09 — COMBIEN DE PARTS ALIMENTENT CE CODE ?
@@ -4389,7 +4432,7 @@ export async function POST(req: NextRequest) {
       // deduction (le montant s ecrit en POSITIF : « le CTP porte le signe »),
       // `assiette` pour les autres.
       const ligneBordereau = async function (p: { ctp: string; qualifiant: string;
-        assiette?: number; montant?: number; tauxAt?: boolean; quoi: string }): Promise<boolean> {
+        assiette?: number; montant?: number; tauxAt?: boolean; taux?: number; quoi: string }): Promise<boolean> {
         const valeur = p.montant !== undefined ? p.montant : (p.assiette || 0);
         if (!(Math.round(valeur) > 0)) return false;
         if (!(await ctpOuvert(p.ctp))) {
@@ -4404,6 +4447,8 @@ export async function POST(req: NextRequest) {
         ctpDeclares[p.ctp] = true;
         ecrireB("S21.G00.23.002", p.qualifiant);
         if (p.tauxAt && tauxAtSociete > 0) ecrireB("S21.G00.23.003", montantDsn(tauxAtSociete));
+        // 🆕 06/10 — format « V » : le taux propre a la ligne se declare.
+        if (p.taux !== undefined && p.taux > 0) ecrireB("S21.G00.23.003", tauxDsn(p.taux));
         if (p.montant !== undefined) ecrireB("S21.G00.23.005", euroDsn(p.montant));
         else ecrireB("S21.G00.23.004", euroDsn(p.assiette || 0));
         return true;
@@ -4607,6 +4652,19 @@ export async function POST(req: NextRequest) {
         }
         await ligneBordereau({ ctp: ctpF, qualifiant: "920",
           assiette: assiettesFormation[ctpF] || 0, quoi: quoiF });
+      }
+
+      // 🆕🚨 06/10 — LES CONTRIBUTIONS CONVENTIONNELLES (CTP 844 et 845) :
+      // le taux de la branche et l assiette (format « V »).
+      for (const ctpC of ["844", "845"]) {
+        const ac = assiettesConv[ctpC];
+        if (!ac) continue;
+        if (ac.tauxDivers) {
+          anomalies.push("Contribution conventionnelle (CTP " + ctpC + ") : les salariés de l'établissement "
+            + "ne portent pas tous le même taux — plusieurs conventions dans la même société. ⛔ Une seule "
+            + "ligne est écrite, au taux " + tauxDsn(ac.taux) + " % : À VÉRIFIER avant dépôt.");
+        }
+        await ligneBordereau({ ctp: ctpC, qualifiant: "920", assiette: ac.assiette, taux: ac.taux, quoi: ac.quoi });
       }
 
       // ═══════════════════════════════════════════════════════════════
