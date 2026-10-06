@@ -441,7 +441,47 @@ const COTISATION_REPLI: Record<string, { code: string; base: string }> = {
   IRCANTEC_TA: { code: "060", base: "28" },
   IRCANTEC_TB: { code: "061", base: "28" },
   APEC: { code: "132", base: "02" },
+  // 🆕 06/10 — formation professionnelle, CPF-CDD, taxe d apprentissage,
+  // dialogue social : codes lus au cahier technique 2026.1 (rubrique
+  // S21.G00.81.001) et au tableau d equivalence de l URSSAF, base « 03 ».
+  FORMATION_PRO_MOINS11: { code: "128", base: "03" },
+  FORMATION_PRO_11PLUS: { code: "128", base: "03" },
+  CPF_CDD: { code: "129", base: "03" },
+  TAXE_APPRENTISSAGE: { code: "130", base: "03" },
+  TAXE_APPRENTISSAGE_AM: { code: "130", base: "03" },
+  DIALOGUE_SOCIAL: { code: "100", base: "03" },
 };
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 06/10 — LES CONTRIBUTIONS DE FORMATION AU BORDEREAU
+//
+// ⛔ ELLES N ETAIENT PAS DECLAREES (ni calculees : voir le moteur de paie).
+// Tableau d equivalence de l URSSAF, lu le 06/10 — toutes de format « E »
+// (l ASSIETTE se renseigne, sans taux), qualifiant 920, base « 03 » :
+//   959  formation professionnelle, moins de 11 salaries      code 128
+//   971  formation professionnelle, 11 salaries et plus       code 128
+//   987  contribution CPF-CDD                                 code 129
+//   992  taxe d apprentissage, part principale                code 130
+//   993  taxe d apprentissage, Alsace-Moselle                 code 130
+//   027  contribution au dialogue social                      code 100
+// 🚨 LE CTP SUIT LA LIGNE DU BULLETIN, pas un nouveau calcul : c est le
+// moteur de paie qui a choisi le taux d apres l effectif et le lieu.
+// 🚨 L ASSIETTE EST LA SOMME DES ASSIETTES DES CODES ECRITS, PAS LE BRUT
+// DE TOUS : un apprenti d une petite entreprise, un mandataire ou un
+// stagiaire n y entrent pas toujours.
+// ⚠️ LE SOLDE ANNUEL DE LA TAXE D APPRENTISSAGE (CTP 995, DSN d avril, bloc
+// 82) N EST PAS ECRIT ICI.
+// ═══════════════════════════════════════════════════════════════════════
+const CTP_FORMATION: Record<string, { ctp: string; quoi: string }> = {
+  FORMATION_PRO_MOINS11: { ctp: "959", quoi: "formation professionnelle, moins de 11 salariés" },
+  FORMATION_PRO_11PLUS: { ctp: "971", quoi: "formation professionnelle, 11 salariés et plus" },
+  CPF_CDD: { ctp: "987", quoi: "contribution CPF-CDD" },
+  TAXE_APPRENTISSAGE: { ctp: "992", quoi: "taxe d'apprentissage, part principale" },
+  TAXE_APPRENTISSAGE_AM: { ctp: "993", quoi: "taxe d'apprentissage, Alsace-Moselle" },
+  DIALOGUE_SOCIAL: { ctp: "027", quoi: "contribution au dialogue social" },
+};
+// L ordre d ecriture au bordereau.
+const ORDRE_CTP_FORMATION = ["959", "971", "987", "992", "993", "027"];
 // La deduction forfaitaire patronale sur les heures supplementaires n est pas
 // une ligne du bulletin : le moteur la range dans `detail.deduction_hs`.
 const CODE_DEDUCTION_HS = "021";
@@ -672,6 +712,16 @@ function moisDsn(v: any): string {
 // ⚠️ IL ACCEPTE LES NEGATIFS : une reduction se declare avec son signe.
 function montantDsn(v: any): string {
   return Number(v || 0).toFixed(2);
+}
+
+// 🆕 06/10 — UN TAUX S ECRIT AVEC DEUX DECIMALES, OU TROIS QUAND IL EN A
+// TROIS. Cahier technique, rubrique S21.G00.81.007 : deux ou trois chiffres
+// apres le point. La contribution au dialogue social vaut 0,016 % : ecrite
+// a deux decimales, elle deviendrait 0.02, un taux qui n existe pas.
+function tauxDsn(v: any): string {
+  const t = Number(v || 0);
+  const centiemes = t * 100;
+  return Math.abs(centiemes - Math.round(centiemes)) > 0.000001 ? t.toFixed(3) : t.toFixed(2);
 }
 
 // 🚨 LE NETTOYAGE LATIN-1. Les caracteres hors de cette table font rejeter
@@ -1646,6 +1696,9 @@ export async function POST(req: NextRequest) {
   let reductionHsUrssaf = 0;      // somme des codes 114, en positif
   let deductionHsUrssaf = 0;      // somme des codes 021, en positif
   let assietteRuptureConv = 0;    // somme des assiettes du code 093
+  // 🆕 06/10 — par CTP de formation (959, 971, 987, 992, 993, 027) : la somme
+  // des assiettes des codes 128, 129, 130 et 100 ecrits au nominatif.
+  const assiettesFormation: Record<string, number> = {};
 
   // 🆕 22/09 — CE QUI A ETE ECRIT, pour le confronter a la table DIDA en
   // fin de generation. `ctpDeclares` : les CTP portes au bordereau.
@@ -3568,6 +3621,15 @@ export async function POST(req: NextRequest) {
         parAssiette[bAss].codes[corr.code] = { montant: 0, base: baseLigne };
       }
       parAssiette[bAss].codes[corr.code].montant += montant;
+
+      // 🆕 06/10 — CE QUI NOURRIT LES CTP DE FORMATION AU BORDEREAU : la
+      // meme assiette que celle ecrite au nominatif pour ce salarie.
+      {
+        const regleF = CTP_FORMATION[interne.toUpperCase()];
+        if (regleF && bAss === "03") {
+          assiettesFormation[regleF.ctp] = (assiettesFormation[regleF.ctp] || 0) + baseLigne;
+        }
+      }
       // 🆕 20/09 — COMBIEN DE PARTS ALIMENTENT CE CODE ?
       //
       // 🚨 ON COMPTE LES PARTS, PAS LES LIGNES. Une seule ligne de bulletin
@@ -4073,7 +4135,7 @@ export async function POST(req: NextRequest) {
           if (tauxBareme > 0) {
             const verif = Math.round(baseCode * tauxBareme) / 100;
             if (Math.abs(verif - montantCode) <= 0.01) {
-              ecrire("S21.G00.81.007", montantDsn(tauxBareme));
+              ecrire("S21.G00.81.007", tauxDsn(tauxBareme));
             }
           }
         }
@@ -4535,6 +4597,17 @@ export async function POST(req: NextRequest) {
         assiette: assietteRuptureConv, quoi: "contribution sur la rupture conventionnelle" });
       await ligneBordereau({ ctp: CTP_FORFAIT_SOCIAL_8, qualifiant: "920",
         assiette: assiettesCumulees["13"] || 0, quoi: "forfait social à 8 %" });
+
+      // 🆕🚨 06/10 — FORMATION PROFESSIONNELLE, CPF-CDD, TAXE D APPRENTISSAGE,
+      // DIALOGUE SOCIAL : une ligne par CTP, l assiette seule (format « E »).
+      for (const ctpF of ORDRE_CTP_FORMATION) {
+        let quoiF = "contribution de formation";
+        for (const k of Object.keys(CTP_FORMATION)) {
+          if (CTP_FORMATION[k].ctp === ctpF) quoiF = CTP_FORMATION[k].quoi;
+        }
+        await ligneBordereau({ ctp: ctpF, qualifiant: "920",
+          assiette: assiettesFormation[ctpF] || 0, quoi: quoiF });
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // 🆕🚨 22/09 — LE CONTROLE PAR LA TABLE DIDA DE L URSSAF
