@@ -353,6 +353,9 @@ export default function PageDsn() {
   // et quel formulaire est deplie.
   const [atSaisie, setAtSaisie] = useState<any>({});
   const [atOuvert, setAtOuvert] = useState("");
+  // 🆕 06/10 — les deductions du solde de la taxe d apprentissage.
+  const [dedOuvert, setDedOuvert] = useState("");
+  const [dedSaisie, setDedSaisie] = useState<any>({});
   // 🆕 27/09 — la mutuelle et la prevoyance : formulaire ouvert, saisie, arret.
   const [garOuvert, setGarOuvert] = useState("");
   const [garSaisie, setGarSaisie] = useState<any>({});
@@ -598,6 +601,27 @@ export default function PageDsn() {
       redevable: redevable, date_effet: redevable ? debutMois : debutAnnee,
     });
     if (d.success) {
+      await charger(true);
+      setMsg(d.message || "Enregistré.");
+    } else {
+      setErr(d.erreur || "enregistrement impossible");
+    }
+    setOccupe("");
+  }
+
+  // 🆕 06/10 — LES DEDUCTIONS DU SOLDE DE LA TAXE D APPRENTISSAGE (subventions
+  // en nature aux CFA, creance « alternants »), pour l annee precedente.
+  async function enregistrerDeductionsTa(soc: any, anneeTa: number) {
+    const f = dedSaisie[soc.id] || {};
+    const deja = (voletUrssaf(soc.id) || {}).ta_deductions || {};
+    setErr(""); setMsg(""); setOccupe("ded" + soc.id);
+    const d = await appeler({
+      action: "ta_deductions", societe_id: soc.id, annee: anneeTa,
+      cfa: f.cfa !== undefined ? f.cfa : (deja.cfa || ""),
+      alternants: f.alternants !== undefined ? f.alternants : (deja.alternants || ""),
+    });
+    if (d.success) {
+      setDedOuvert("");
       await charger(true);
       setMsg(d.message || "Enregistré.");
     } else {
@@ -1333,6 +1357,73 @@ export default function PageDsn() {
                             ? "redevable à nouveau" : "déclarer non redevable")}
                       </button>
                     </div>
+
+                    {/* 🆕 06/10 — LES DEDUCTIONS DU SOLDE DE LA TAXE
+                        D APPRENTISSAGE (DSN d avril). Masquees pour une
+                        societe non redevable. */}
+                    {!(v.taxe_apprentissage && v.taxe_apprentissage.non_redevable) && (function () {
+                      const anneeTa = new Date().getFullYear() - 1;
+                      const ded = v.ta_deductions || null;
+                      const fd = dedSaisie[soc.id] || {};
+                      const eur = function (n: any) {
+                        return Number(n || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+                      };
+                      return (
+                        <div style={{ margin: "8px 0 0" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between",
+                            alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                            <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                              color: "rgba(255,255,255,0.72)" }}>
+                              Solde de la taxe d&apos;apprentissage {anneeTa} (DSN d&apos;avril) — déductions :{" "}
+                              {ded && (Number(ded.cfa) > 0 || Number(ded.alternants) > 0)
+                                ? "subventions en nature aux CFA " + eur(ded.cfa)
+                                  + " · créance « alternants » " + eur(ded.alternants)
+                                : "aucune"}
+                            </p>
+                            <button
+                              onClick={() => setDedOuvert(dedOuvert === soc.id ? "" : soc.id)}
+                              disabled={occupe !== ""}
+                              style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
+                              {dedOuvert === soc.id ? "fermer" : "saisir les déductions"}
+                            </button>
+                          </div>
+                          {dedOuvert === soc.id && (
+                            <div style={{ marginTop: "10px" }}>
+                              <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                                  <span style={LIB}>Subventions en nature aux CFA (€)</span>
+                                  <input style={CHAMP} inputMode="decimal" placeholder="0"
+                                    value={fd.cfa !== undefined ? fd.cfa : (ded && Number(ded.cfa) > 0 ? String(ded.cfa).replace(".", ",") : "")}
+                                    onChange={(ev) => setDedSaisie({ ...dedSaisie,
+                                      [soc.id]: { ...fd, cfa: ev.target.value } })} />
+                                </div>
+                                <div style={{ flex: "1 1 220px", minWidth: 0 }}>
+                                  <span style={LIB}>Créance « alternants » (€)</span>
+                                  <input style={CHAMP} inputMode="decimal" placeholder="0"
+                                    value={fd.alternants !== undefined ? fd.alternants : (ded && Number(ded.alternants) > 0 ? String(ded.alternants).replace(".", ",") : "")}
+                                    onChange={(ev) => setDedSaisie({ ...dedSaisie,
+                                      [soc.id]: { ...fd, alternants: ev.target.value } })} />
+                                </div>
+                              </div>
+                              <p style={{ margin: "6px 0 0", fontSize: "12.5px",
+                                lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
+                                Ces deux montants réduisent le solde dû en mai sur la masse
+                                salariale de {anneeTa}. Les subventions en nature sont les
+                                équipements et matériels remis à un CFA (reçu à conserver) ; la
+                                créance « alternants » ne concerne que les entreprises de
+                                250 salariés et plus. Laisser vide pour zéro. Au-delà du solde,
+                                la DSN les écrête et le signale.
+                              </p>
+                              <button onClick={() => enregistrerDeductionsTa(soc, anneeTa)}
+                                disabled={occupe !== ""}
+                                style={{ ...BOUTON, marginTop: "10px" }}>
+                                {occupe === "ded" + soc.id ? "…" : "Enregistrer les déductions"}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* ═══════════════════════════════════════════════════
                         🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE
