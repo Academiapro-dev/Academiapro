@@ -618,6 +618,21 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       if (donne("apprenti_public") && typeCt === "apprentissage") {
         maj.apprenti_public = c.apprenti_public === true;
       }
+      // 🆕 06/10 — LA PRIME DE PRECARITE D UN CDD : due (le cas general), ou
+      // non due — contrat d usage (les « extras » des hotels, cafes,
+      // restaurants), emploi saisonnier, autre cas de la loi (article
+      // L1243-10). Elle ne se reglait qu a la creation, par la base.
+      if (donne("precarite") && typeCt === "cdd") {
+        const pr = propre(c.precarite) || "due";
+        const motifs: any = {
+          usage: "Contrat d'usage (extra)",
+          saisonnier: "Emploi à caractère saisonnier",
+          autre: "Non due (article L1243-10 du code du travail)",
+        };
+        if (pr === "due") { maj.ifm_due = true; maj.ifm_motif_non_due = null; }
+        else if (motifs[pr]) { maj.ifm_due = false; maj.ifm_motif_non_due = motifs[pr]; }
+        else refus.push("prime de précarité : choix inconnu « " + pr + " ».");
+      }
       if (donne("qualification_niveau4") && typeCt === "professionnalisation") {
         maj.qualification_niveau4 = c.qualification_niveau4 === true;
       }
@@ -1285,8 +1300,10 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       const natureBrute = propre(c.type_element) || "prime";
       // 🆕 22/09 — l avantage logement rejoint la liste : quantite = nombre
       // de pieces, taux = loyer verse. Leur produit ne veut rien dire.
+      // 🆕 06/10 — et trois elements des hotels, cafes, restaurants, que le
+      // moteur valorise lui-meme (minimum garanti, journee de salaire).
       const SANS_CALCUL_AUTO = ["titres_restaurant", "avantage_repas",
-        "avantage_logement"];
+        "avantage_logement", "indemnite_nourriture", "jour_ferie_garanti", "heures_nuit"];
 
       let montant = nombreFr(c.montant) || 0;
       const q = nombreFr(c.quantite);
@@ -3180,6 +3197,7 @@ const REGLES: Record<string, Regle> = {
   embauche_etat: { droit: null, cible: "contrat", ecrit: false },
   embauche: { droit: "paie_contrats", cible: "contrat", ecrit: true },
   embauche_deposee: { droit: "dsn_deposer", cible: "contrat", ecrit: true },
+  embauche_deposer: { droit: "dsn_deposer", cible: "contrat", ecrit: true },
   fin_contrat: { droit: "paie_emettre", cible: "contrat", ecrit: true },
   // ---- 28/09 : la validation ----
   tableau_mois: { droit: null, cible: "societe", ecrit: false },
@@ -3508,7 +3526,7 @@ function controler(
   // ---- Heures supplementaires et complementaires ----
   let heures = 0;
   for (const e of elements) {
-    if (String(e.type_element || "").indexOf("heures_") === 0) heures += Number(e.quantite || 0);
+    if (String(e.type_element || "").indexOf("heures_") === 0 && String(e.type_element) !== "heures_nuit") heures += Number(e.quantite || 0);
   }
   if (heures >= s.HEURES_SUP_ROUGE) {
     alertes.push({ code: "HEURES", niveau: "rouge",
@@ -4005,6 +4023,17 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
         heure: c.heure, essai_jours: c.essai_jours, par: ctx.email,
       }),
     });
+    return reponseDuRelais(r);
+  }
+  // 🆕 06/10 — LE DEPOT PAR LE LOGICIEL, avec les acces net-entreprises de
+  // la societe (les memes que pour la DSN du mois). Un fichier reel exige
+  // une confirmation expresse.
+  if (action === "embauche_deposer") {
+    const contratId = String(c.contrat_id || "").trim();
+    if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+    const r = await relais(ctx, "/api/dsn/deposer?action=deposer&v=" + Date.now()
+      + "&embauche=" + encodeURIComponent(contratId)
+      + (c.confirmer_reel === true ? "&confirmer=reel" : "") + "&secret=" + cleEncodee(), { method: "GET" });
     return reponseDuRelais(r);
   }
   if (action === "embauche_deposee") {
