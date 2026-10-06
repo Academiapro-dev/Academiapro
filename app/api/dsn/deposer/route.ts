@@ -713,57 +713,107 @@ export async function GET(req: NextRequest) {
   // ───────────────────────────────────────────────────────────────────
   if (action === "deposer") {
     const declarationId = uuid(p.get("declaration"));
-    if (!declarationId) {
+    // 🆕🚨 06/10 — LE DEPOT D UNE DECLARATION PREALABLE A L EMBAUCHE.
+    // `&embauche=<contrat>` depose le fichier garde dans `paie_embauches`
+    // (genere par /api/dsn/embauche) par le MEME chemin que la DSN du mois :
+    // memes acces, meme authentification, memes garde-fous (essai ou reel lu
+    // DANS le fichier, un seul flux), meme rangement de l accuse.
+    // ⛔ CE DEPOT N A JAMAIS EU LIEU, pas plus que celui d une DSN du mois :
+    // il est ecrit d apres le guide de l API, il reste a eprouver avec les
+    // acces d un vrai client.
+    const embaucheContrat = uuid(p.get("embauche"));
+    if (!declarationId && !embaucheContrat) {
       return reponse({
         erreur: "declaration manquante ou mal formée : passer l'identifiant de la "
-          + "déclaration à déposer (&declaration=…).",
+          + "déclaration à déposer (&declaration=…) ou le contrat d'une déclaration "
+          + "d'embauche (&embauche=…).",
       }, 400);
     }
 
-    // ---- LA DECLARATION ----
-    const { data: decl, error: eDecl } = await supabase
-      .from("dsn_declarations")
-      .select("id, societe_id, tenant_id, periode, nature, type_declaration, numero_ordre, "
-        + "chemin_fichier, sha256, nb_lignes, statut, deposee_le, notes")
-      .eq("id", declarationId).maybeSingle();
+    let decl: any = null;
+    let octets: Buffer;
+    let sha = "";
+    let embauche: any = null;
 
-    if (eDecl) return reponse({ erreur: "lecture impossible : " + eDecl.message }, 500);
-    if (!decl) return reponse({ erreur: "déclaration inconnue" }, 404);
-    if (!decl.chemin_fichier) {
-      return reponse({ erreur: "cette déclaration n'a pas de fichier archivé" }, 409);
-    }
+    if (embaucheContrat) {
+      const { data: emb, error: eEmb } = await supabase
+        .from("paie_embauches")
+        .select("id, tenant_id, societe_id, contrat_id, date_embauche, numero_ordre, fichier, "
+          + "nom_fichier, nb_lignes, anomalies, statut, deposee_le")
+        .eq("contrat_id", embaucheContrat).maybeSingle();
+      if (eEmb) return reponse({ erreur: "lecture impossible : " + eEmb.message }, 500);
+      if (!emb) return reponse({ erreur: "aucune déclaration d'embauche générée pour ce contrat" }, 404);
+      embauche = emb;
+      if (!embauche.fichier) return reponse({ erreur: "cette déclaration d'embauche n'a pas de fichier" }, 409);
+      const nbAno = Array.isArray(embauche.anomalies) ? embauche.anomalies.length : 0;
+      if (nbAno > 0) {
+        return reponse({
+          erreur: "Le fichier porte " + nbAno + " anomalie(s) : les corriger et régénérer la "
+            + "déclaration avant tout dépôt.",
+        }, 409);
+      }
+      if (embauche.deposee_le && p.get("redeposer") !== "oui") {
+        return reponse({
+          erreur: "Cette déclaration d'embauche a déjà été déposée le " + embauche.deposee_le + ". "
+            + "⚠️ L'URSSAF lirait un second dépôt comme une NOUVELLE déclaration d'embauche.",
+        }, 409);
+      }
+      decl = {
+        id: embauche.id, societe_id: embauche.societe_id, tenant_id: embauche.tenant_id,
+        periode: embauche.date_embauche, nature: "10", numero_ordre: embauche.numero_ordre,
+        chemin_fichier: embauche.nom_fichier || "déclaration d'embauche", nb_lignes: embauche.nb_lignes,
+        statut: embauche.statut, deposee_le: embauche.deposee_le,
+      };
+      // Le fichier est garde en texte : on le remet en ISO 8859-1.
+      octets = Buffer.from(String(embauche.fichier), "latin1");
+      sha = crypto.createHash("sha256").update(octets).digest("hex");
+    } else {
+      // ---- LA DECLARATION ----
+      const { data: declLue, error: eDecl } = await supabase
+        .from("dsn_declarations")
+        .select("id, societe_id, tenant_id, periode, nature, type_declaration, numero_ordre, "
+          + "chemin_fichier, sha256, nb_lignes, statut, deposee_le, notes")
+        .eq("id", declarationId).maybeSingle();
 
-    // 🚨 DEJA DEPOSEE : on ne redepose pas sans le dire.
-    if (decl.deposee_le && p.get("redeposer") !== "oui") {
-      return reponse({
-        erreur: "Cette déclaration a déjà été déposée le " + decl.deposee_le + ". "
-          + "Pour la redéposer malgré tout, ajouter &redeposer=oui — mais la voie normale "
-          + "est de générer un « annule et remplace ».",
-      }, 409);
-    }
+      if (eDecl) return reponse({ erreur: "lecture impossible : " + eDecl.message }, 500);
+      if (!declLue) return reponse({ erreur: "déclaration inconnue" }, 404);
+      decl = declLue;
+      if (!decl.chemin_fichier) {
+        return reponse({ erreur: "cette déclaration n'a pas de fichier archivé" }, 409);
+      }
 
-    // ---- LE FICHIER, TEL QU IL A ETE ARCHIVE ----
-    const { data: blob, error: eDl } = await supabase.storage
-      .from(BUCKET).download(decl.chemin_fichier);
+      // 🚨 DEJA DEPOSEE : on ne redepose pas sans le dire.
+      if (decl.deposee_le && p.get("redeposer") !== "oui") {
+        return reponse({
+          erreur: "Cette déclaration a déjà été déposée le " + decl.deposee_le + ". "
+            + "Pour la redéposer malgré tout, ajouter &redeposer=oui — mais la voie normale "
+            + "est de générer un « annule et remplace ».",
+        }, 409);
+      }
 
-    if (eDl || !blob) {
-      return reponse({
-        erreur: "fichier introuvable dans l'archive (" + decl.chemin_fichier + ")"
-          + (eDl ? " : " + eDl.message : ""),
-      }, 404);
-    }
+      // ---- LE FICHIER, TEL QU IL A ETE ARCHIVE ----
+      const { data: blob, error: eDl } = await supabase.storage
+        .from(BUCKET).download(decl.chemin_fichier);
 
-    const octets = Buffer.from(await blob.arrayBuffer());
+      if (eDl || !blob) {
+        return reponse({
+          erreur: "fichier introuvable dans l'archive (" + decl.chemin_fichier + ")"
+            + (eDl ? " : " + eDl.message : ""),
+        }, 404);
+      }
 
-    // 🚨 GARDE-FOU 2 : LE FICHIER DEPOSE EST CELUI QUI A ETE CONTROLE.
-    const sha = crypto.createHash("sha256").update(octets).digest("hex");
-    if (decl.sha256 && sha !== decl.sha256) {
-      return reponse({
-        erreur: "Le fichier archivé ne correspond plus à celui qui a été généré et contrôlé. "
-          + "Il faut le régénérer et le repasser dans dsn-val avant tout dépôt.",
-        sha256_attendu: decl.sha256,
-        sha256_trouve: sha,
-      }, 409);
+      octets = Buffer.from(await blob.arrayBuffer());
+
+      // 🚨 GARDE-FOU 2 : LE FICHIER DEPOSE EST CELUI QUI A ETE CONTROLE.
+      sha = crypto.createHash("sha256").update(octets).digest("hex");
+      if (decl.sha256 && sha !== decl.sha256) {
+        return reponse({
+          erreur: "Le fichier archivé ne correspond plus à celui qui a été généré et contrôlé. "
+            + "Il faut le régénérer et le repasser dans dsn-val avant tout dépôt.",
+          sha256_attendu: decl.sha256,
+          sha256_trouve: sha,
+        }, 409);
+      }
     }
 
     // Le fichier est en ISO 8859-1 : c est ainsi qu on le relit.
@@ -917,7 +967,8 @@ export async function GET(req: NextRequest) {
       tenant_id: decl.tenant_id || null,
       societe_id: decl.societe_id,
       depot_reference: decl.id,
-      declaration_id: decl.id,
+      // 🆕 06/10 — une declaration d embauche n est pas dans dsn_declarations.
+      declaration_id: embauche ? null : decl.id,
       idflux: idflux,
       // ⚠️ La nature « 10 » est celle de l accuse d enregistrement ET de
       // l avis de rejet (section 6) : meme cle que ce que la route des
@@ -933,7 +984,15 @@ export async function GET(req: NextRequest) {
         + " · " + conf.depot,
     }).select().maybeSingle();
 
-    if (accepte) {
+    if (accepte && embauche) {
+      // 🆕 06/10 — un essai n est pas une declaration : « deposee » ne se note
+      // que pour un envoi reel.
+      await supabase.from("paie_embauches").update({
+        statut: envoi.code === "02" ? "deposee" : embauche.statut,
+        deposee_le: envoi.code === "02" ? new Date().toISOString() : embauche.deposee_le,
+        maj_le: new Date().toISOString(),
+      }).eq("id", embauche.id);
+    } else if (accepte) {
       await supabase.from("dsn_declarations").update({
         // ⚠️ UN ESSAI N EST PAS UNE DECLARATION : il est controle, rien
         // n est declare. On garde donc la trace du depot, mais le statut
