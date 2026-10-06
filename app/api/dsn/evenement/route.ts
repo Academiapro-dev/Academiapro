@@ -237,8 +237,14 @@ const PREAVIS_NON_EFFECTUES = ["02", "03", "10", "50", "51", "61"];
 // France Travail ne s en sert pas, et aucune n a ete vue par dsn-val dans un
 // signalement. ⛔ ON NE LES SIGNALE PLUS COMME « non declarees » : elles le
 // sont, ailleurs.
+// 🆕 06/10 — S Y AJOUTENT LA FORMATION PROFESSIONNELLE, LE CPF-CDD, LA TAXE
+// D APPRENTISSAGE ET LE DIALOGUE SOCIAL, entres au bareme le 06/10 (codes
+// 128, 129, 130 et 100) : contributions de l employeur a l URSSAF,
+// declarees dans la DSN du mois et sans objet pour France Travail.
 const HORS_SIGNALEMENT = ["REDUCTION_HS", "CONTRIBUTION_PATRONALE_RC",
-  "FORFAIT_SOCIAL_PREVOYANCE", "IRCANTEC_TA", "IRCANTEC_TB"];
+  "FORFAIT_SOCIAL_PREVOYANCE", "IRCANTEC_TA", "IRCANTEC_TB",
+  "FORMATION_PRO_MOINS11", "FORMATION_PRO_11PLUS", "CPF_CDD",
+  "TAXE_APPRENTISSAGE", "TAXE_APPRENTISSAGE_AM", "DIALOGUE_SOCIAL"];
 
 function q(v: any): string {
   if (v === null || v === undefined) return "";
@@ -923,7 +929,49 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.40.001", dateDsn(ct.date_debut));
       ecrire("S21.G00.40.009", numeroContrat);
     } else {
-      const natureContrat = await code("S21.G00.40.007", q(ct.type_contrat));
+      // ═════════════════════════════════════════════════════════
+      // 🆕🚨 06/10 — L APPRENTI, LE CONTRAT DE PROFESSIONNALISATION ET LE
+      // FORFAIT EN JOURS DANS LE SIGNALEMENT DE FIN DE CONTRAT
+      //
+      // ⛔ JUSQU ICI, la fin de contrat d un apprenti ou d un contrat de
+      // professionnalisation sortait avec l anomalie « aucun code DSN pour
+      // le type de contrat », et celle d un cadre au forfait declarait des
+      // heures. Les trois regles sont celles de la DSN du mois, validees par
+      // dsn-val (fichier de 1 818 lignes du 05/10) :
+      //   · « apprentissage » et « professionnalisation » NE SONT PAS des
+      //     natures de contrat (40.007) : c est un CDD s il porte une date
+      //     de fin, un CDI sinon ;
+      //   · c est le DISPOSITIF (40.008) qui les designe : 64 ou 65 pour
+      //     l apprenti selon l effectif, 81 dans le secteur public, 61 pour
+      //     le contrat de professionnalisation (cahier technique, controles
+      //     CCH-11, CCH-14 et CCH-15 de la rubrique) ;
+      //   · le FORFAIT EN JOURS : unite « forfait jours » en 40.011 et
+      //     nombre de jours du mois en 40.013.
+      // ⚠️ LE NIVEAU DE DIPLOME PREPARE (30.025) NE S ECRIT PAS ICI : le
+      // cahier technique l interdit dans un signalement de fin de contrat
+      // (tableau des rubriques par nature de declaration), et son controle
+      // CCH-11 ne s y applique pas.
+      // ⚠️ L EXONERATION DE L APPRENTI (codes 001 et 002) NE SE REDIT PAS
+      // ICI : elle se declare a l URSSAF dans la DSN du mois.
+      // ⚠️ CES TROIS CAS N ONT PAS ENCORE ETE VUS PAR dsn-val DANS UN
+      // SIGNALEMENT.
+      // ═════════════════════════════════════════════════════════
+      const typeCtFin = q(ct.type_contrat).toLowerCase();
+      const estApprentiFin = typeCtFin === "apprentissage";
+      const estContratProFin = typeCtFin === "professionnalisation";
+      const cleNature = (estApprentiFin || estContratProFin)
+        ? (ct.date_fin ? "cdd" : "cdi")
+        : q(ct.type_contrat);
+      let dispositifFin = q(ct.dispositif_public);
+      if (!dispositifFin && estApprentiFin && (ct as any).apprenti_public === true) dispositifFin = "81";
+      if (!dispositifFin && estContratProFin) dispositifFin = "61";
+      if (!dispositifFin && estApprentiFin) {
+        dispositifFin = Number((societe && societe.effectif) || 0) >= 11 ? "65" : "64";
+      }
+      const forfaitJoursFin = Number((ct as any).forfait_jours_annuel || 0) > 0
+        ? Number((ct as any).forfait_jours_annuel) : 0;
+
+      const natureContrat = await code("S21.G00.40.007", cleNature);
       if (!natureContrat) {
         anomalies.push(qui + " : aucun code DSN pour le type de contrat « "
           + q(ct.type_contrat) + " » (S21.G00.40.007). ⛔ NON DÉCLARÉ.");
@@ -979,11 +1027,14 @@ export async function POST(req: NextRequest) {
       }
       ecrire("S21.G00.40.006", ct.intitule_poste);
       ecrire("S21.G00.40.007", natureContrat || "");
-      ecrire("S21.G00.40.008", q(ct.dispositif_public) || "99");
+      ecrire("S21.G00.40.008", dispositifFin || "99");
       ecrire("S21.G00.40.009", numeroContrat);
       if (ct.date_fin) ecrire("S21.G00.40.010", dateDsn(ct.date_fin));
 
-      const uniteQuotite = await code("S21.G00.40.011", "heure");
+      // 🆕 06/10 — « forfait_jour » AU SINGULIER : la correspondance qui
+      // existe dans dsn_codes, celle que lit la DSN du mois.
+      const uniteQuotite = await code("S21.G00.40.011",
+        forfaitJoursFin > 0 ? "forfait_jour" : "heure");
       if (uniteQuotite) ecrire("S21.G00.40.011", uniteQuotite);
       else {
         anomalies.push("Unité de mesure de la quotité sans code DSN "
@@ -992,7 +1043,10 @@ export async function POST(req: NextRequest) {
       if (dureeMensuelleRef > 0) {
         ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
         const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
-        const quotite = dureeMensuelleRef * Math.min(hebdo, 35) / 35;
+        // 🆕 06/10 — au forfait : les jours du mois (forfait annuel / 12).
+        const quotite = forfaitJoursFin > 0
+          ? forfaitJoursFin / 12
+          : dureeMensuelleRef * Math.min(hebdo, 35) / 35;
         ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
       }
       ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
@@ -1775,11 +1829,21 @@ export async function POST(req: NextRequest) {
         const cdDsn = String((corr as any).code);
         const bAss = String((corr as any).base_rattachement);
         if (!parAssiette[bAss]) parAssiette[bAss] = { assiette: 0, codes: {} };
-        if (Number(l.base) > parAssiette[bAss].assiette) {
-          parAssiette[bAss].assiette = Number(l.base);
+        // 🆕 06/10 — L ASSIETTE DECLAREE EST CELLE QUI A PORTE LA COTISATION,
+        // comme dans la DSN du mois : sur une ligne purement salariale que
+        // l exoneration de l apprenti a reduite (CSG, CRDS), le moteur range
+        // l assiette reelle dans `base_salariale`.
+        const partSalSeule = Number(l.part_salariale || 0) !== 0
+          && Number(l.part_patronale || 0) === 0;
+        const baseSalariale = (l as any).base_salariale;
+        const baseLigne = (partSalSeule && baseSalariale !== null
+          && baseSalariale !== undefined && Number(baseSalariale) > 0)
+          ? Number(baseSalariale) : Number(l.base);
+        if (baseLigne > parAssiette[bAss].assiette) {
+          parAssiette[bAss].assiette = baseLigne;
         }
         if (!parAssiette[bAss].codes[cdDsn]) {
-          parAssiette[bAss].codes[cdDsn] = { montant: 0, base: Number(l.base) };
+          parAssiette[bAss].codes[cdDsn] = { montant: 0, base: baseLigne };
         }
         parAssiette[bAss].codes[cdDsn].montant += montant;
 
