@@ -1516,6 +1516,9 @@ async function calculer(contratId: string, periode: string,
     // 🆕 28/09 — LES JOURS DE REPOS DU FORFAIT PRIS CE MOIS : un compteur,
     // pas une somme (lu plus bas).
     if (t === "jours_repos_forfait") continue;
+    // 🆕 06/10 — LE REPOS DE NUIT PRIS CE MOIS : un compteur, pas une somme
+    // (lu plus bas, avec les heures de nuit).
+    if (t === "repos_nuit_pris") continue;
 
     // 🆕 28/09 — CAS RARES : L ASSURANCE DU LOGEMENT prise en charge par
     // l employeur (elle s ajoute au forfait du logement), LE LOGEMENT AU
@@ -1904,21 +1907,9 @@ async function calculer(contratId: string, periode: string,
       continue;
     }
 
-    if (t === "heures_nuit") {
-      const hN = Number(e.quantite || 0);
-      const pctN = lireConv("repos_nuit_pct");
-      if (hN > 0) {
-        notesAvantages.push("Travail de nuit : " + hN.toLocaleString("fr-FR") + " heure(s) ce mois-ci. "
-          + (pctN !== null
-            ? "Repos compensateur acquis : " + (Math.round(hN * pctN) / 100).toLocaleString("fr-FR",
-              { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " h (" + pctN.toLocaleString("fr-FR")
-              + " % par heure de nuit, convention " + contrat.idcc + "). "
-            : "La convention du contrat ne porte pas de règle de repos de nuit en base. ")
-          + "Ces heures n'ajoutent rien au bulletin : le repos se prend, il ne se paie pas. ⚠️ Le compteur du "
-          + "repos acquis et pris n'est pas tenu par le logiciel.");
-      }
-      continue;
-    }
+    // 🆕 06/10 — les heures de nuit n ajoutent rien au bulletin : elles
+    // alimentent le compteur du repos compensateur, tenu plus bas.
+    if (t === "heures_nuit") continue;
 
     // ─────────── 🆕 27/09 — L ACOMPTE DEJA VERSE ───────────
     // Une avance sur le salaire du mois, deja payee : elle se retient sur le
@@ -2166,6 +2157,58 @@ async function calculer(contratId: string, periode: string,
       + (jPres < jAn ? " (au prorata de la présence dans l'année)" : "") + " = " + droit + " jour(s) ; "
       + "pris depuis janvier : " + pris + " ; reste : " + reste + "."
       + (reste < 0 ? " Le forfait est DÉPASSÉ : il se régularise en jours de repos, jamais en argent." : ""));
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LE COMPTEUR DU REPOS COMPENSATEUR DE NUIT
+  //
+  // Chaque heure travaillee la nuit ouvre un repos (regle `repos_nuit_pct`
+  // de la convention : 1 % par heure dans les hotels, cafes, restaurants).
+  // Le moteur additionne les heures de nuit saisies depuis le debut du
+  // contrat (element « heures_nuit »), en deduit le repos acquis, retranche
+  // le repos pris (element « repos_nuit_pris », quantite = heures de repos
+  // prises dans le mois) et donne le solde. Le repos se PREND : rien ne
+  // s ajoute au bulletin.
+  // ⚠️ Le pourcentage applique a tout l historique est celui en vigueur le
+  // mois calcule. ⚠️ La convention fait prendre ce repos par periodes : le
+  // logiciel tient le solde, pas l echeance.
+  // ═══════════════════════════════════════════════════════════════════
+  let reposNuit: any = null;
+  const notesNuit: string[] = [];
+  {
+    const pctN = lireConv("repos_nuit_pct");
+    const { data: nuitLues } = await supabase
+      .from("paie_elements").select("quantite, periode, type_element")
+      .eq("contrat_id", contratId).in("type_element", ["heures_nuit", "repos_nuit_pris"])
+      .lte("periode", periode);
+    let hMois = 0, hCumul = 0, prisMois = 0, prisCumul = 0;
+    for (const x of (nuitLues || [])) {
+      const q = Number((x as any).quantite || 0);
+      const duMois = String((x as any).periode || "").slice(0, 7) === String(periode).slice(0, 7);
+      if (String((x as any).type_element) === "heures_nuit") { hCumul += q; if (duMois) hMois += q; }
+      else { prisCumul += q; if (duMois) prisMois += q; }
+    }
+    if (hCumul > 0 || prisCumul > 0) {
+      const f2n = function (n: number): string {
+        return (Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      };
+      if (pctN === null) {
+        notesNuit.push("⚠️ Des heures de nuit ou un repos de nuit sont saisis, mais la convention du contrat ("
+          + (contrat.idcc || "aucune") + ") ne porte pas de règle de repos de nuit en base : aucun compteur n'est tenu.");
+      } else {
+        const acquis = Math.round(hCumul * pctN) / 100;
+        const acquisMois = Math.round(hMois * pctN) / 100;
+        const solde = Math.round((acquis - prisCumul) * 100) / 100;
+        reposNuit = { pct: pctN, heures_nuit_mois: hMois, heures_nuit_cumul: hCumul, acquis_mois: acquisMois,
+          acquis: acquis, pris_mois: prisMois, pris: prisCumul, solde: solde };
+        notesNuit.push((solde < 0 ? "🚨 " : "") + "Repos compensateur de nuit (" + pctN.toLocaleString("fr-FR")
+          + " % par heure de nuit, convention " + contrat.idcc + ") : " + hMois.toLocaleString("fr-FR")
+          + " heure(s) de nuit ce mois-ci, soit " + f2n(acquisMois) + " h de repos acquises. Depuis le début du contrat : "
+          + f2n(acquis) + " h acquises, " + f2n(prisCumul) + " h prises, solde " + f2n(solde) + " h. "
+          + "Le repos se prend, il ne se paie pas : rien ne s'ajoute au bulletin."
+          + (solde < 0 ? " Le repos pris DÉPASSE le repos acquis : vérifier la saisie." : ""));
+      }
+    }
   }
 
   const notesHc: string[] = [];
@@ -4859,7 +4902,7 @@ async function calculer(contratId: string, periode: string,
     // ═════════════════════════════════════════════════════════════════
     const brutPos = String((contrat as any).position_conv || (contrat as any).niveau || "")
       .toUpperCase().replace(/NIVEAU|ECHELON|ÉCHELON|NIV\.?|ECH\.?/g, " ");
-    const jetons = brutPos.match(/\b(IV|V|III|II|I|[1-5])\b/g) || [];
+    const jetons: string[] = brutPos.match(/\b(IV|V|III|II|I|[1-5])\b/g) || [];
     const romains: any = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
     const enNombre = function (x: string): number { return romains[x] || Number(x) || 0; };
     const niveauHcr = jetons.length >= 1 ? enNombre(jetons[0]) : 0;
@@ -5114,6 +5157,8 @@ async function calculer(contratId: string, periode: string,
     vehicule: vehiculeDetail,
     // 🆕 28/09 — le compteur des jours de repos du forfait.
     repos_forfait: reposForfait,
+    // 🆕 06/10 — le compteur du repos compensateur de nuit.
+    repos_nuit: reposNuit,
     // 🆕 28/09 — le contrat de professionnalisation (age, taux, minimum).
     professionnalisation: pro,
     net_a_payer: netAPayer,
@@ -5209,6 +5254,8 @@ async function calculer(contratId: string, periode: string,
         // 🆕 28/09 — le compteur remplace l ancienne reserve.
         for (const n of notesRepos) r.push(n);
       }
+      // 🆕 06/10 — le compteur du repos compensateur de nuit.
+      for (const n of notesNuit) r.push(n);
 
       // 🆕 22/09 — CE QUE L APPRENTISSAGE APPORTE, ET CE QU IL NE FAIT PAS.
       if (appr) {
