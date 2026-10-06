@@ -1803,6 +1803,123 @@ async function calculer(contratId: string, periode: string,
       continue;
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 06/10 — TROIS ELEMENTS DES HOTELS, CAFES, RESTAURANTS
+    //
+    //   · indemnite_nourriture : l employeur qui ne nourrit pas le salarie
+    //     lui verse une indemnite compensatrice, au minimum garanti par
+    //     repas. Quantite = nombre de repas ; taux = vide (le minimum
+    //     garanti) ou un montant par repas. C est du salaire : elle cotise.
+    //   · jour_ferie_garanti : six jours feries garantis par an apres un an
+    //     d anciennete (avenant n° 6 du 15 decembre 2009, article 11).
+    //     Travaille et non recupere, le jour est INDEMNISE : quantite =
+    //     nombre de jours ; montant = vide (une journee de salaire : les
+    //     heures d une journee du contrat au taux horaire de base) ou le
+    //     montant decide. ⚠️ La convention ne fixe pas la formule de la
+    //     journee : celle-ci est la plus courante, et elle se remplace.
+    //   · heures_nuit : quantite = heures travaillees entre 22 h et 7 h. Elles
+    //     n ajoutent RIEN au bulletin : elles ouvrent un repos compensateur
+    //     (1 % par heure), que la note rappelle.
+    // Les limites (six jours, 1 %) se lisent dans les regles de la
+    // convention : `jours_feries_garantis`, `repos_nuit_pct`.
+    // ═══════════════════════════════════════════════════════════════
+    if (t === "indemnite_nourriture") {
+      const nbR = Number(e.quantite || 0);
+      const mgR = Number(e.taux || 0) > 0 ? Number(e.taux) : Number(await parametre("MINIMUM_GARANTI", periode) || 0);
+      if (nbR <= 0 || mgR <= 0) {
+        notesAvantages.push("⛔ INDEMNITÉ COMPENSATRICE DE NOURRITURE NON CALCULÉE : "
+          + (nbR <= 0 ? "le nombre de repas manque." : "le minimum garanti est absent de la base pour cette période.")
+          + " La ligne n'a PAS été portée au bulletin.");
+        continue;
+      }
+      const mR = cts(nbR * mgR);
+      lignesBrut.push({
+        libelle: "Indemnité compensatrice de nourriture (" + nbR + " repas à "
+          + mgR.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR)",
+        quantite: nbR, taux: mgR, montant: mR,
+      });
+      brutSoumis += mR;
+      notesAvantages.push("Indemnité compensatrice de nourriture : " + nbR + " repas à "
+        + mgR.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " € "
+        + (Number(e.taux || 0) > 0 ? "(montant saisi)" : "(minimum garanti)")
+        + ". Elle est due quand l'employeur ne nourrit pas le salarié ; c'est du salaire, elle cotise.");
+      continue;
+    }
+
+    if (t === "jour_ferie_garanti") {
+      const nbJ = Number(e.quantite || 0);
+      if (nbJ <= 0) {
+        notesAvantages.push("⛔ JOUR FÉRIÉ GARANTI sans nombre de jours : la ligne n'a PAS été portée au bulletin.");
+        continue;
+      }
+      const fr2j = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+      let mJ = cts(Math.abs(Number(e.montant || 0)));
+      let detailJ = "montant saisi";
+      if (!(mJ > 0)) {
+        const tauxBaseJ = Number(contrat.salaire_horaire || 0) > 0 ? Number(contrat.salaire_horaire)
+          : (Number(contrat.salaire_mensuel || 0) > 0 && heuresPondereesContrat > 0
+            ? Number(contrat.salaire_mensuel) / heuresPondereesContrat : 0);
+        const heuresJ = (dureeHebdo > 0 ? dureeHebdo : 35) / Math.max(1, joursTravail.length);
+        mJ = cts(nbJ * heuresJ * tauxBaseJ);
+        detailJ = nbJ.toLocaleString("fr-FR") + " jour(s) × " + (Math.round(heuresJ * 100) / 100).toLocaleString("fr-FR", fr2j)
+          + " h × " + (Math.round(tauxBaseJ * 10000) / 10000).toLocaleString("fr-FR", { minimumFractionDigits: 4 }) + " €";
+      }
+      if (!(mJ > 0)) {
+        notesAvantages.push("⛔ JOUR FÉRIÉ GARANTI NON CALCULÉ : le contrat ne porte ni salaire mensuel ni taux horaire. "
+          + "Saisir le montant de l'indemnité.");
+        continue;
+      }
+      lignesBrut.push({
+        libelle: "Indemnité de jour férié garanti (" + nbJ.toLocaleString("fr-FR") + " jour" + (nbJ > 1 ? "s" : "") + ")",
+        quantite: nbJ, taux: cts(mJ / nbJ), montant: mJ,
+      });
+      brutSoumis += mJ;
+      let noteJ = "Jour férié garanti indemnisé : " + mJ.toLocaleString("fr-FR", fr2j) + " € (" + detailJ
+        + "). ⚠️ La convention prévoit une indemnisation sans en fixer la formule : celle-ci vaut une journée de "
+        + "salaire ; saisir le montant pour en retenir une autre.";
+      // L anciennete et le plafond de l annee.
+      const maxJ = lireConv("jours_feries_garantis");
+      const dcJ = String(contrat.date_debut || "").slice(0, 10);
+      if (dcJ) {
+        let ancJ = (Number(periode.slice(0, 4)) - Number(dcJ.slice(0, 4))) * 12
+          + (Number(periode.slice(5, 7)) - Number(dcJ.slice(5, 7)));
+        if (Number(dcJ.slice(8, 10)) > 1) ancJ -= 1;
+        if (ancJ < 12) {
+          noteJ += " 🚨 Le salarié n'a pas un an d'ancienneté ce mois-ci : les jours fériés garantis ne lui sont "
+            + "dus qu'après un an (neuf mois dans un établissement saisonnier).";
+        }
+      }
+      if (maxJ !== null) {
+        const { data: autresJ } = await supabase.from("paie_elements").select("quantite, periode")
+          .eq("contrat_id", contratId).eq("type_element", "jour_ferie_garanti")
+          .gte("periode", periode.slice(0, 4) + "-01-01").lte("periode", periode);
+        let cumulJ = 0;
+        for (const x of ((autresJ || []) as any[])) cumulJ += Number(x.quantite || 0);
+        noteJ += " Cumul de l'année : " + cumulJ.toLocaleString("fr-FR") + " jour(s) sur " + maxJ + " garantis.";
+        if (cumulJ > maxJ + 0.001) {
+          noteJ += " 🚨 Le cumul dépasse les " + maxJ + " jours garantis : vérifier la saisie.";
+        }
+      }
+      notesAvantages.push(noteJ);
+      continue;
+    }
+
+    if (t === "heures_nuit") {
+      const hN = Number(e.quantite || 0);
+      const pctN = lireConv("repos_nuit_pct");
+      if (hN > 0) {
+        notesAvantages.push("Travail de nuit : " + hN.toLocaleString("fr-FR") + " heure(s) ce mois-ci. "
+          + (pctN !== null
+            ? "Repos compensateur acquis : " + (Math.round(hN * pctN) / 100).toLocaleString("fr-FR",
+              { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " h (" + pctN.toLocaleString("fr-FR")
+              + " % par heure de nuit, convention " + contrat.idcc + "). "
+            : "La convention du contrat ne porte pas de règle de repos de nuit en base. ")
+          + "Ces heures n'ajoutent rien au bulletin : le repos se prend, il ne se paie pas. ⚠️ Le compteur du "
+          + "repos acquis et pris n'est pas tenu par le logiciel.");
+      }
+      continue;
+    }
+
     // ─────────── 🆕 27/09 — L ACOMPTE DEJA VERSE ───────────
     // Une avance sur le salaire du mois, deja payee : elle se retient sur le
     // NET, comme la part salariale des titres-restaurant. Ni cotisation, ni
@@ -3025,6 +3142,48 @@ async function calculer(contratId: string, periode: string,
       : "Indemnité de fin de mission";
   }
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LES EXTRAS (contrat a duree determinee d usage)
+  // Un extra est un CDD d usage : pas de prime de precarite (elle se regle
+  // sur le contrat, « Prime de précarité »), une indemnite de conges de
+  // 10 % a chaque contrat. Au-dela de `extra_jours_max_trimestre` jours
+  // (60 dans les hotels, cafes, restaurants) dans un meme trimestre civil
+  // chez le meme employeur, le salarie peut demander un contrat a duree
+  // indeterminee : on le signale.
+  // ═══════════════════════════════════════════════════════════════════
+  const notesExtra: string[] = [];
+  {
+    const maxExtra = lireConv("extra_jours_max_trimestre");
+    const motifNd = String((contrat as any).ifm_motif_non_due || "");
+    if (maxExtra !== null && contrat.type_contrat === "cdd" && contrat.ifm_due === false && /usage|extra/i.test(motifNd)) {
+      const an = Number(periode.slice(0, 4));
+      const trim = Math.floor((Number(periode.slice(5, 7)) - 1) / 3);
+      const debutT = an + "-" + String(trim * 3 + 1).padStart(2, "0") + "-01";
+      const finT = new Date(Date.UTC(an, trim * 3 + 3, 0)).toISOString().slice(0, 10);
+      const { data: memes } = await supabase.from("paie_contrats")
+        .select("id, type_contrat, date_debut, date_fin, rompu_le, ifm_due, ifm_motif_non_due")
+        .eq("societe_id", contrat.societe_id).eq("salarie_id", (contrat as any).salarie_id).eq("type_contrat", "cdd");
+      let joursExtra = 0;
+      for (const k of ((memes || []) as any[])) {
+        if (k.ifm_due !== false || !/usage|extra/i.test(String(k.ifm_motif_non_due || ""))) continue;
+        const d0 = String(k.date_debut || "").slice(0, 10);
+        if (!d0) continue;
+        let d1 = finT;
+        for (const x of [String(k.date_fin || "").slice(0, 10), String(k.rompu_le || "").slice(0, 10)]) {
+          if (/^\d{4}-\d{2}-\d{2}$/.test(x) && x < d1) d1 = x;
+        }
+        const a0 = d0 > debutT ? d0 : debutT;
+        if (d1 < a0) continue;
+        joursExtra += Math.round((Date.parse(d1 + "T00:00:00Z") - Date.parse(a0 + "T00:00:00Z")) / 86400000) + 1;
+      }
+      notesExtra.push("Extra (contrat d'usage) : " + joursExtra + " jour(s) de contrat chez cet employeur sur le "
+        + "trimestre civil, pour un plafond de " + maxExtra + ". Pas de prime de précarité ; indemnité de congés "
+        + "de 10 % à chaque contrat."
+        + (joursExtra > maxExtra ? " 🚨 PLAFOND DÉPASSÉ : le salarié peut demander la requalification de son "
+          + "contrat en contrat à durée indéterminée." : ""));
+    }
+  }
+
   if (aIndemnitesFinContrat) {
     const { data: regles } = await supabase
       .from("paie_regles_mission")
@@ -3574,7 +3733,14 @@ async function calculer(contratId: string, periode: string,
   let taExoneree = false;
   let formationApprentiExclue = false;
 
-  if (baremeTaxeApprentissage && !estApprentiPublic) {
+  // 🆕 06/10 — LA SOCIETE MARQUEE « NON REDEVABLE » A L ECRAN DSN (taux a
+  // zero) : ni ligne, ni exoneration a calculer.
+  const taNonRedevable = tauxSociete["TAXE_APPRENTISSAGE"] === 0 || tauxSociete["TAXE_APPRENTISSAGE_AM"] === 0;
+  if (taNonRedevable) {
+    notesFormation.push("Taxe d'apprentissage : la société est marquée non redevable (écran DSN, bloc "
+      + "« Recouvrement URSSAF »). Elle n'est pas comptée.");
+  }
+  if (baremeTaxeApprentissage && !estApprentiPublic && !taNonRedevable) {
     try {
       const an0 = Number(String(periode).slice(0, 4));
       const mo0 = Number(String(periode).slice(5, 7));
@@ -3701,6 +3867,7 @@ async function calculer(contratId: string, periode: string,
         continue;
       }
       if (/^TAXE_APPRENTISSAGE/.test(cf) && taExoneree) continue;
+      if (/^TAXE_APPRENTISSAGE/.test(cf) && taNonRedevable) continue;
       if (/^DIALOGUE/.test(cf) && horsSalariat) continue;
     }
 
@@ -3944,8 +4111,10 @@ async function calculer(contratId: string, periode: string,
 
   if (contributionsConv.length > 0) {
     notesFormation.push("Contributions de la convention collective (IDCC " + contrat.idcc + ") comptées : "
-      + contributionsConv.join(", ") + ". ⚠️ Leur minimum annuel par entreprise, quand la convention en "
-      + "prévoit un, n'est pas calculé : il se régularise en fin d'année.");
+      + contributionsConv.join(", ") + ", au taux de la branche sur le brut du mois (recouvrement par l'URSSAF "
+      + "depuis janvier 2026). ⚠️ L'ancienne collecte annuelle prévoyait un minimum de 50 € par entreprise ; "
+      + "aucune règle lue ne le reprend dans le recouvrement mensuel : il n'est pas calculé — à vérifier dans le "
+      + "guide de l'URSSAF sur les contributions conventionnelles.");
   }
 
   // 🆕 27/09 — LES LIGNES DE MUTUELLE ET DE PREVOYANCE, puis le forfait
@@ -4963,10 +5132,11 @@ async function calculer(contratId: string, periode: string,
           + "des minima par niveau et échelon, les majorations d'heures supplémentaires (10 %, 20 %, 50 %), le repas "
           + "compté au minimum garanti, le barème des apprentis de la branche, les contributions conventionnelles au "
           + "dialogue social et à la formation. Le maintien de salaire en maladie suit la loi, plus favorable que le "
-          + "texte de la convention. ⚠️ CE QU'IL N'APPLIQUE PAS : les six jours fériés garantis (à saisir quand ils "
-          + "sont payés ou compensés), l'indemnité compensatrice de nourriture quand le salarié n'est pas nourri (à "
-          + "saisir en prime), le repos compensateur du travail de nuit, les règles des extras, et la mutuelle et la "
-          + "prévoyance de la branche, qui se règlent sur le dossier de la société."
+          + "texte de la convention. Se saisissent dans les éléments du mois : l'indemnité compensatrice de "
+          + "nourriture, l'indemnité d'un jour férié garanti, les heures de nuit (repos compensateur). Un extra est un "
+          + "contrat à durée déterminée dont la prime de précarité est réglée « non due — contrat d'usage ». ⚠️ CE "
+          + "QU'IL N'APPLIQUE PAS : le compteur du repos de nuit, l'ancien minimum de 50 € des contributions de la branche, "
+          + "et la mutuelle et la prévoyance de la branche, qui se règlent sur le dossier de la société."
         : (idccR === 1486 || idccR === 2378 || idccR === 0)
           ? "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués."
           : "⚠️ CONVENTION COLLECTIVE IDCC " + idccR + " : aucune de ses règles n'est chargée. Le bulletin applique la loi "
@@ -5254,6 +5424,7 @@ async function calculer(contratId: string, periode: string,
       for (const n of notesFormation) r.unshift(n);
       // 🆕 06/10 — les heures supplementaires comprises dans l horaire.
       for (const n of notesStruct) r.unshift(n);
+      for (const n of notesExtra) r.unshift(n);
       // 🆕 06/10 — la reprise d un autre logiciel.
       {
         const an0 = String(periode).slice(0, 4);
