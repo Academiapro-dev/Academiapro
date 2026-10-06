@@ -579,6 +579,33 @@ export default function PageDsn() {
     setOccupe("");
   }
 
+  // 🆕 06/10 — LA SOCIETE RELEVE-T-ELLE DE LA TAXE D APPRENTISSAGE ?
+  // Le cas general est « oui » ; certaines structures (associations sans but
+  // lucratif, societes civiles de moyens…) n en sont pas redevables.
+  async function reglerTaxeApprentissage(soc: any, redevable: boolean) {
+    const j = new Date();
+    const debutMois = j.getFullYear() + "-" + String(j.getMonth() + 1).padStart(2, "0") + "-01";
+    const debutAnnee = j.getFullYear() + "-01-01";
+    const question = redevable
+      ? "Cette société redevient redevable de la taxe d'apprentissage à compter de ce mois-ci ?"
+      : "Marquer cette société NON REDEVABLE de la taxe d'apprentissage depuis le 1er janvier de cette année ? "
+        + "Elle ne sera plus comptée sur les bulletins ni déclarée dans la DSN. À ne faire que si l'employeur "
+        + "vous l'a confirmé (association sans but lucratif, société civile de moyens…).";
+    if (typeof window !== "undefined" && !window.confirm(question)) return;
+    setErr(""); setMsg(""); setOccupe("ta" + soc.id);
+    const d = await appeler({
+      action: "taxe_apprentissage", societe_id: soc.id,
+      redevable: redevable, date_effet: redevable ? debutMois : debutAnnee,
+    });
+    if (d.success) {
+      await charger(true);
+      setMsg(d.message || "Enregistré.");
+    } else {
+      setErr(d.erreur || "enregistrement impossible");
+    }
+    setOccupe("");
+  }
+
   // 🆕 27/09 — ENREGISTRER OU ARRETER UNE GARANTIE (mutuelle, prevoyance).
   async function enregistrerGarantie(soc: any) {
     const f = garSaisie;
@@ -1282,6 +1309,30 @@ export default function PageDsn() {
                         </div>
                       );
                     })()}
+
+                    {/* 🆕 06/10 — LA TAXE D APPRENTISSAGE : redevable (le cas
+                        general) ou non. */}
+                    <div style={{ margin: "8px 0 0", display: "flex",
+                      justifyContent: "space-between", alignItems: "baseline",
+                      flexWrap: "wrap", gap: "8px" }}>
+                      <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.72)" }}>
+                        Taxe d&apos;apprentissage :{" "}
+                        {v.taxe_apprentissage && v.taxe_apprentissage.non_redevable
+                          ? "société non redevable depuis le "
+                            + String(v.taxe_apprentissage.depuis).split("-").reverse().join("/")
+                            + " — ni comptée au bulletin, ni déclarée"
+                          : "société redevable (le cas général)"}
+                      </p>
+                      <button
+                        onClick={() => reglerTaxeApprentissage(soc, !!(v.taxe_apprentissage && v.taxe_apprentissage.non_redevable))}
+                        disabled={occupe !== ""}
+                        style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
+                        {occupe === "ta" + soc.id ? "…"
+                          : (v.taxe_apprentissage && v.taxe_apprentissage.non_redevable
+                            ? "redevable à nouveau" : "déclarer non redevable")}
+                      </button>
+                    </div>
 
                     {/* ═══════════════════════════════════════════════════
                         🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE
