@@ -679,8 +679,29 @@ export async function POST(req: NextRequest) {
   ecrire("Montant net social", 40, 9, gras, NOIR);
   droite(euros(calcul.net_social), 555, 9, gras, NOIR);
   y -= 13;
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LE NET IMPOSABLE EST CELUI QUE L EMPLOYEUR DECLARE
+  //
+  // Decision de Jacques, 06/10. Quand l employeur reverse des indemnites
+  // journalieres de Securite sociale (subrogation), il preleve l impot sur
+  // leur part imposable — mais c est la CAISSE qui les declare a
+  // l administration, pas lui. Le bulletin affichait un seul chiffre, les
+  // indemnites comprises (2 333,51 EUR pour Hugo en septembre), alors que la
+  // DSN declarait 2 251,28 EUR : le salarie qui compare ses bulletins a sa
+  // declaration de revenus y voyait les indemnites deux fois.
+  //   · « Net imposable » = la remuneration nette fiscale de la DSN
+  //     (rubrique S21.G00.50.002), SANS les indemnites journalieres ;
+  //   · la BASE du prelevement se dit sous sa ligne, indemnites comprises :
+  //     le montant preleve reste verifiable (base x taux).
+  // ⚠️ LE CALCUL NE CHANGE PAS : `net_imposable` reste l assiette du
+  // prelevement dans le moteur et en base, et le generateur de la DSN en
+  // retire lui-meme `ijss_imposables`. Seul l affichage change, et seulement
+  // sur un bulletin qui porte des indemnites reversees.
+  // ═══════════════════════════════════════════════════════════════════
+  const ijImposables = Math.max(0, Number(calcul.ijss_imposables) || 0);
+  const netFiscal = Math.round((Number(calcul.net_imposable || 0) - ijImposables) * 100) / 100;
   ecrire("Net imposable", 40, 9, police, NOIR);
-  droite(euros(calcul.net_imposable), 555, 9, police, NOIR);
+  droite(euros(netFiscal), 555, 9, police, NOIR);
   y -= 12;
   ecrire("Net à payer avant impôt sur le revenu", 40, 9, police, NOIR);
   droite(euros(calcul.net_avant_impot), 555, 9, police, NOIR);
@@ -695,6 +716,12 @@ export async function POST(req: NextRequest) {
     ecrire("(" + calcul.prelevement_mention + ")", 40 + l + 6, 7, police, GRIS);
   }
   droite("- " + euros(calcul.prelevement_source), 555, 9, police, NOIR);
+  if (ijImposables > 0) {
+    y -= 10;
+    ecrire("Base du prélèvement : " + euros(calcul.net_imposable) + " EUR, dont "
+      + euros(ijImposables) + " EUR d'indemnités journalières de Sécurité sociale (déclarées par la caisse)",
+      48, 7, police, GRIS);
+  }
   y -= 15;
 
   ecrire("NET À PAYER", 40, 12, gras, NOIR);
