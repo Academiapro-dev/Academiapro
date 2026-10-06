@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Script from "next/script";
 
 export const metadata = {
   title: "Démonstration : un mois de paie, du dossier à la DSN — Mr. Comptable",
@@ -43,6 +44,100 @@ const NOIR = "#050508";
 // ═══════════════════════════════════════════════════════════════════════
 const VIDEO_PAIE: string = "CNdSXDYsEhY";
 const VIDEO_COMPTABILITE: string = "";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 06/10/2026 — LE LECTEUR SANS SOUS-TITRES
+//
+// CONSTATE LE 06/10 : YouTube fabrique des sous-titres automatiques (« paye »,
+// « M. Comptable »…) et le lecteur integre les affichait d office. Dans
+// YouTube Studio, « Depublier » n existe plus sur la ligne des sous-titres
+// automatiques, et la corbeille n a rien supprime depuis l iPad.
+// La page demande donc elle-meme au lecteur de ne pas les afficher, de DEUX
+// facons (aucune des deux n est une garantie de YouTube) :
+//   1. dans l adresse du lecteur : cc_load_policy=3 (REGLAGES_LECTEUR) ;
+//   2. par l interface de programmation du lecteur (SANS_SOUS_TITRES) : des
+//      que le lecteur est pret, puis a chaque changement d etat, la page vide
+//      la piste de sous-titres et decharge le module des sous-titres.
+// Si YouTube change son lecteur, le pire qui arrive est le retour des
+// sous-titres : la video, elle, se lit toujours.
+//
+// ⚠️ Le petit programme charge https://www.youtube.com/iframe_api des
+// l ouverture de la page (le lecteur, lui, reste sur youtube-nocookie.com).
+// ⚠️ NE PAS RETIRER « /embed/<identifiant> » DE L ADRESSE DU LECTEUR : c est
+// ce que cherchent la campagne des avocats et l ecran LinkedIn.
+// ═══════════════════════════════════════════════════════════════════════
+const REGLAGES_LECTEUR = "?rel=0&cc_load_policy=3&enablejsapi=1";
+
+const SANS_SOUS_TITRES = `
+(function () {
+  if (window.__mcSansSousTitres) return;
+  window.__mcSansSousTitres = true;
+
+  function couper(lecteur) {
+    if (!lecteur) return;
+    var maintenant = Date.now();
+    if (lecteur.__mcDernier && maintenant - lecteur.__mcDernier < 200) return;
+    lecteur.__mcDernier = maintenant;
+    try { lecteur.setOption("captions", "track", {}); } catch (e) {}
+    try { lecteur.unloadModule("captions"); } catch (e) {}
+    try { lecteur.unloadModule("cc"); } catch (e) {}
+  }
+
+  function sousTitresCharges(lecteur) {
+    try {
+      var modules = lecteur.getOptions() || [];
+      return modules.indexOf("captions") >= 0 || modules.indexOf("cc") >= 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function couperEtRecouper(lecteur) {
+    couper(lecteur);
+    setTimeout(function () { couper(lecteur); }, 700);
+    setTimeout(function () { couper(lecteur); }, 2500);
+  }
+
+  function brancher() {
+    if (!window.YT || !window.YT.Player) return;
+    var cadres = document.querySelectorAll("iframe[data-sans-sous-titres]");
+    for (var i = 0; i < cadres.length; i++) {
+      var cadre = cadres[i];
+      if (cadre.getAttribute("data-branche")) continue;
+      cadre.setAttribute("data-branche", "1");
+      try {
+        var adresse = cadre.getAttribute("src") || "";
+        if (adresse.indexOf("origin=") < 0) {
+          cadre.setAttribute("src", adresse + "&origin=" + encodeURIComponent(window.location.origin));
+        }
+        new window.YT.Player(cadre, {
+          events: {
+            onReady: function (e) { couperEtRecouper(e.target); },
+            onStateChange: function (e) { couperEtRecouper(e.target); },
+            onApiChange: function (e) { if (sousTitresCharges(e.target)) couperEtRecouper(e.target); }
+          }
+        });
+      } catch (e) {}
+    }
+  }
+
+  var ancien = window.onYouTubeIframeAPIReady;
+  window.onYouTubeIframeAPIReady = function () {
+    if (typeof ancien === "function") { try { ancien(); } catch (e) {} }
+    brancher();
+  };
+
+  if (!document.getElementById("api-lecteur-youtube")) {
+    var s = document.createElement("script");
+    s.id = "api-lecteur-youtube";
+    s.src = "https://www.youtube.com/iframe_api";
+    s.async = true;
+    document.head.appendChild(s);
+  }
+
+  setInterval(brancher, 1500);
+})();
+`;
 
 // 🚨 MEME LISTE SUR TOUTES LES PAGES DE app/comptable.
 const FONCTIONS = [
@@ -243,12 +338,13 @@ export default function PageDemonstration() {
         </p>
 
         {/* ---- LA VIDEO DE LA PAIE ---- Masquee tant que VIDEO_PAIE est vide.
-            youtube-nocookie : aucun cookie depose avant la lecture. */}
+            Lecteur youtube-nocookie, sans sous-titres (voir SANS_SOUS_TITRES). */}
         {VIDEO_PAIE && (
           <div style={cadreVideo}>
             <div style={formatVideo}>
               <iframe
-                src={"https://www.youtube-nocookie.com/embed/" + VIDEO_PAIE + "?rel=0"}
+                src={"https://www.youtube-nocookie.com/embed/" + VIDEO_PAIE + REGLAGES_LECTEUR}
+                data-sans-sous-titres="1"
                 title="Mr Comptable — un mois de paie, du dossier à la DSN"
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                 allowFullScreen
@@ -262,6 +358,12 @@ export default function PageDemonstration() {
             Six minutes et demie, écran par écran. Ce qui suit résume chaque étape,
             avec le moment où la vidéo la montre.
           </p>
+        )}
+
+        {(VIDEO_PAIE || VIDEO_COMPTABILITE) && (
+          <Script id="lecteur-sans-sous-titres" strategy="afterInteractive">
+            {SANS_SOUS_TITRES}
+          </Script>
         )}
 
         <h2 style={H2}>Les étapes, une à une</h2>
@@ -298,7 +400,8 @@ export default function PageDemonstration() {
             <div style={cadreVideo}>
               <div style={formatVideo}>
                 <iframe
-                  src={"https://www.youtube-nocookie.com/embed/" + VIDEO_COMPTABILITE + "?rel=0"}
+                  src={"https://www.youtube-nocookie.com/embed/" + VIDEO_COMPTABILITE + REGLAGES_LECTEUR}
+                  data-sans-sous-titres="1"
                   title="Mr Comptable — la comptabilité, de la pièce à la liasse"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                   allowFullScreen
