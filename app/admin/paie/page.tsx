@@ -121,6 +121,10 @@ const TYPES_ELEMENT = [
   { cle: "jours_repos_forfait", nom: "Jours de repos du forfait pris (forfait en jours)", soumis: true },
   { cle: "avantage_logement_reel", nom: "Avantage logement évalué au réel", soumis: true },
   { cle: "avantage_vehicule_reel", nom: "Avantage véhicule évalué au réel (remplace le forfait)", soumis: true },
+  // 🆕 06/10 — hotels, cafes, restaurants.
+  { cle: "indemnite_nourriture", nom: "Indemnité compensatrice de nourriture (salarié non nourri)", soumis: true },
+  { cle: "jour_ferie_garanti", nom: "Jour férié garanti indemnisé", soumis: true },
+  { cle: "heures_nuit", nom: "Heures de nuit (repos compensateur, rien au bulletin)", soumis: true },
   { cle: "heures_comp_25", nom: "Heures complémentaires 25 % (temps partiel)", soumis: true },
   { cle: "prime", nom: "Prime", soumis: true },
   { cle: "panier", nom: "Panier repas", soumis: false },
@@ -153,6 +157,12 @@ const AIDE_ELEMENT: any = {
     + "de l'élément « avantage logement » au forfait, jamais les deux.",
   avantage_vehicule_reel: "Montant = dépenses réelles du mois pour l'usage privé du véhicule. Le forfait "
     + "du véhicule porté sur le contrat ne s'applique pas ce mois-là.",
+  indemnite_nourriture: "Quantité = nombre de repas non fournis dans le mois. Taux : laisser vide (le minimum "
+    + "garanti s'applique) ou indiquer un montant par repas. Montant : laisser vide.",
+  jour_ferie_garanti: "Quantité = nombre de jours fériés garantis travaillés et non récupérés. Taux : laisser vide. "
+    + "Montant : laisser vide (une journée de salaire est calculée) ou indiquer le montant décidé.",
+  heures_nuit: "Quantité = heures travaillées entre 22 h et 7 h dans le mois. Taux et montant : laisser vides. "
+    + "Rien ne s'ajoute au bulletin : la note du calcul rappelle le repos compensateur acquis.",
   heures_sup_10: "Heures faites EN PLUS de l'horaire du contrat, de la 36e à la 39e de la semaine. Celles qui "
     + "sont comprises dans l'horaire (contrat à 39 heures) sont déjà au bulletin : ne pas les ressaisir. "
     + "Quantité = nombre d'heures. Taux et montant : laisser vides, ils se calculent.",
@@ -806,6 +816,32 @@ export default function PagePaie() {
     setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
   }
 
+  // 🆕 06/10 — LE DEPOT PAR LE LOGICIEL, avec les acces net-entreprises de la
+  // societe. Un fichier d essai est controle sans rien declarer ; un fichier
+  // reel demande une confirmation expresse.
+  async function deposerEmbauche(confirmerReel: boolean) {
+    if (!choisi) return;
+    if (!confirmerReel && typeof window !== "undefined" && !window.confirm(
+      "Déposer ce fichier sur net-entreprises, avec les accès enregistrés pour cette société ?")) return;
+    setErr(""); setMsg(""); setOccupe("embauche");
+    const d = await appeler({ action: "embauche_deposer", contrat_id: choisi.id, confirmer_reel: confirmerReel });
+    if (d && d.success) {
+      await chargerEmbauche(choisi.id);
+      setMsg(d.message || "Fichier déposé.");
+    } else if (d && !confirmerReel && String(d.erreur || "").indexOf("ENVOI RÉEL") >= 0) {
+      setOccupe("");
+      if (typeof window !== "undefined" && window.confirm(
+        "CE FICHIER EST UN ENVOI RÉEL : il déclare l'embauche à l'URSSAF et ne pourra pas être retiré. "
+        + "Confirmez-vous le dépôt ?")) {
+        await deposerEmbauche(true);
+      }
+      return;
+    } else {
+      setErr(lisible(d && (d.erreur || d.message) ? (d.erreur || d.message) : "dépôt impossible"));
+    }
+    setOccupe("");
+  }
+
   async function noterEmbaucheDeposee(annuler: boolean) {
     if (!choisi) return;
     if (!annuler && typeof window !== "undefined" && !window.confirm(
@@ -895,6 +931,11 @@ export default function PagePaie() {
       code_risque_at: v(choisi.code_risque_at),
       apprenti_public: choisi.apprenti_public === true,
       plafond_reduit_forfait: choisi.plafond_reduit_forfait === true,
+      // 🆕 06/10 — la prime de precarite d un CDD.
+      precarite: choisi.ifm_due === false
+        ? (/usage|extra/i.test(v(choisi.ifm_motif_non_due)) ? "usage"
+          : /saisonn/i.test(v(choisi.ifm_motif_non_due)) ? "saisonnier" : "autre")
+        : "due",
       // 🆕 28/09 — le vehicule de fonction (null = aucun).
       vehicule: choisi.vehicule ? {
         mode: v(choisi.vehicule.mode) || "achat",
@@ -2497,6 +2538,21 @@ export default function PagePaie() {
                           {/* 🆕 05/10 — la DSN declare le lieu de naissance ; il
                               ne se corrigeait que par une requete. */}
                           {champ("lieu_naissance", "Lieu de naissance (commune)", "180px", { placeholder: "ex. Lyon" })}
+                          {/* 🆕 06/10 — LA PRIME DE PRECARITE D UN CDD : elle ne se
+                              reglait qu a la creation, par la base. Un extra est un
+                              contrat d usage : elle n est pas due. */}
+                          {choisi.type_contrat === "cdd" && (
+                            <div style={{ flex: "1 1 260px" }}>
+                              <span style={LIB}>Prime de précarité</span>
+                              <select value={cs.precarite || "due"} style={CHAMP}
+                                onChange={(ev) => setContratSaisie({ ...cs, precarite: ev.target.value })}>
+                                <option value="due">Due (le cas général)</option>
+                                <option value="usage">Non due — contrat d&apos;usage (extra)</option>
+                                <option value="saisonnier">Non due — emploi saisonnier</option>
+                                <option value="autre">Non due — autre cas prévu par la loi</option>
+                              </select>
+                            </div>
+                          )}
                           {choisi.type_contrat === "apprentissage" && (
                             <label style={{ flex: "1 1 100%", display: "flex", gap: "8px", alignItems: "center", fontSize: "14px" }}>
                               <input type="checkbox" checked={!!cs.apprenti_public}
@@ -3017,8 +3073,8 @@ export default function PagePaie() {
                         Le fichier reprend la fiche du salarié, son contrat et le dossier de
                         la société. Il manque deux informations : l&apos;heure à laquelle le
                         salarié commence, et sa période d&apos;essai en jours (0 s&apos;il n&apos;y en a
-                        pas). Le logiciel ne dépose rien : le fichier se télécharge, puis se
-                        dépose sur net-entreprises.
+                        pas). Le fichier se dépose ensuite d&apos;ici, avec les accès
+                        net-entreprises de la société, ou se télécharge pour être déposé à la main.
                       </p>
 
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -3050,9 +3106,16 @@ export default function PagePaie() {
                         )}
                         {embauche.etat && embauche.etat.fichier && embauche.etat.statut !== "deposee"
                           && (embauche.etat.anomalies || []).length === 0 && (
-                          <button onClick={() => noterEmbaucheDeposee(false)} disabled={occupe !== ""}
+                          <button onClick={() => deposerEmbauche(false)} disabled={occupe !== ""}
                             style={{ ...SECOND, ...cache(droitsIci.deposer) }}>
-                            Noter déposée
+                            Déposer sur net-entreprises
+                          </button>
+                        )}
+                        {embauche.etat && embauche.etat.fichier && embauche.etat.statut !== "deposee"
+                          && (embauche.etat.anomalies || []).length === 0 && (
+                          <button onClick={() => noterEmbaucheDeposee(false)} disabled={occupe !== ""}
+                            style={{ ...LIEN, color: OR, ...cache(droitsIci.deposer) }}>
+                            noter déposée à la main
                           </button>
                         )}
                         {embauche.etat && embauche.etat.statut === "deposee" && (
