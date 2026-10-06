@@ -441,6 +441,15 @@ const COTISATION_REPLI: Record<string, { code: string; base: string }> = {
   IRCANTEC_TA: { code: "060", base: "28" },
   IRCANTEC_TB: { code: "061", base: "28" },
   APEC: { code: "132", base: "02" },
+  // 🆕🚨 06/10 — LA TRANCHE 2 DE L AGIRC-ARRCO ET LA CET. ⛔ Elles n avaient
+  // aucun code : la DSN du premier salaire au-dessus du plafond les laissait
+  // « NON DÉCLARÉES ». Le code 131 regroupe toutes les cotisations du regime
+  // unifie (tranches 1 et 2, CEG, CET) ; il se rattache a une seule base,
+  // ici la plafonnee, comme le faisait deja la tranche 1. La part patronale
+  // de la tranche 2 et de la CET se redit sous le code 146 (norme P26V01).
+  RETRAITE_C_T2: { code: "131", base: "02" },
+  CEG_T2: { code: "131", base: "02" },
+  CET: { code: "131", base: "02" },
   // 🆕 06/10 — formation professionnelle, CPF-CDD, taxe d apprentissage,
   // dialogue social : codes lus au cahier technique 2026.1 (rubrique
   // S21.G00.81.001) et au tableau d equivalence de l URSSAF, base « 03 ».
@@ -516,11 +525,18 @@ const CODE_DEDUCTION_HS = "021";
 // remuneration des heures supplementaires ou la part exoneree d une indemnite
 // de rupture — qui peut depasser le brut du mois.
 const CODES_HORS_ASSIETTE = ["114", "021", "093"];
+// 🆕🚨 06/10 — CES COTISATIONS NE FONT PAS L ASSIETTE DE LEUR BASE : rangees
+// sous la base plafonnee, elles portent sur autre chose (la tranche 2, ou la
+// remuneration jusqu a quatre ou huit plafonds). ⛔ L APEC, calculee sur
+// 4 500 EUR, faisait declarer une assiette PLAFONNEE de 4 500 EUR pour un
+// plafond de 4 005 : la ligne 921 du bordereau en etait faussee.
+const INTERNES_HORS_ASSIETTE = ["APEC", "CET", "RETRAITE_C_T2", "CEG_T2"];
+const INTERNES_TRANCHE_2 = ["CET", "RETRAITE_C_T2", "CEG_T2"];
 // Ni taux ni rapprochement assiette x taux : reductions et exonerations.
 const CODES_SANS_TAUX = ["018", "106", "001", "002", "003", "114", "021"];
 // Ce qui n est PAS du a l URSSAF : Agirc-Arrco (131, 142, 106, 132) et
 // Ircantec (060, 061).
-const CODES_HORS_URSSAF = ["131", "142", "106", "132", "060", "061"];
+const CODES_HORS_URSSAF = ["131", "142", "146", "106", "132", "060", "061"];
 // L exoneration de l apprenti : loi de 1979, de 1987, de 1992 (secteur public).
 const CODES_EXONERATION_APPRENTI = ["001", "002", "003"];
 
@@ -3568,6 +3584,7 @@ export async function POST(req: NextRequest) {
     // ═══════════════════════════════════════════════════════════════
     const parAssiette: any = {};
     let patronaleT1 = 0;
+    let patronaleT2 = 0;
 
     for (const l of (detail.lignes_cotisations || [])) {
       // 🆕🚨 05/10 — LA MUTUELLE ET LA PREVOYANCE NE PASSENT PAS ICI. Elles
@@ -3647,14 +3664,20 @@ export async function POST(req: NextRequest) {
       // ⚠️ L ASSIETTE DE LA BASE EST LA PLUS GRANDE DE SES COTISATIONS :
       // 🆕 05/10 — sauf celles dont l « assiette » n est pas une part du brut
       // (heures supplementaires, part exoneree d une indemnite de rupture).
-      if (baseLigne > parAssiette[bAss].assiette
+      const horsAssiette = INTERNES_HORS_ASSIETTE.indexOf(interne.toUpperCase()) >= 0;
+      const deTranche2 = INTERNES_TRANCHE_2.indexOf(interne.toUpperCase()) >= 0;
+      if (baseLigne > parAssiette[bAss].assiette && !horsAssiette
           && CODES_HORS_ASSIETTE.indexOf(String(corr.code)) < 0) {
         parAssiette[bAss].assiette = baseLigne;
       }
 
       if (!parAssiette[bAss].codes[corr.code]) {
-        parAssiette[bAss].codes[corr.code] = { montant: 0, base: baseLigne };
+        // Une ligne de tranche 2 ne donne pas son assiette au code 131.
+        parAssiette[bAss].codes[corr.code] = { montant: 0, base: deTranche2 ? 0 : baseLigne };
+      } else if (!deTranche2 && !(Number(parAssiette[bAss].codes[corr.code].base) > 0)) {
+        parAssiette[bAss].codes[corr.code].base = baseLigne;
       }
+      if (horsAssiette && !deTranche2) parAssiette[bAss].codes[corr.code].assietteLibre = true;
       parAssiette[bAss].codes[corr.code].montant += montant;
 
       // 🆕 06/10 — CE QUI NOURRIT LES CTP DE FORMATION AU BORDEREAU : la
@@ -3743,7 +3766,10 @@ export async function POST(req: NextRequest) {
       // 🚨 CONTROLE SIG-18 DU CAHIER : tout bloc « 131 - regime unifie
       // Agirc-Arrco » doit etre accompagne d un bloc « 142 - part patronale
       // tranche T1 ». On cumule la part patronale pour l ecrire ensuite.
-      if (corr.code === "131") patronaleT1 += Number(l.part_patronale || 0);
+      if (corr.code === "131") {
+        if (deTranche2) patronaleT2 += Number(l.part_patronale || 0);
+        else patronaleT1 += Number(l.part_patronale || 0);
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -4060,7 +4086,12 @@ export async function POST(req: NextRequest) {
       for (const cd of listeCodes) {
         ecrire("S21.G00.81.001", cd);
         codes81Ecrits[bAss + "/" + cd] = true;
-        ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
+        // 🆕 06/10 — l assiette d une cotisation qui depasse celle de sa base
+        // (l Apec au-dessus du plafond) ne s ecrit pas : l Agirc-Arrco ne la
+        // demande que pour une reduction ou une exoneration.
+        if (!(grp.codes[cd].assietteLibre && Number(grp.codes[cd].base) > Number(grp.assiette || 0) + 0.005)) {
+          ecrire("S21.G00.81.003", montantDsn(grp.codes[cd].base));
+        }
         if (!grp.codes[cd].sansMontant) {
           ecrire("S21.G00.81.004", montantDsn(grp.codes[cd].montant));
         }
@@ -4216,6 +4247,14 @@ export async function POST(req: NextRequest) {
             anomalies.push("Code 142 (part patronale Agirc-Arrco T1) absent de "
               + "dsn_codes. ⛔ OBLIGATOIRE avec le code 131 — contrôle SIG-18.");
           }
+        }
+        // 🆕🚨 06/10 — LE CODE 146 : la part patronale de la tranche 2, de sa
+        // CEG et de la CET (norme P26V01 ; guide de l URSSAF, zoom reduction
+        // generale). Le montant seul : trois taux s y melent, et une tolerance
+        // est accordee en 2026 sur son contenu. ⛔ Jamais passe dans dsn-val.
+        if (cd === "131" && patronaleT2 > 0) {
+          ecrire("S21.G00.81.001", "146");
+          ecrire("S21.G00.81.004", montantDsn(Math.round(patronaleT2 * 100) / 100));
         }
       }
     }
