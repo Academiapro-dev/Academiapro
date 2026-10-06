@@ -293,6 +293,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       // recent. ⛔ Une lecture qui echoue ne bloque pas l ecran : elle se
       // dit dans `diagnostic`, comme le volet URSSAF.
       const atParSociete: any = {};
+      const taParSociete: any = {};
       let atLecture = "";
       {
         const aujourdhui = new Date().toISOString().slice(0, 10);
@@ -301,6 +302,24 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           .select("societe_id, taux, date_effet, date_fin, notifie_le, source")
           .eq("code", "AT_MP")
           .order("date_effet", { ascending: false });
+        // 🆕 06/10 — LA SOCIETE EST-ELLE « NON REDEVABLE » DE LA TAXE
+        // D APPRENTISSAGE ? (taux a 0, code TAXE_APPRENTISSAGE, en vigueur).
+        {
+          const { data: tauxTa } = await supabase
+            .from("paie_taux_societe")
+            .select("societe_id, taux, date_effet, date_fin")
+            .eq("code", "TAXE_APPRENTISSAGE")
+            .order("date_effet", { ascending: false });
+          for (const t of (tauxTa || [])) {
+            const sid = String((t as any).societe_id);
+            const deb = String((t as any).date_effet || "").slice(0, 10);
+            const fin = (t as any).date_fin ? String((t as any).date_fin).slice(0, 10) : "";
+            if (taParSociete[sid]) continue;
+            if (Number((t as any).taux) === 0 && (!fin || fin >= aujourdhui)) {
+              taParSociete[sid] = { non_redevable: true, depuis: deb };
+            }
+          }
+        }
         if (eAt) {
           atLecture = "taux AT/MP illisibles : " + eAt.message;
         } else {
@@ -450,6 +469,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
             ? null : Number(v.effectif),
           // 🆕 25/09 — le taux AT/MP en vigueur, ou null s il manque.
           at: atParSociete[s.id] || null,
+          // 🆕 06/10 — la taxe d apprentissage : null = redevable (le cas general).
+          taxe_apprentissage: taParSociete[s.id] || null,
           // 🆕 01/10 — LE CODE RISQUE de la notification CARSAT (S21.G00.40.040).
           // Le generateur le prend pour tout contrat qui n a pas le sien.
           code_risque_at: v.code_risque_at || "",
@@ -825,6 +846,90 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 06/10 — LA SOCIETE NE RELEVE PAS DE LA TAXE D APPRENTISSAGE
+    //
+    // Certains employeurs n en sont pas redevables (associations et
+    // organismes sans but lucratif non soumis a l impot sur les societes,
+    // societes civiles de moyens, groupements d employeurs agricoles…).
+    // Cela ne se devine pas : c est l employeur qui le sait. Jusqu au 06/10
+    // il fallait une requete en base. L ecran pose desormais un taux a ZERO
+    // dans `paie_taux_societe` (codes TAXE_APPRENTISSAGE et
+    // TAXE_APPRENTISSAGE_AM) : le moteur de paie le lit comme tout taux
+    // propre a la societe, et la DSN ne declare ni la taxe ni son solde.
+    //   redevable = false, date_effet   → non redevable a compter de la date
+    //   redevable = true,  date_effet   → redevable a nouveau a compter de la date
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "taxe_apprentissage") {
+      const societeId = q(c.societe_id);
+      if (!societeId) return json({ erreur: "société manquante." }, 400);
+      const { data: soc, error: eS } = await supabase
+        .from("compta_societes").select("id, tenant_id").eq("id", societeId).maybeSingle();
+      if (eS) return json({ erreur: "lecture impossible : " + eS.message }, 500);
+      if (!soc) return json({ erreur: "société introuvable." }, 404);
+      const dateEffet = q(c.date_effet).slice(0, 10);
+      if (!/^\d{4}-\d{2}-01$/.test(dateEffet)) {
+        return json({ erreur: "date illisible : indiquez le premier jour d'un mois." }, 400);
+      }
+      const veilleTa = (function () {
+        const d = new Date(dateEffet + "T00:00:00Z");
+        d.setUTCDate(d.getUTCDate() - 1);
+        return d.toISOString().slice(0, 10);
+      })();
+      const codes = ["TAXE_APPRENTISSAGE", "TAXE_APPRENTISSAGE_AM"];
+      const { data: existants, error: eE } = await supabase
+        .from("paie_taux_societe").select("id, code, taux, date_effet, date_fin")
+        .eq("societe_id", societeId).in("code", codes);
+      if (eE) return json({ erreur: "lecture des taux impossible : " + eE.message }, 500);
+      const zeros = ((existants || []) as any[]).filter(function (x) { return Number(x.taux) === 0; });
+      const lisible = dateEffet.split("-").reverse().join("/");
+
+      if (c.redevable === true) {
+        // Redevable a nouveau : les lignes a zero s arretent la veille ; celles
+        // qui commencaient a cette date ou apres sont retirees.
+        for (const z of zeros) {
+          const deb = String(z.date_effet).slice(0, 10);
+          const fin = z.date_fin ? String(z.date_fin).slice(0, 10) : "";
+          if (deb >= dateEffet) {
+            const { error } = await supabase.from("paie_taux_societe").delete().eq("id", z.id);
+            if (error) return json({ erreur: "enregistrement impossible : " + error.message }, 500);
+          } else if (!fin || fin >= dateEffet) {
+            const { error } = await supabase.from("paie_taux_societe").update({ date_fin: veilleTa }).eq("id", z.id);
+            if (error) return json({ erreur: "enregistrement impossible : " + error.message }, 500);
+          }
+        }
+        return json({ success: true, message: "Taxe d'apprentissage : la société en est de nouveau redevable à "
+          + "compter du " + lisible + ". Elle s'applique aux bulletins de ce mois et des suivants." });
+      }
+
+      const jour = new Date();
+      const saisiLe = String(jour.getDate()).padStart(2, "0") + "/"
+        + String(jour.getMonth() + 1).padStart(2, "0") + "/" + jour.getFullYear();
+      for (const code of codes) {
+        const deja = zeros.filter(function (z) {
+          const fin = z.date_fin ? String(z.date_fin).slice(0, 10) : "";
+          return z.code === code && String(z.date_effet).slice(0, 10) <= dateEffet && (!fin || fin >= dateEffet);
+        })[0];
+        if (deja) continue;
+        // Une ligne a zero posee plus tard est remplacee par celle-ci.
+        for (const z of zeros) {
+          if (z.code === code && String(z.date_effet).slice(0, 10) > dateEffet) {
+            await supabase.from("paie_taux_societe").delete().eq("id", z.id);
+          }
+        }
+        const { error: eI } = await supabase.from("paie_taux_societe").insert({
+          tenant_id: (soc as any).tenant_id, societe_id: societeId, code: code,
+          libelle: "Taxe d'apprentissage — société non redevable",
+          taux: 0, ressort: null, date_effet: dateEffet, date_fin: null,
+          source: "Déclaré à l'écran le " + saisiLe, notifie_le: null,
+        });
+        if (eI) return json({ erreur: "enregistrement impossible : " + eI.message }, 500);
+      }
+      return json({ success: true, message: "Taxe d'apprentissage : la société est marquée non redevable à "
+        + "compter du " + lisible + ". Elle ne sera plus comptée sur les bulletins de ce mois et des suivants, "
+        + "ni déclarée dans la DSN (solde annuel compris). Un bulletin déjà émis ne change pas." });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // 🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE DE LA SOCIETE
     // Elles ne se saisissaient nulle part. Chaque contrat collectif se
     // declare une fois, avec sa date d effet ; « arreter » le clot. Le moteur
@@ -1144,6 +1249,8 @@ const REGLES: Record<string, Regle> = {
   etat: { droit: null, cible: "aucune", ecrit: false },
   urssaf: { droit: "paie_contrats", cible: "societe", ecrit: true },
   taux_at: { droit: "paie_contrats", cible: "societe", ecrit: true },
+  // 06/10 : la societe ne releve pas de la taxe d apprentissage.
+  taxe_apprentissage: { droit: "paie_contrats", cible: "societe", ecrit: true },
   garantie: { droit: "paie_contrats", cible: "societe", ecrit: true },
   garantie_fin: { droit: "paie_contrats", cible: "garantie", ecrit: true },
   // 05/10 : les identifiants DSN du contrat (ils ne changent pas la paie).
@@ -1418,7 +1525,7 @@ export async function POST(req: NextRequest) {
   // calcul du bulletin : un brouillon sorti avant leur changement serait faux
   // sans que rien ne le dise. Comme pour toute saisie de paie, on le marque
   // perime : il repasse au rouge et doit etre ressorti avant l emission.
-  if (["taux_at", "garantie", "garantie_fin", "urssaf"].indexOf(action) >= 0
+  if (["taux_at", "taxe_apprentissage", "garantie", "garantie_fin", "urssaf"].indexOf(action) >= 0
     && res.status < 400 && cible.societeId) {
     const { error: eP } = await supabase.from("paie_bulletins")
       .update({ controle: { perime: true, depuis: new Date().toISOString(), par: "dsn." + action } })
