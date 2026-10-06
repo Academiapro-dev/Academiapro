@@ -722,11 +722,17 @@ export async function GET(req: NextRequest) {
     // il est ecrit d apres le guide de l API, il reste a eprouver avec les
     // acces d un vrai client.
     const embaucheContrat = uuid(p.get("embauche"));
-    if (!declarationId && !embaucheContrat) {
+    // 🆕🚨 06/10 — ET LE DEPOT D UN SIGNALEMENT (arret, reprise, fin de
+    // contrat) : `&evenement=<id>` depose le fichier garde dans
+    // `paie_evenements.fichier`. Jusqu ici « depose » n etait qu une case
+    // cochee apres un depot a la main. Le numero d ordre et le statut
+    // restent tenus par l ecran de paie (action `deposer_evenement`).
+    const evenementId = uuid(p.get("evenement"));
+    if (!declarationId && !embaucheContrat && !evenementId) {
       return reponse({
         erreur: "declaration manquante ou mal formée : passer l'identifiant de la "
-          + "déclaration à déposer (&declaration=…) ou le contrat d'une déclaration "
-          + "d'embauche (&embauche=…).",
+          + "déclaration à déposer (&declaration=…), le contrat d'une déclaration "
+          + "d'embauche (&embauche=…) ou un signalement (&evenement=…).",
       }, 400);
     }
 
@@ -735,7 +741,44 @@ export async function GET(req: NextRequest) {
     let sha = "";
     let embauche: any = null;
 
-    if (embaucheContrat) {
+    let evenement: any = null;
+    if (evenementId) {
+      const { data: ev, error: eEv } = await supabase
+        .from("paie_evenements")
+        .select("id, tenant_id, societe_id, type_evenement, date_debut, date_fin, fichier, statut, numero_ordre")
+        .eq("id", evenementId).maybeSingle();
+      if (eEv) return reponse({ erreur: "lecture impossible : " + eEv.message }, 500);
+      if (!ev) return reponse({ erreur: "signalement inconnu" }, 404);
+      evenement = ev;
+      if (!String(evenement.fichier || "").trim()) {
+        return reponse({ erreur: "ce signalement n'a pas encore été généré : il n'y a rien à déposer" }, 409);
+      }
+      // ⚠️ `fichier` garde le DERNIER fichier genere : pour un arret, ce peut
+      // etre l arret (04) ou sa reprise (05). La nature se LIT dans le fichier,
+      // et l appelant dit celle qu il attend (`&nature=`) : on ne depose pas
+      // un arret a la place d une reprise.
+      const mNat = String(evenement.fichier).match(/S20\.G00\.05\.001,'(\d\d)'/);
+      const natureLue = mNat ? mNat[1] : "";
+      const natureAttendue = String(p.get("nature") || "");
+      if (!natureLue) {
+        return reponse({ erreur: "fichier illisible : la nature de la déclaration (S20.G00.05.001) n'y figure pas" }, 409);
+      }
+      if (natureAttendue && natureAttendue !== natureLue) {
+        return reponse({
+          erreur: "Le fichier gardé pour ce signalement est de nature " + natureLue + ", pas " + natureAttendue
+            + " : le regénérer (« " + (natureAttendue === "05" ? "générer la reprise" : "générer") + " ») avant de le déposer.",
+        }, 409);
+      }
+      decl = {
+        id: evenement.id, societe_id: evenement.societe_id, tenant_id: evenement.tenant_id,
+        periode: evenement.date_debut || evenement.date_fin,
+        nature: natureLue,
+        numero_ordre: evenement.numero_ordre, chemin_fichier: "signalement " + evenement.type_evenement,
+        nb_lignes: null, statut: evenement.statut, deposee_le: null,
+      };
+      octets = Buffer.from(String(evenement.fichier), "latin1");
+      sha = crypto.createHash("sha256").update(octets).digest("hex");
+    } else if (embaucheContrat) {
       const { data: emb, error: eEmb } = await supabase
         .from("paie_embauches")
         .select("id, tenant_id, societe_id, contrat_id, date_embauche, numero_ordre, fichier, "
@@ -968,7 +1011,7 @@ export async function GET(req: NextRequest) {
       societe_id: decl.societe_id,
       depot_reference: decl.id,
       // 🆕 06/10 — une declaration d embauche n est pas dans dsn_declarations.
-      declaration_id: embauche ? null : decl.id,
+      declaration_id: (embauche || evenement) ? null : decl.id,
       idflux: idflux,
       // ⚠️ La nature « 10 » est celle de l accuse d enregistrement ET de
       // l avis de rejet (section 6) : meme cle que ce que la route des
@@ -992,6 +1035,9 @@ export async function GET(req: NextRequest) {
         deposee_le: envoi.code === "02" ? new Date().toISOString() : embauche.deposee_le,
         maj_le: new Date().toISOString(),
       }).eq("id", embauche.id);
+    } else if (accepte && evenement) {
+      // Rien ici : le statut et le numero d ordre du signalement sont tenus
+      // par l ecran de paie, qui les avance apres un depot reel accepte.
     } else if (accepte) {
       await supabase.from("dsn_declarations").update({
         // ⚠️ UN ESSAI N EST PAS UNE DECLARATION : il est controle, rien
@@ -1009,6 +1055,8 @@ export async function GET(req: NextRequest) {
       success: accepte,
       depose: accepte,
       type_envoi: envoi.mot,
+      // 🆕 06/10 — pour que l appelant sache s il doit noter « depose ».
+      reel: envoi.code === "02",
       code_http: envoiRep.code,
       adresse: conf.depot,
       fichier: decl.chemin_fichier,
