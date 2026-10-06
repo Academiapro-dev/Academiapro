@@ -110,6 +110,9 @@ const MOTIFS = [
 const TYPES_ELEMENT = [
   { cle: "heures_sup_25", nom: "Heures supplémentaires 25 %", soumis: true },
   { cle: "heures_sup_50", nom: "Heures supplémentaires 50 %", soumis: true },
+  // 🆕 06/10 — les majorations des hotels, cafes, restaurants.
+  { cle: "heures_sup_10", nom: "Heures supplémentaires 10 % (hôtels, cafés, restaurants : 36e à 39e heure)", soumis: true },
+  { cle: "heures_sup_20", nom: "Heures supplémentaires 20 % (hôtels, cafés, restaurants : 40e à 43e heure)", soumis: true },
   // 🆕 28/09 — les heures complémentaires du temps partiel.
   { cle: "heures_comp_10", nom: "Heures complémentaires 10 % (temps partiel)", soumis: true },
   // 🆕 28/09 — cas rares : avantages evalues au montant.
@@ -150,6 +153,11 @@ const AIDE_ELEMENT: any = {
     + "de l'élément « avantage logement » au forfait, jamais les deux.",
   avantage_vehicule_reel: "Montant = dépenses réelles du mois pour l'usage privé du véhicule. Le forfait "
     + "du véhicule porté sur le contrat ne s'applique pas ce mois-là.",
+  heures_sup_10: "Heures faites EN PLUS de l'horaire du contrat, de la 36e à la 39e de la semaine. Celles qui "
+    + "sont comprises dans l'horaire (contrat à 39 heures) sont déjà au bulletin : ne pas les ressaisir. "
+    + "Quantité = nombre d'heures. Taux et montant : laisser vides, ils se calculent.",
+  heures_sup_20: "Heures faites en plus de l'horaire du contrat, de la 40e à la 43e de la semaine. "
+    + "Quantité = nombre d'heures. Taux et montant : laisser vides, ils se calculent.",
   heures_comp_10: "Temps partiel seulement. Quantité = nombre d'heures au-delà de la durée du "
     + "contrat, dans la limite du dixième de cette durée. Taux : laisser vide, il se calcule "
     + "(taux horaire majoré de 10 %). Montant : laisser vide.",
@@ -548,6 +556,13 @@ export default function PagePaie() {
   const [joursSaisie, setJoursSaisie] = useState<number[] | null>(null);
   // 🆕 27/09 — le taux personnalise de prelevement en cours de saisie.
   const [pasSaisie, setPasSaisie] = useState<any>(null);
+  // 🆕 06/10 — la reprise d un autre logiciel : ce qui est saisi (null =
+  // bloc ferme) et le formulaire en cours.
+  const [reprise, setReprise] = useState<any>(null);
+  const [repriseSaisie, setRepriseSaisie] = useState<any>({});
+  // 🆕 06/10 — la declaration prealable a l embauche (null = bloc ferme).
+  const [embauche, setEmbauche] = useState<any>(null);
+  const [embaucheSaisie, setEmbaucheSaisie] = useState<any>({});
   const [bulletins, setBulletins] = useState<any[]>([]);
   // ⚠️ LES CONGES NE CONCERNENT QUE LE CDI : sur une mission ou un CDD ils
   // sont compenses par l ICCP, et ce bloc reste invisible.
@@ -663,6 +678,161 @@ export default function PagePaie() {
       setContrats(contrats.map(function (x: any) { return x.id === maj.id ? maj : x; }));
       setJoursSaisie(null);
       setCalcul(null);
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+    }
+    setOccupe("");
+  }
+
+  // ════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LA REPRISE D UN AUTRE LOGICIEL
+  // Les mois de paie faits ailleurs avant l arrivee du salarie ici : le
+  // calcul en a besoin (reduction generale cumulee depuis janvier, trois
+  // derniers salaires pour un arret, douze pour une rupture, conges).
+  // ════════════════════════════════════════════════
+  async function chargerReprise(id: string) {
+    const d = await appeler({ action: "reprise", contrat_id: id });
+    if (d && d.success) setReprise({ mois: d.mois || [], conges: d.conges || [], indisponible: d.indisponible || "" });
+    else setErr(lisible(d && d.erreur ? d.erreur : "lecture de la reprise impossible"));
+  }
+
+  async function ouvrirReprise() {
+    if (!choisi) return;
+    if (reprise) { setReprise(null); return; }
+    setErr(""); setMsg(""); setOccupe("reprise");
+    setRepriseSaisie({});
+    await chargerReprise(choisi.id);
+    setOccupe("");
+  }
+
+  async function enregistrerReprise() {
+    if (!choisi) return;
+    setErr(""); setMsg(""); setOccupe("reprise");
+    const d = await appeler({
+      action: "reprise_enregistrer", contrat_id: choisi.id,
+      periode: repriseSaisie.periode || "",
+      brut: repriseSaisie.brut || "",
+      smic_reference: repriseSaisie.smic_reference || "",
+      rgdu: repriseSaisie.rgdu || "",
+      hs_exonere_ir: repriseSaisie.hs_exonere_ir || "",
+    });
+    if (d && d.success) {
+      await chargerReprise(choisi.id);
+      setRepriseSaisie({ conges_periode: repriseSaisie.conges_periode, conges_jours: repriseSaisie.conges_jours });
+      setCalcul(null);
+      setMsg(d.message || "Enregistré.");
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+    }
+    setOccupe("");
+  }
+
+  async function supprimerReprise(idMois: string) {
+    if (!choisi) return;
+    if (typeof window !== "undefined" && !window.confirm("Retirer ce mois repris ? Les prochains calculs ne le compteront plus.")) return;
+    setErr(""); setMsg(""); setOccupe("reprise");
+    const d = await appeler({ action: "reprise_supprimer", contrat_id: choisi.id, id: idMois });
+    if (d && d.success) {
+      await chargerReprise(choisi.id);
+      setCalcul(null);
+      setMsg(d.message || "Retiré.");
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "suppression impossible"));
+    }
+    setOccupe("");
+  }
+
+  // ════════════════════════════════════════════════
+  // 🆕 06/10 — LA DECLARATION PREALABLE A L EMBAUCHE
+  // Un fichier de signalement (nature 10) genere depuis la fiche et le
+  // contrat. Il se telecharge et se depose a la main : rien ne part seul.
+  // ════════════════════════════════════════════════
+  async function chargerEmbauche(id: string) {
+    const d = await appeler({ action: "embauche_etat", contrat_id: id });
+    if (d && d.success) {
+      setEmbauche({ etat: d.embauche || null, indisponible: d.indisponible || "", reserves: [] });
+      if (d.embauche) {
+        const h = String(d.embauche.heure || "");
+        setEmbaucheSaisie({
+          heure: h.length === 4 ? h.slice(0, 2) + ":" + h.slice(2) : "",
+          essai: d.embauche.essai_jours === null || d.embauche.essai_jours === undefined
+            ? "" : String(d.embauche.essai_jours),
+        });
+      }
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "lecture de la déclaration d'embauche impossible"));
+    }
+  }
+
+  async function ouvrirEmbauche() {
+    if (!choisi) return;
+    if (embauche) { setEmbauche(null); return; }
+    setErr(""); setMsg(""); setOccupe("embauche");
+    setEmbaucheSaisie({});
+    await chargerEmbauche(choisi.id);
+    setOccupe("");
+  }
+
+  async function genererEmbauche() {
+    if (!choisi) return;
+    setErr(""); setMsg(""); setOccupe("embauche");
+    const d = await appeler({
+      action: "embauche", contrat_id: choisi.id,
+      heure: embaucheSaisie.heure || "",
+      essai_jours: embaucheSaisie.essai === undefined ? "" : embaucheSaisie.essai,
+    });
+    if (d && d.success) {
+      const reserves = d.reserves || [];
+      await chargerEmbauche(choisi.id);
+      setEmbauche(function (e: any) { return e ? { ...e, reserves: reserves } : e; });
+      setMsg(d.message || "Déclaration générée.");
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "génération impossible"));
+    }
+    setOccupe("");
+  }
+
+  function telechargerEmbauche() {
+    const e = embauche && embauche.etat;
+    if (!e || !e.fichier) { setErr("La déclaration d'embauche n'a pas encore été générée."); return; }
+    const blob = new Blob([octetsLatin1(String(e.fichier))], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = String(e.nom_fichier || "DSN-EMBAUCHE.txt");
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  async function noterEmbaucheDeposee(annuler: boolean) {
+    if (!choisi) return;
+    if (!annuler && typeof window !== "undefined" && !window.confirm(
+      "Confirmez-vous que ce fichier a bien été déposé sur net-entreprises ? Le logiciel ne le dépose pas lui-même.")) return;
+    setErr(""); setMsg(""); setOccupe("embauche");
+    const d = await appeler({ action: "embauche_deposee", contrat_id: choisi.id, annuler: annuler });
+    if (d && d.success) {
+      await chargerEmbauche(choisi.id);
+      setMsg(d.message || "Enregistré.");
+    } else {
+      setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
+    }
+    setOccupe("");
+  }
+
+  async function enregistrerRepriseConges() {
+    if (!choisi) return;
+    setErr(""); setMsg(""); setOccupe("reprise");
+    const d = await appeler({
+      action: "reprise_conges", contrat_id: choisi.id,
+      periode: repriseSaisie.conges_periode || "",
+      jours: repriseSaisie.conges_jours === undefined ? "" : repriseSaisie.conges_jours,
+    });
+    if (d && d.success) {
+      await chargerReprise(choisi.id);
+      setCalcul(null);
+      setMsg(d.message || "Enregistré.");
     } else {
       setErr(lisible(d && d.erreur ? d.erreur : "enregistrement impossible"));
     }
@@ -1022,6 +1192,8 @@ export default function PagePaie() {
     setConges(null); setJoursPris("");
     setJoursSaisie(null);
     setPasSaisie(null);
+    setReprise(null); setRepriseSaisie({});
+    setEmbauche(null); setEmbaucheSaisie({});
     setEvenements(null);
     // 🆕 LE FORMULAIRE REPART A VIDE QUAND ON CHANGE DE SALARIE : sinon un
     // arret a moitie saisi pour l un s enregistrerait sur le contrat de
@@ -1087,10 +1259,23 @@ export default function PagePaie() {
     let base = Number(choisi.salaire_horaire || 0);
     if (!(base > 0) && Number(choisi.salaire_mensuel) > 0) {
       const hebdo = Number(choisi.duree_hebdo) > 0 ? Number(choisi.duree_hebdo) : 35;
-      base = Number(choisi.salaire_mensuel) / (Math.round(hebdo * 52 / 12 * 100) / 100);
+      // 🆕 06/10 — AU-DELA DE 35 HEURES, le salaire mensuel comprend deja des
+      // heures majorees : le taux de base se retrouve en les comptant avec
+      // leur majoration (10 % puis 20 % dans les hotels, cafes, restaurants ;
+      // 25 % ailleurs), comme le fait le calcul du bulletin.
+      const parMois = function (h: number) { return Math.round(h * 52 / 12 * 100) / 100; };
+      const hcr = Number(choisi.idcc) === 1979;
+      const au = Math.max(0, hebdo - 35);
+      const heures = au > 0
+        ? 151.67 + parMois(Math.min(4, au)) * (hcr ? 1.10 : 1.25)
+          + parMois(Math.min(4, Math.max(0, au - 4))) * (hcr ? 1.20 : 1.25)
+          + parMois(Math.max(0, au - 8)) * 1.5
+        : parMois(hebdo);
+      base = Number(choisi.salaire_mensuel) / heures;
     }
     if (!(base > 0)) return null;
-    const maj: any = { heures_sup_25: 1.25, heures_sup_50: 1.5, heures_comp_10: 1.10, heures_comp_25: 1.25 };
+    const maj: any = { heures_sup_25: 1.25, heures_sup_50: 1.5, heures_sup_10: 1.10, heures_sup_20: 1.20,
+      heures_comp_10: 1.10, heures_comp_25: 1.25 };
     const k = maj[e.type_element];
     // ⚠️ QUATRE DECIMALES, comme avant : 8 h × 13,50 × 1,25 = 135,00 exactement.
     return k ? Math.round(base * k * 10000) / 10000 : null;
@@ -2305,7 +2490,8 @@ export default function PagePaie() {
                           </div>
                           {champ("idcc", "IDCC", "100px")}
                           {champ("coefficient", "Coefficient", "100px")}
-                          {champ("position_conv", "Position", "100px")}
+                          {champ("position_conv", Number(cs.idcc) === 1979 ? "Niveau et échelon" : "Position", "140px",
+                            Number(cs.idcc) === 1979 ? { placeholder: "ex. II-2" } : undefined)}
                           {champ("lieu_travail_insee", "Lieu de travail (code INSEE)", "170px", { placeholder: "ex. 69382" })}
                           {champ("code_risque_at", "Code risque AT (CARSAT)", "140px", { placeholder: "ex. 745BD" })}
                           {/* 🆕 05/10 — la DSN declare le lieu de naissance ; il
@@ -2644,6 +2830,271 @@ export default function PagePaie() {
                   </div>
                 );
               })()}
+
+              {/* ══════════════════════════════════════════════════
+                  🆕🚨 06/10 — LA REPRISE D UN AUTRE LOGICIEL
+                  Pour un salarie dont la paie etait faite ailleurs en debut
+                  d annee : les mois deja payes, un par ligne, et son solde de
+                  conges. Le calcul les lit comme des bulletins emis ici.
+                  ══════════════════════════════════════════════════ */}
+              <div style={{ marginTop: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between",
+                  alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                  <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                    color: "rgba(255,255,255,0.76)" }}>
+                    Reprise d&apos;un autre logiciel :{" "}
+                    {reprise
+                      ? (reprise.mois.length > 0
+                        ? reprise.mois.length + " mois repris"
+                        : "aucun mois repris")
+                      : "les mois de paie faits ailleurs avant l'arrivée ici"}
+                  </p>
+                  <button onClick={ouvrirReprise} disabled={occupe !== ""}
+                    style={{ ...LIEN, color: OR, ...cache(droitsIci.contrats) }}>
+                    {reprise ? "fermer" : (occupe === "reprise" ? "…" : "saisir les mois repris")}
+                  </button>
+                </div>
+
+                {reprise && reprise.indisponible && (
+                  <p style={{ margin: "8px 0 0", fontSize: "13.5px", color: ROUGE, lineHeight: "1.6" }}>
+                    {reprise.indisponible}
+                  </p>
+                )}
+
+                {reprise && !reprise.indisponible && (
+                  <div style={{ marginTop: "8px" }}>
+                    <p style={{ margin: "0 0 8px", fontSize: "12.5px", lineHeight: "1.6",
+                      color: "rgba(255,255,255,0.72)" }}>
+                      Un mois par ligne, depuis janvier (et l&apos;année précédente si une
+                      rupture est possible), d&apos;après les bulletins de l&apos;autre logiciel.
+                      Ils servent au cumul de la réduction générale, au salaire de référence
+                      d&apos;un arrêt ou d&apos;une rupture et à la règle du dixième. Un mois
+                      qui a un bulletin émis ici ne se reprend pas.
+                    </p>
+
+                    {reprise.mois.map(function (m: any) {
+                      const p = String(m.periode || "").slice(0, 7);
+                      return (
+                        <div key={m.id} style={{ display: "flex", justifyContent: "space-between",
+                          alignItems: "baseline", flexWrap: "wrap", gap: "8px", padding: "6px 0",
+                          borderTop: "1px solid rgba(255,255,255,0.08)", fontSize: "13.5px" }}>
+                          <span style={{ color: "#fff" }}>
+                            {p.slice(5, 7)}/{p.slice(0, 4)} · brut {euros(m.brut)} €
+                            {m.smic_reference !== null && m.smic_reference !== undefined
+                              ? " · SMIC retenu " + euros(m.smic_reference) + " €" : " · SMIC retenu non saisi"}
+                            {" · réduction générale " + euros(m.rgdu || 0) + " €"}
+                            {Number(m.hs_exonere_ir || 0) > 0
+                              ? " · heures sup. exonérées " + euros(m.hs_exonere_ir) + " €" : ""}
+                          </span>
+                          <button onClick={() => supprimerReprise(String(m.id))} disabled={occupe !== ""}
+                            style={{ ...LIEN, color: ROUGE }}>
+                            retirer
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" }}>
+                      <div style={{ flex: "1 1 150px" }}>
+                        <span style={LIB}>Mois repris</span>
+                        <input style={CHAMP} type="month" className="mc-date"
+                          value={repriseSaisie.periode || ""}
+                          onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, periode: ev.target.value })} />
+                      </div>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <span style={LIB}>Salaire brut (€)</span>
+                        <input style={CHAMP} inputMode="decimal" placeholder="ex. 2 600,00"
+                          value={repriseSaisie.brut || ""}
+                          onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, brut: ev.target.value })} />
+                      </div>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <span style={LIB}>SMIC retenu (€)</span>
+                        <input style={CHAMP} inputMode="decimal" placeholder="ex. 1 823,03"
+                          value={repriseSaisie.smic_reference || ""}
+                          onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, smic_reference: ev.target.value })} />
+                      </div>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <span style={LIB}>Réduction générale (€)</span>
+                        <input style={CHAMP} inputMode="decimal" placeholder="0 s'il n'y en a pas"
+                          value={repriseSaisie.rgdu || ""}
+                          onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, rgdu: ev.target.value })} />
+                      </div>
+                      <div style={{ flex: "1 1 130px" }}>
+                        <span style={LIB}>Heures sup. exonérées d&apos;impôt (€)</span>
+                        <input style={CHAMP} inputMode="decimal" placeholder="facultatif"
+                          value={repriseSaisie.hs_exonere_ir || ""}
+                          onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, hs_exonere_ir: ev.target.value })} />
+                      </div>
+                    </div>
+                    <p style={{ margin: "6px 0 0", fontSize: "12.5px", lineHeight: "1.6",
+                      color: "rgba(255,255,255,0.72)" }}>
+                      Le SMIC retenu est celui qui a servi au calcul de la réduction générale ce
+                      mois-là (il est réduit en cas d&apos;absence ou de temps partiel). Laissé
+                      vide, un SMIC entier est compté.
+                    </p>
+                    <div style={{ marginTop: "8px" }}>
+                      <button onClick={enregistrerReprise}
+                        disabled={occupe !== "" || !repriseSaisie.periode || !String(repriseSaisie.brut || "").trim()}
+                        style={{ ...BOUTON,
+                          opacity: repriseSaisie.periode && String(repriseSaisie.brut || "").trim() ? 1 : 0.4 }}>
+                        {occupe === "reprise" ? "…" : "Enregistrer ce mois repris"}
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: "14px", paddingTop: "10px",
+                      borderTop: "1px solid rgba(255,255,255,0.12)" }}>
+                      <p style={{ margin: "0 0 6px", fontSize: "13.5px", color: "rgba(255,255,255,0.76)",
+                        lineHeight: "1.6" }}>
+                        Solde de congés repris :{" "}
+                        {reprise.conges.length > 0
+                          ? euros(reprise.conges[0].jours) + " jours ouvrables"
+                          : "aucun"}
+                      </p>
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 170px" }}>
+                          <span style={LIB}>Dernier mois payé dans l&apos;autre logiciel</span>
+                          <input style={CHAMP} type="month" className="mc-date"
+                            value={repriseSaisie.conges_periode || ""}
+                            onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, conges_periode: ev.target.value })} />
+                        </div>
+                        <div style={{ flex: "1 1 170px" }}>
+                          <span style={LIB}>Jours ouvrables restant à prendre</span>
+                          <input style={CHAMP} inputMode="decimal" placeholder="ex. 12,5 (0 pour effacer)"
+                            value={repriseSaisie.conges_jours === undefined ? "" : repriseSaisie.conges_jours}
+                            onChange={(ev) => setRepriseSaisie({ ...repriseSaisie, conges_jours: ev.target.value })} />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: "8px" }}>
+                        <button onClick={enregistrerRepriseConges}
+                          disabled={occupe !== "" || !repriseSaisie.conges_periode
+                            || String(repriseSaisie.conges_jours === undefined ? "" : repriseSaisie.conges_jours).trim() === ""}
+                          style={SECOND}>
+                          Enregistrer le solde de congés
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* ══════════════════════════════════════════════════
+                  🆕 06/10 — LA DECLARATION PREALABLE A L EMBAUCHE
+                  CDI, CDD, apprentissage, contrat de professionnalisation.
+                  Le fichier se genere ici, se telecharge, et se depose a la
+                  main : le logiciel ne le depose pas.
+                  ══════════════════════════════════════════════════ */}
+              {["cdi", "cdd", "apprentissage", "professionnalisation"].indexOf(String(choisi.type_contrat || "")) >= 0 && (
+                <div style={{ marginTop: "10px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between",
+                    alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                    <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
+                      color: "rgba(255,255,255,0.76)" }}>
+                      Déclaration d&apos;embauche :{" "}
+                      {embauche
+                        ? (embauche.etat
+                          ? (embauche.etat.statut === "deposee"
+                            ? "notée déposée le " + String(embauche.etat.deposee_le || "").slice(0, 10).split("-").reverse().join("/")
+                            : "fichier généré, pas encore déposé")
+                          : "pas encore générée")
+                        : "à faire dans les 8 jours qui précèdent l'embauche"}
+                    </p>
+                    <button onClick={ouvrirEmbauche} disabled={occupe !== ""}
+                      style={{ ...LIEN, color: OR }}>
+                      {embauche ? "fermer" : (occupe === "embauche" ? "…" : "préparer la déclaration")}
+                    </button>
+                  </div>
+
+                  {embauche && embauche.indisponible && (
+                    <p style={{ margin: "8px 0 0", fontSize: "13.5px", color: ROUGE, lineHeight: "1.6" }}>
+                      {embauche.indisponible}
+                    </p>
+                  )}
+
+                  {embauche && !embauche.indisponible && (
+                    <div style={{ marginTop: "8px" }}>
+                      <p style={{ margin: "0 0 8px", fontSize: "12.5px", lineHeight: "1.6",
+                        color: "rgba(255,255,255,0.72)" }}>
+                        Le fichier reprend la fiche du salarié, son contrat et le dossier de
+                        la société. Il manque deux informations : l&apos;heure à laquelle le
+                        salarié commence, et sa période d&apos;essai en jours (0 s&apos;il n&apos;y en a
+                        pas). Le logiciel ne dépose rien : le fichier se télécharge, puis se
+                        dépose sur net-entreprises.
+                      </p>
+
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 150px" }}>
+                          <span style={LIB}>Heure d&apos;embauche</span>
+                          <input style={CHAMP} type="time" className="mc-date"
+                            value={embaucheSaisie.heure || ""}
+                            onChange={(ev) => setEmbaucheSaisie({ ...embaucheSaisie, heure: ev.target.value })} />
+                        </div>
+                        <div style={{ flex: "1 1 150px" }}>
+                          <span style={LIB}>Période d&apos;essai (jours)</span>
+                          <input style={CHAMP} inputMode="numeric" placeholder="0"
+                            value={embaucheSaisie.essai === undefined ? "" : embaucheSaisie.essai}
+                            onChange={(ev) => setEmbaucheSaisie({ ...embaucheSaisie, essai: ev.target.value })} />
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "10px" }}>
+                        <button onClick={genererEmbauche}
+                          disabled={occupe !== "" || !embaucheSaisie.heure}
+                          style={{ ...SECOND, opacity: embaucheSaisie.heure ? 1 : 0.4, ...cache(droitsIci.contrats) }}>
+                          {occupe === "embauche" ? "…"
+                            : (embauche.etat ? "Régénérer la déclaration" : "Générer la déclaration")}
+                        </button>
+                        {embauche.etat && embauche.etat.fichier && (
+                          <button onClick={telechargerEmbauche} disabled={occupe !== ""} style={SECOND}>
+                            Télécharger le fichier
+                          </button>
+                        )}
+                        {embauche.etat && embauche.etat.fichier && embauche.etat.statut !== "deposee"
+                          && (embauche.etat.anomalies || []).length === 0 && (
+                          <button onClick={() => noterEmbaucheDeposee(false)} disabled={occupe !== ""}
+                            style={{ ...SECOND, ...cache(droitsIci.deposer) }}>
+                            Noter déposée
+                          </button>
+                        )}
+                        {embauche.etat && embauche.etat.statut === "deposee" && (
+                          <button onClick={() => noterEmbaucheDeposee(true)} disabled={occupe !== ""}
+                            style={{ ...LIEN, color: ROUGE, ...cache(droitsIci.deposer) }}>
+                            annuler « déposée »
+                          </button>
+                        )}
+                      </div>
+
+                      {embauche.etat && (
+                        <p style={{ margin: "10px 0 0", fontSize: "13.5px", lineHeight: "1.6",
+                          color: (embauche.etat.anomalies || []).length > 0 ? ROUGE : VERT }}>
+                          {(embauche.etat.anomalies || []).length > 0
+                            ? "⚠️ " + (embauche.etat.anomalies || []).length + " anomalie(s) à corriger avant dépôt."
+                            : "✓ Aucune anomalie détectée à la génération."}
+                          <span style={{ color: "rgba(255,255,255,0.72)" }}>
+                            {" "}{String(embauche.etat.nom_fichier || "")} · {embauche.etat.nb_lignes} lignes
+                            · envoi n° {embauche.etat.numero_ordre}
+                          </span>
+                        </p>
+                      )}
+                      {embauche.etat && (embauche.etat.anomalies || []).map(function (t: string, i: number) {
+                        return (
+                          <p key={"ea" + i} style={{ margin: "6px 0 0", fontSize: "13.5px",
+                            lineHeight: "1.6", color: ROUGE }}>
+                            {t}
+                          </p>
+                        );
+                      })}
+                      {(embauche.reserves || []).map(function (t: string, i: number) {
+                        return (
+                          <p key={"er" + i} style={{ margin: "6px 0 0", fontSize: "12.5px",
+                            lineHeight: "1.6", color: "rgba(255,255,255,0.72)" }}>
+                            {t}
+                          </p>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* 🆕 16/09 — CE QUI EXISTE DEJA POUR CE MOIS SE VOIT ICI,
                   avant tout clic. Un seul bulletin par mois : autant dire
