@@ -1041,7 +1041,10 @@ export async function POST(req: NextRequest) {
           + "(S21.G00.40.011). ⛔ NON DÉCLARÉE — rubrique obligatoire.");
       }
       if (dureeMensuelleRef > 0) {
-        ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
+        // 🆕 06/10 — au forfait, la reference se dit en jours (218 / 12) :
+        // dsn-val refuse 151,67 sous l unite « forfait jour » (40.011/CCH-12).
+        ecrire("S21.G00.40.012", forfaitJoursFin > 0
+          ? montantDsn(Math.round(218 / 12 * 100) / 100) : montantDsn(dureeMensuelleRef));
         const hebdo = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
         // 🆕 06/10 — au forfait : les jours du mois (forfait annuel / 12).
         const quotite = forfaitJoursFin > 0
