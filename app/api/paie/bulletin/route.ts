@@ -124,6 +124,20 @@ function taux(n: any): string {
   return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: d });
 }
 
+// 🆕 06/10 — UN TAUX DE COTISATION, A TROIS DECIMALES QUAND IL EN A TROIS.
+//
+// ⛔ DEFAUT VU SUR LE PREMIER BULLETIN PORTANT LE DIALOGUE SOCIAL : le taux
+// de 0,016 % s imprimait « 0,02 % », alors que la ligne valait bien
+// 0,016 % de la base. Meme regle que pour les taux horaires : un taux
+// arrondi rend la ligne inverifiable (l APEC, 0,024 % et 0,036 %, sortait
+// de la meme facon « 0,02 % » et « 0,04 % »).
+// ⚠️ ON N AJOUTE PAS DE DECIMALE INUTILE : 13 % reste « 13,00 % ».
+function pourcent(n: any): string {
+  const v = Number(n || 0);
+  const d = Math.abs(v * 100 - Math.round(v * 100)) > 0.000001 ? 3 : 2;
+  return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: d }) + " %";
+}
+
 function moisDe(periode: string): string {
   const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin",
     "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -535,14 +549,16 @@ export async function POST(req: NextRequest) {
     const libCot = c.alerte ? [] : deuxLignes(c.libelle, police, 8, 195);
     if (!c.alerte) ecrire(libCot[0], 40, 8, police, NOIR);
 
-    droite(euros(c.base), 285, 8, police, NOIR);
+    // 🆕 06/10 — UNE COTISATION FORFAITAIRE N A PAS DE BASE : la mutuelle au
+    // forfait affichait « 0,00 », qui ne veut rien dire. La case reste vide.
+    droite(Number(c.base || 0) !== 0 ? euros(c.base) : "", 285, 8, police, NOIR);
     // 🆕 27/09 soir — UNE PART NEGATIVE S ECRIT AUSSI : la reduction de
     // cotisations salariales sur heures supplementaires (−17,90 €) etait
     // invisible, et le total des cotisations ne se retrouvait plus en
     // additionnant les lignes.
-    droite(Number(c.taux_salarial || 0) !== 0 ? euros(c.taux_salarial) + " %" : "", 345, 8, police, NOIR);
+    droite(Number(c.taux_salarial || 0) !== 0 ? pourcent(c.taux_salarial) : "", 345, 8, police, NOIR);
     droite(Number(c.part_salariale || 0) !== 0 ? euros(c.part_salariale) : "", 420, 8, police, NOIR);
-    droite(c.taux_patronal > 0 ? euros(c.taux_patronal) + " %" : "", 480, 8, police, NOIR);
+    droite(c.taux_patronal > 0 ? pourcent(c.taux_patronal) : "", 480, 8, police, NOIR);
     droite(c.part_patronale > 0 ? euros(c.part_patronale)
       : (c.alerte ? "0,00" : ""), 555, 8, police, c.alerte ? ROUGE : NOIR);
     y -= 10;
