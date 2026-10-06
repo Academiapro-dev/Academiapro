@@ -1057,7 +1057,9 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.40.020", q(ct.regime_vieillesse) || "200");
 
       if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
-        const codeRecours = await code("S21.G00.40.021", q(ct.motif_recours));
+        // 🆕 06/10 — un motif deja en code (CDD saisi a l ecran) s ecrit tel quel.
+        const codeRecours = /^\d{2}$/.test(q(ct.motif_recours)) ? q(ct.motif_recours)
+          : await code("S21.G00.40.021", q(ct.motif_recours));
         if (codeRecours) ecrire("S21.G00.40.021", codeRecours);
         else {
           anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
