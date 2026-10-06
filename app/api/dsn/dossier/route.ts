@@ -294,6 +294,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       // dit dans `diagnostic`, comme le volet URSSAF.
       const atParSociete: any = {};
       const taParSociete: any = {};
+      const dedTaParSociete: any = {};
       let atLecture = "";
       {
         const aujourdhui = new Date().toISOString().slice(0, 10);
@@ -317,6 +318,19 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
             if (taParSociete[sid]) continue;
             if (Number((t as any).taux) === 0 && (!fin || fin >= aujourdhui)) {
               taParSociete[sid] = { non_redevable: true, depuis: deb };
+            }
+          }
+        }
+        // 🆕 06/10 — LES DEDUCTIONS DU SOLDE DE LA TAXE D APPRENTISSAGE, pour
+        // l annee precedente (table tolerante : elle peut manquer).
+        {
+          const anPrecTa = Number(aujourdhui.slice(0, 4)) - 1;
+          const { data: deds, error: eDeds } = await supabase
+            .from("paie_ta_deductions").select("societe_id, annee, cfa, alternants").eq("annee", anPrecTa);
+          if (!eDeds) {
+            for (const d of (deds || [])) {
+              dedTaParSociete[String((d as any).societe_id)] = { annee: anPrecTa,
+                cfa: Number((d as any).cfa || 0), alternants: Number((d as any).alternants || 0) };
             }
           }
         }
@@ -471,6 +485,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           at: atParSociete[s.id] || null,
           // 🆕 06/10 — la taxe d apprentissage : null = redevable (le cas general).
           taxe_apprentissage: taParSociete[s.id] || null,
+          // 🆕 06/10 — les deductions du solde saisies pour l annee precedente.
+          ta_deductions: dedTaParSociete[s.id] || null,
           // 🆕 01/10 — LE CODE RISQUE de la notification CARSAT (S21.G00.40.040).
           // Le generateur le prend pour tout contrat qui n a pas le sien.
           code_risque_at: v.code_risque_at || "",
@@ -930,6 +946,54 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
     }
 
     // ═══════════════════════════════════════════════════════════════════
+    // 🆕🚨 06/10 — LES DEDUCTIONS DU SOLDE DE LA TAXE D APPRENTISSAGE
+    //
+    // Le solde (0,09 % de la masse salariale de l annee precedente, DSN
+    // d avril) peut etre reduit de deux sommes que seul l employeur connait :
+    //   · les subventions versees EN NATURE aux CFA (equipements, materiels) ;
+    //   · la creance « alternants » des entreprises de 250 salaries et plus.
+    // Une ligne par societe et par annee de masse salariale (table
+    // `paie_ta_deductions`). Le generateur les declare en avril (codes 077 et
+    // 078, CTP 996 et 997) et les ecrete au montant du solde. Elles ne
+    // changent aucun bulletin.
+    // ═══════════════════════════════════════════════════════════════════
+    if (action === "ta_deductions") {
+      const societeId = q(c.societe_id);
+      if (!societeId) return json({ erreur: "société manquante." }, 400);
+      const { data: soc, error: eS } = await supabase
+        .from("compta_societes").select("id, tenant_id").eq("id", societeId).maybeSingle();
+      if (eS) return json({ erreur: "lecture impossible : " + eS.message }, 500);
+      if (!soc) return json({ erreur: "société introuvable." }, 404);
+      const anneeTa = Number(c.annee);
+      const anCourant = new Date().getFullYear();
+      if (!Number.isInteger(anneeTa) || anneeTa < 2022 || anneeTa > anCourant) {
+        return json({ erreur: "année illisible : indiquez l'année de la masse salariale (par exemple "
+          + (anCourant - 1) + ")." }, 400);
+      }
+      const lireMontant = function (v: any): number | null {
+        const t = String(v === null || v === undefined ? "" : v).replace(/\s/g, "").replace(",", ".");
+        if (t === "") return 0;
+        const n = Number(t);
+        if (!isFinite(n) || n < 0) return null;
+        return Math.round(n * 100) / 100;
+      };
+      const cfa = lireMontant(c.cfa);
+      const alt = lireMontant(c.alternants);
+      if (cfa === null || alt === null) {
+        return json({ erreur: "montant illisible : un nombre positif, en euros (laisser vide pour zéro)." }, 400);
+      }
+      const { error: eU } = await supabase.from("paie_ta_deductions").upsert({
+        tenant_id: (soc as any).tenant_id, societe_id: societeId, annee: anneeTa,
+        cfa: cfa, alternants: alt, maj_le: new Date().toISOString(),
+      }, { onConflict: "societe_id,annee" });
+      if (eU) return json({ erreur: "enregistrement impossible : " + eU.message }, 500);
+      return json({ success: true, message: "Déductions du solde de la taxe d'apprentissage pour " + anneeTa
+        + " : " + cfa.toFixed(2).replace(".", ",") + " € de subventions en nature aux CFA, "
+        + alt.toFixed(2).replace(".", ",") + " € de créance « alternants ». Elles seront déclarées dans la DSN d'avril "
+        + (anneeTa + 1) + " ; si elle est déjà générée, la regénérer." });
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
     // 🆕🚨 27/09 — LA MUTUELLE ET LA PREVOYANCE DE LA SOCIETE
     // Elles ne se saisissaient nulle part. Chaque contrat collectif se
     // declare une fois, avec sa date d effet ; « arreter » le clot. Le moteur
@@ -1251,6 +1315,8 @@ const REGLES: Record<string, Regle> = {
   taux_at: { droit: "paie_contrats", cible: "societe", ecrit: true },
   // 06/10 : la societe ne releve pas de la taxe d apprentissage.
   taxe_apprentissage: { droit: "paie_contrats", cible: "societe", ecrit: true },
+  // 06/10 : les deductions du solde annuel (elles ne changent pas la paie).
+  ta_deductions: { droit: "paie_contrats", cible: "societe", ecrit: true },
   garantie: { droit: "paie_contrats", cible: "societe", ecrit: true },
   garantie_fin: { droit: "paie_contrats", cible: "garantie", ecrit: true },
   // 05/10 : les identifiants DSN du contrat (ils ne changent pas la paie).
