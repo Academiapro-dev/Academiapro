@@ -3271,6 +3271,133 @@ async function calculer(contratId: string, periode: string,
   }
   const apprentiGaranties = String(contrat.type_contrat || "") === "apprentissage";
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LA FORMATION PROFESSIONNELLE, LA TAXE D APPRENTISSAGE, LE
+  // CPF-CDD ET LE DIALOGUE SOCIAL
+  //
+  // ⛔ DEFAUT TROUVE LE 06/10 en dressant la liste des taches du service de
+  // paie : ces contributions patronales n etaient ni dans le bareme, ni au
+  // bulletin, ni dans la DSN. Le net du salarie etait juste ; le cout de
+  // l employeur etait trop bas et l URSSAF ne recevait rien. dsn-val ne
+  // pouvait pas le voir : il controle ce qui est ecrit, pas ce qui manque.
+  //
+  // LES LIGNES DU BAREME (paie_cotisations), toutes patronales, sur le brut :
+  //   FORMATION_PRO_MOINS11   0,55 %  (article L6331-1 du code du travail)
+  //   FORMATION_PRO_11PLUS    1,00 %  (article L6331-3)
+  //   CPF_CDD                 1,00 %  des salaires des CDD (article L6331-6)
+  //   TAXE_APPRENTISSAGE      0,59 %  part principale, chaque mois
+  //   TAXE_APPRENTISSAGE_AM   0,44 %  Bas-Rhin, Haut-Rhin, Moselle
+  //   DIALOGUE_SOCIAL         0,016 % (article L2135-10)
+  // ⚠️ TANT QUE CES LIGNES NE SONT PAS EN BASE, RIEN NE CHANGE : aucun des
+  // tris ci-dessous ne s applique a une autre cotisation.
+  //
+  // QUI NE LES DOIT PAS (tableau d equivalence de l URSSAF, CTP 959, 971,
+  // 987, 992, 993, 027 ; fiches entreprendre.service-public.gouv.fr) :
+  //   · les deux taux de formation sont EXCLUSIFS, l effectif tranche, comme
+  //     pour le FNAL ;
+  //   · l APPRENTI d une entreprise de moins de 11 salaries : sa remuneration
+  //     est exclue de la formation et de la taxe d apprentissage ;
+  //   · la TAXE D APPRENTISSAGE n est pas due le mois ou la societe emploie
+  //     au moins un apprenti et ou sa masse salariale ne depasse pas six fois
+  //     le SMIC mensuel — une question posee a la SOCIETE, pas au salarie ;
+  //   · le CPF-CDD ne vise que les CDD (ni l apprentissage, ni le contrat de
+  //     professionnalisation, ni la mission d interim) ;
+  //   · le DIALOGUE SOCIAL ne vise que les salaries : ni le stagiaire, ni le
+  //     mandataire sans contrat de travail ;
+  //   · l APPRENTI DU SECTEUR PUBLIC : l employeur public ne doit ni la
+  //     formation ni la taxe d apprentissage.
+  // ⚠️ LE SOLDE ANNUEL DE LA TAXE D APPRENTISSAGE (0,09 %, DSN d avril, sur
+  // la masse salariale de l annee precedente) N EST PAS UNE LIGNE DE
+  // BULLETIN : il se declare une fois par an, par l etablissement.
+  // ⚠️ UNE SOCIETE QUI NE RELEVE PAS DE LA TAXE D APPRENTISSAGE (association,
+  // profession liberale…) se regle par un taux a 0 dans paie_taux_societe,
+  // code TAXE_APPRENTISSAGE : le taux de la societe prime, comme pour l AT.
+  // ═══════════════════════════════════════════════════════════════════
+  const notesFormation: string[] = [];
+  const baremeFormation = (cotisations || []).some(function (c: any) {
+    return /^(FORMATION_PRO|TAXE_APPRENTISSAGE|CPF_CDD|DIALOGUE_SOCIAL)/.test(String(c.code));
+  });
+  const baremeTaxeApprentissage = (cotisations || []).some(function (c: any) {
+    return /^TAXE_APPRENTISSAGE/.test(String(c.code));
+  });
+  // Bas-Rhin (67), Haut-Rhin (68), Moselle (57) : la commune de l etablissement.
+  const alsaceMoselle = /^(57|67|68)/.test(String((societe && (societe as any).code_insee) || ""));
+  let taExoneree = false;
+  let formationApprentiExclue = false;
+
+  if (baremeTaxeApprentissage && !estApprentiPublic) {
+    try {
+      const an0 = Number(String(periode).slice(0, 4));
+      const mo0 = Number(String(periode).slice(5, 7));
+      const dernier = new Date(Date.UTC(an0, mo0, 0)).getUTCDate();
+      const finDuMois = String(periode).slice(0, 8) + (dernier < 10 ? "0" + dernier : String(dernier));
+      const { data: autres } = await supabase
+        .from("paie_contrats")
+        .select("id, type_contrat, salaire_mensuel, date_debut, date_fin, rompu_le")
+        .eq("societe_id", contrat.societe_id)
+        .lte("date_debut", finDuMois);
+      const enPoste = (autres || []).filter(function (k: any) {
+        const fin = String(k.date_fin || "").slice(0, 10);
+        const rompu = String(k.rompu_le || "").slice(0, 10);
+        if (fin && fin < String(periode)) return false;
+        if (rompu && rompu < String(periode)) return false;
+        return true;
+      });
+      const unApprenti = estApprenti || enPoste.some(function (k: any) {
+        return String(k.type_contrat || "") === "apprentissage";
+      });
+      if (unApprenti) {
+        const seuilTa = cts(6 * (Number(await parametre("SMIC_MENSUEL", periode)) || 0));
+        let masse = Number(brutTotal) || 0;
+        let estimee = false;
+        let inconnue = 0;
+        for (const k of enPoste) {
+          if (String((k as any).id) === String(contratId)) continue;
+          // Le bulletin du mois s il existe (emis d abord, sinon brouillon).
+          const { data: bs } = await supabase
+            .from("paie_bulletins")
+            .select("brut, statut, periode, emis_le")
+            .eq("contrat_id", (k as any).id)
+            .in("statut", ["emis", "brouillon"])
+            .lte("periode", periode)
+            .order("periode", { ascending: false })
+            .limit(12);
+          const duMois = (bs || []).filter(function (b: any) {
+            return String(b.periode).slice(0, 7) === String(periode).slice(0, 7);
+          });
+          const emis = duMois.filter(function (b: any) { return b.statut === "emis"; });
+          const retenu: any = emis.length > 0 ? emis[emis.length - 1]
+            : (duMois.length > 0 ? duMois[0] : null);
+          if (retenu) { masse += Number(retenu.brut) || 0; continue; }
+          estimee = true;
+          const mensuel = Number((k as any).salaire_mensuel) || 0;
+          if (mensuel > 0) { masse += mensuel; continue; }
+          const ancien: any = (bs || []).find(function (b: any) { return b.statut === "emis"; });
+          if (ancien) { masse += Number(ancien.brut) || 0; continue; }
+          inconnue += 1;
+        }
+        masse = cts(masse);
+        if (seuilTa > 0 && masse <= seuilTa) {
+          taExoneree = true;
+          notesFormation.push("Taxe d'apprentissage non due ce mois-ci : la société emploie au moins "
+            + "un apprenti et sa masse salariale du mois ("
+            + masse.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €) ne dépasse pas six fois "
+            + "le SMIC mensuel (" + seuilTa.toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " €)."
+            + (estimee || inconnue > 0
+              ? " ⚠️ Masse en partie estimée d'après les salaires des contrats"
+                + (inconnue > 0 ? " (" + inconnue + " contrat(s) sans salaire connu)" : "")
+                + " : recalculer ce bulletin quand tous les brouillons du mois sont sortis."
+              : ""));
+        }
+      }
+    } catch (e) {
+      // Une lecture qui echoue ne doit pas arreter le bulletin : la taxe
+      // reste due, et la reserve le dit.
+      notesFormation.push("⚠️ L'exonération de taxe d'apprentissage des petites masses salariales "
+        + "n'a pas pu être vérifiée : la taxe est comptée.");
+    }
+  }
+
   for (const c of (cotisations || [])) {
     // ⚠️ CERTAINES COTISATIONS NE CONCERNENT QU UNE CATEGORIE (APEC pour
     // les cadres) ou QU UN TYPE DE CONTRAT.
@@ -3298,6 +3425,25 @@ async function calculer(contratId: string, periode: string,
 
     if (c.code === "FNAL_MOINS50" && effectif >= 50) continue;
     if (c.code === "FNAL_50PLUS" && effectif < 50) continue;
+
+    // 🆕🚨 06/10 — FORMATION, TAXE D APPRENTISSAGE, CPF-CDD, DIALOGUE SOCIAL
+    // (voir le bloc au-dessus de la boucle).
+    {
+      const cf = String(c.code);
+      const estFormationTa = /^(FORMATION_PRO|TAXE_APPRENTISSAGE)/.test(cf);
+      if (cf === "FORMATION_PRO_MOINS11" && effectif >= 11) continue;
+      if (cf === "FORMATION_PRO_11PLUS" && effectif < 11) continue;
+      if (cf === "TAXE_APPRENTISSAGE" && alsaceMoselle) continue;
+      if (cf === "TAXE_APPRENTISSAGE_AM" && !alsaceMoselle) continue;
+      if (cf === "CPF_CDD" && String(contrat.type_contrat || "") !== "cdd") continue;
+      if ((estFormationTa || cf === "CPF_CDD") && estApprentiPublic) continue;
+      if (estFormationTa && estApprenti && effectif < 11) {
+        formationApprentiExclue = true;
+        continue;
+      }
+      if (/^TAXE_APPRENTISSAGE/.test(cf) && taExoneree) continue;
+      if (/^DIALOGUE/.test(cf) && horsSalariat) continue;
+    }
 
     // ⚠️ LA CET N EST DUE QUE SI LA REMUNERATION DEPASSE UN PLAFOND.
     if (c.code === "CET" && brutTotal <= plafond) continue;
@@ -3511,6 +3657,30 @@ async function calculer(contratId: string, periode: string,
       // d avoir a le retrouver au moment d ecrire le fichier.
       insee: String(c.code) === "VERSEMENT_MOBILITE" && inseeVm ? inseeVm : null,
     });
+  }
+
+  // 🆕 06/10 — ce que le bulletin dit des contributions de formation.
+  if (baremeFormation) {
+    if (formationApprentiExclue) {
+      notesFormation.push("Apprenti dans une entreprise de moins de 11 salariés : sa rémunération "
+        + "est exclue de la contribution à la formation professionnelle et de la taxe d'apprentissage.");
+    }
+    if (effectifConnu && effectif >= 11 && !estApprentiPublic) {
+      notesFormation.push("Contribution à la formation professionnelle au taux de 1 %, d'après "
+        + "l'effectif de la fiche du dossier (" + effectif + "). ⚠️ Le passage à 11 salariés ne "
+        + "compte qu'après cinq années civiles consécutives : avant, le taux reste 0,55 % et la "
+        + "rémunération des apprentis reste exclue.");
+    }
+    if (String(contrat.type_contrat || "") === "cdd") {
+      notesFormation.push("Contribution CPF-CDD de 1 % comptée. ⚠️ Elle n'est pas due pour un "
+        + "contrat saisonnier ni pour un contrat d'accompagnement dans l'emploi : le calcul ne les "
+        + "distingue pas.");
+    }
+    if (String(contrat.type_contrat || "") === "mission") {
+      notesFormation.push("⚠️ Travail temporaire : les taux de formation propres à la branche "
+        + "(contribution légale majorée et contribution conventionnelle) ne sont pas appliqués ; "
+        + "le bulletin porte les taux de droit commun.");
+    }
   }
 
   // 🆕 27/09 — LES LIGNES DE MUTUELLE ET DE PREVOYANCE, puis le forfait
@@ -4693,6 +4863,8 @@ async function calculer(contratId: string, periode: string,
       for (const n of notesHs) r.unshift(n);
       for (const n of notesHc) r.unshift(n);
       for (const n of notesGaranties) r.unshift(n);
+      // 🆕 06/10 — la formation, la taxe d apprentissage, le CPF-CDD.
+      for (const n of notesFormation) r.unshift(n);
       for (const n of notesFin) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
       // 🆕 28/09 — pour un mandataire, les reserves qui ne le concernent pas
