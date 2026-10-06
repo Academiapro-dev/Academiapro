@@ -2186,8 +2186,13 @@ export async function POST(req: NextRequest) {
       // ⚠️ 35 HEURES EST LA DUREE LEGALE : un contrat a 35 h est a temps
       // plein, donc sa quotite EGALE la reference. En dessous, elle est
       // proportionnelle.
+      // 🆕🚨 06/10 — AU-DELA DE 35 HEURES, LA QUOTITE SUIT LE CONTRAT. La
+      // rubrique est « la duree contractuelle de travail applicable au
+      // salarie » (cahier technique 2026.1, S21.G00.40.013) : un contrat a
+      // 39 heures se declare 169,00, pas 151,67. ⛔ Elle etait plafonnee a
+      // 35 heures : quatre heures du contrat disparaissaient de la declaration.
       const h = hebdoH > 0 ? hebdoH : 35;
-      return montantDsn(Math.round(dureeMensuelleRef * Math.min(h, 35) / 35 * 100) / 100);
+      return montantDsn(Math.round(dureeMensuelleRef * h / 35 * 100) / 100);
     };
     const quotiteContrat = quotiteDe(joursAnnuels, ct.duree_hebdo ? Number(ct.duree_hebdo) : 35);
 
@@ -3488,13 +3493,47 @@ export async function POST(req: NextRequest) {
     // d equivalence, CTP 004). ⚠️ Le montant reste aussi dans la 001 et la
     // 002 : le type 017 le detaille, il ne s y ajoute pas.
     // ═══════════════════════════════════════════════════════════════
+    // 🆕🚨 06/10 — LES HEURES COMPRISES DANS L HORAIRE SONT « STRUCTURELLES ».
+    // La norme a deux types : « 017 - heures supplementaires ou
+    // complementaires aleatoires » et « 018 - heures supplementaires
+    // structurelles ». Les heures d un contrat a 39 heures reviennent chaque
+    // mois : elles sont du type 018. ⛔ Tout partait en 017.
+    // Elles se lisent sur les lignes du bulletin (« Heures supplementaires
+    // comprises dans l horaire »), reduites dans le rapport de l absence,
+    // comme le moteur les compte ; le reste des heures du mois est aleatoire.
     if (heuresHs > 0 && brutHs > 0) {
-      ecrire("S21.G00.51.001", debutRemu);
-      ecrire("S21.G00.51.002", finRemu);
-      ecrire("S21.G00.51.010", numeroContrat);
-      ecrire("S21.G00.51.011", "017");
-      ecrire("S21.G00.51.012", montantDsn(heuresHs));
-      ecrire("S21.G00.51.013", montantDsn(brutHs));
+      let hStruct = 0;
+      let bStruct = 0;
+      for (const l of (Array.isArray((detail as any).lignes_brut) ? (detail as any).lignes_brut : [])) {
+        const lib = q(l && l.libelle).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        if (lib.indexOf("heures supplementaires comprises dans l'horaire") === 0) {
+          hStruct += Number(l.quantite || 0);
+          bStruct += Number(l.montant || 0);
+        }
+      }
+      const rd: any = (detail as any).rgdu_detail || null;
+      const ratioAbs = rd && Number(rd.ratio_absence) > 0 && Number(rd.ratio_absence) < 1
+        ? Number(rd.ratio_absence) : 1;
+      hStruct = Math.min(heuresHs, Math.round(hStruct * ratioAbs * 100) / 100);
+      bStruct = Math.min(brutHs, Math.round(bStruct * ratioAbs * 100) / 100);
+      const hAlea = Math.round((heuresHs - hStruct) * 100) / 100;
+      const bAlea = Math.round((brutHs - bStruct) * 100) / 100;
+      if (hAlea > 0 && bAlea > 0) {
+        ecrire("S21.G00.51.001", debutRemu);
+        ecrire("S21.G00.51.002", finRemu);
+        ecrire("S21.G00.51.010", numeroContrat);
+        ecrire("S21.G00.51.011", "017");
+        ecrire("S21.G00.51.012", montantDsn(hAlea));
+        ecrire("S21.G00.51.013", montantDsn(bAlea));
+      }
+      if (hStruct > 0 && bStruct > 0) {
+        ecrire("S21.G00.51.001", debutRemu);
+        ecrire("S21.G00.51.002", finRemu);
+        ecrire("S21.G00.51.010", numeroContrat);
+        ecrire("S21.G00.51.011", "018");
+        ecrire("S21.G00.51.012", montantDsn(hStruct));
+        ecrire("S21.G00.51.013", montantDsn(bStruct));
+      }
     }
 
     // ═══════════════════════════════════════════════════════════════
