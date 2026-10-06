@@ -1799,6 +1799,8 @@ export async function POST(req: NextRequest) {
         if (l.garantie_complementaire === true
             || interne.toUpperCase().indexOf("MUTUELLE") === 0
             || interne.toUpperCase().indexOf("PREVOYANCE") === 0
+            // 🆕 06/10 — les contributions conventionnelles (CTP 844, 845).
+            || interne.toUpperCase().indexOf("CONV_") === 0
             || HORS_SIGNALEMENT.indexOf(interne.toUpperCase()) >= 0) {
           continue;
         }
