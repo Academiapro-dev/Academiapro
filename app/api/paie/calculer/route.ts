@@ -543,6 +543,80 @@ function assiette(type: string, brut: number, plafond: number): number {
 }
 
 // LE CALCUL COMPLET.
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕🚨 06/10 — LA REPRISE D UN DOSSIER EN COURS D ANNEE
+//
+// ⛔ LE CALCUL NE CONNAISSAIT QUE LES BULLETINS EMIS CHEZ NOUS. Pour un
+// salarie repris en septembre d un autre logiciel, il ne voyait rien avant
+// septembre :
+//   · la REDUCTION GENERALE, regularisee sur le cumul depuis janvier,
+//     repartait de zero — fausse tout le reste de l annee ;
+//   · les INDEMNITES JOURNALIERES s estimaient sur le salaire du contrat au
+//     lieu des trois derniers salaires reels ;
+//   · l INDEMNITE DE RUPTURE (douze derniers mois, annee precedente) et la
+//     REGLE DU DIXIEME des conges ignoraient les mois d avant ;
+//   · le PLAFOND D EXONERATION des heures supplementaires repartait de zero.
+// LES MOIS REPRIS se saisissent a l ecran de paie (« Reprise d un autre
+// logiciel ») et vivent dans `paie_reprises` : un mois, un brut, le SMIC
+// retenu pour la reduction generale, la reduction deja appliquee, la part
+// des heures supplementaires deja exoneree d impot.
+// 🚨 ILS SE LISENT COMME DES BULLETINS EMIS, sous la meme forme (brut,
+// periode, detail), pour que chaque regle du moteur les prenne sans
+// changer. ⛔ UN BULLETIN EMIS CHEZ NOUS PRIME TOUJOURS sur un mois repris
+// de la meme periode : un mois ne compte jamais deux fois.
+// ⚠️ LECTURE TOLERANTE : si la table n existe pas, le calcul continue comme
+// avant.
+// ═══════════════════════════════════════════════════════════════════════
+async function lireMoisRepris(contratId: string): Promise<any[]> {
+  try {
+    const { data, error } = await supabase
+      .from("paie_reprises")
+      .select("periode, brut, smic_reference, rgdu, hs_exonere_ir")
+      .eq("contrat_id", contratId)
+      .order("periode", { ascending: true });
+    if (error || !data) return [];
+    return (data as any[]).map(function (r: any) {
+      const smic = Number(r.smic_reference || 0);
+      return {
+        repris: true,
+        periode: String(r.periode || "").slice(0, 7) + "-01",
+        brut: Number(r.brut || 0),
+        detail: {
+          rgdu: Number(r.rgdu || 0),
+          rgdu_detail: smic > 0 ? { smic_mensuel_reference: smic } : null,
+          heures_sup: Number(r.hs_exonere_ir || 0) > 0 ? { exonere_ir: Number(r.hs_exonere_ir) } : null,
+        },
+      };
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+// Les bulletins emis lus en base, completes des mois repris de la meme
+// fenetre. `depuis` inclus, `avant` exclu, `egal` pour un seul mois.
+function avecRepris(lus: any[] | null | undefined, repris: any[],
+    f: { depuis?: string; avant?: string; egal?: string; desc?: boolean; limite?: number }): any[] {
+  const mois = function (p: any): string { return String(p || "").slice(0, 7); };
+  const liste: any[] = (lus || []).slice();
+  const pris: Record<string, boolean> = {};
+  for (const b of liste) pris[mois((b as any).periode)] = true;
+  for (const r of (repris || [])) {
+    const m = mois(r.periode);
+    if (!m || pris[m]) continue;
+    if (f.egal && m !== mois(f.egal)) continue;
+    if (f.depuis && m < mois(f.depuis)) continue;
+    if (f.avant && m >= mois(f.avant)) continue;
+    liste.push(r);
+    pris[m] = true;
+  }
+  liste.sort(function (a: any, b: any) {
+    const x = mois(a.periode); const y = mois(b.periode);
+    return x < y ? (f.desc ? 1 : -1) : (x > y ? (f.desc ? -1 : 1) : 0);
+  });
+  return f.limite && liste.length > f.limite ? liste.slice(0, f.limite) : liste;
+}
+
 // 🆕 25/09 — `opts` sert au PLAFONNEMENT DU MAINTIEN AU NET (voir GET) :
 //   · sansArrets : le meme mois calcule comme si le salarie avait travaille
 //   · reductionMaintien : ce que le maintien doit perdre pour ne pas depasser
@@ -558,6 +632,9 @@ async function calculer(contratId: string, periode: string,
 
   if (errC) return { erreur: errC.message };
   if (!contrat) return { erreur: "contrat introuvable" };
+
+  // 🆕 06/10 — les mois repris d un autre logiciel, lus une fois.
+  const moisReprisContrat: any[] = await lireMoisRepris(contratId);
 
   // ---- LA SOCIETE ----
   // 🚨 L EFFECTIF COMMANDE DEUX CHOSES : le taux et l assiette du FNAL, et
@@ -772,6 +849,88 @@ async function calculer(contratId: string, periode: string,
       ? Math.min(1, dureeContratMois / Number(dureeMensuelle))
       : 1);
   const tempsPartiel = proportionTemps < 0.999;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LES REGLES DE LA CONVENTION COLLECTIVE, LUES UNE FOIS
+  //
+  // Jusqu ici, seules deux familles de regles se lisaient dans
+  // `paie_conventions_regles` : le maintien de salaire et le minimum « point
+  // × coefficient » (Syntec). La convention des hotels, cafes, restaurants
+  // (IDCC 1979), chargee le 06/10, en demande d autres :
+  //   · hs_majoration_36_39, hs_majoration_40_43, hs_majoration_au_dela
+  //     les majorations des heures supplementaires (10 %, 20 %, 50 % —
+  //     avenant n° 2 du 5 fevrier 2007) ; a defaut, la loi : 25 % pour les
+  //     huit premieres heures, 50 % ensuite (article L3121-36) ;
+  //   · avantage_repas_minimum_garanti = 1 : le repas se compte au minimum
+  //     garanti, et non au forfait general (arrete du 10 decembre 2002) ;
+  //   · minimum_horaire (valeur_texte « niveau.echelon ») : la grille des
+  //     minima, en euros de l heure.
+  // Rien ne change pour un contrat dont la convention ne porte pas ces
+  // regles.
+  // ═══════════════════════════════════════════════════════════════════
+  let reglesConv: any[] = [];
+  if (Number(contrat.idcc) > 0) {
+    const { data: rc } = await supabase
+      .from("paie_conventions_regles")
+      .select("*")
+      .eq("idcc", Number(contrat.idcc))
+      .lte("date_effet", periode)
+      .or("date_fin.is.null,date_fin.gte." + periode);
+    reglesConv = (rc || []) as any[];
+  }
+  const lireConv = function (nom: string): number | null {
+    const cat = String(contrat.categorie) === "cadre" ? "cadre" : "etam";
+    for (const r of reglesConv) {
+      if (String(r.regle) !== nom) continue;
+      if (r.categorie === null || r.categorie === undefined || String(r.categorie) === cat) {
+        return Number(r.valeur_num);
+      }
+    }
+    return null;
+  };
+
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LES HEURES SUPPLEMENTAIRES COMPRISES DANS L HORAIRE
+  //
+  // Un contrat a 39 heures paye au mois porte, CHAQUE mois, 17,33 heures
+  // supplementaires (4 h × 52 / 12). Le moteur les ignorait : le salaire
+  // sortait en une seule ligne, sans reduction de cotisations salariales,
+  // sans exoneration d impot, sans deduction patronale, et le SMIC de la
+  // reduction generale restait celui de 35 heures. C est le cas ORDINAIRE
+  // des hotels, cafes, restaurants (39 heures, les quatre dernieres a
+  // 110 %), et celui de tout contrat au-dela de 35 heures.
+  // LE DECOUPAGE : le salaire mensuel du contrat couvre
+  //     151,67 h + (heures au-dela) × (1 + majoration)
+  // d ou le taux horaire de base, puis la part des heures supplementaires.
+  // ⚠️ LE TOTAL NE CHANGE PAS : le salaire se repartit sur deux lignes (ou
+  // plus), il n augmente pas.
+  // Les tranches : les quatre premieres heures de la semaine (36e a 39e),
+  // les quatre suivantes (40e a 43e), puis le reste.
+  // ═══════════════════════════════════════════════════════════════════
+  const majHs1 = lireConv("hs_majoration_36_39");
+  const majHs2 = lireConv("hs_majoration_40_43");
+  const majHs3 = lireConv("hs_majoration_au_dela");
+  const tranchesHs: { heures: number; majoration: number; libelle: string }[] = [];
+  let heuresPondereesContrat = dureeContratMois;
+  if (!auForfaitJours && !horsSalariat && dureeHebdo > 35.001 && Number(dureeMensuelle) > 0) {
+    const parMois = function (h: number) { return Math.round(h * 52 / 12 * 100) / 100; };
+    const au = Math.max(0, dureeHebdo - 35);
+    const t1 = Math.min(4, au);
+    const t2 = Math.min(4, Math.max(0, au - 4));
+    const t3 = Math.max(0, au - 8);
+    if (t1 > 0) tranchesHs.push({ heures: parMois(t1), majoration: majHs1 !== null ? majHs1 : 25, libelle: "36e à 39e heure" });
+    if (t2 > 0) tranchesHs.push({ heures: parMois(t2), majoration: majHs2 !== null ? majHs2 : 25, libelle: "40e à 43e heure" });
+    if (t3 > 0) tranchesHs.push({ heures: parMois(t3), majoration: majHs3 !== null ? majHs3 : 50, libelle: "au-delà de la 43e heure" });
+    heuresPondereesContrat = Number(dureeMensuelle);
+    for (const tr of tranchesHs) heuresPondereesContrat += tr.heures * (1 + tr.majoration / 100);
+  }
+  // Remplis a la pose du salaire de base, ajoutes aux heures supplementaires
+  // du mois une fois l absence connue (voir apres `ratioAbsence`).
+  let hsStructBrut = 0;
+  let hsStructHeures = 0;
+  // Ce qui en a ete compte dans les heures supplementaires du mois.
+  let hsStructComptees = 0;
+  const notesStruct: string[] = [];
   // 🆕 27/09 — les jours travailles du contrat (voir joursTravailContrat).
   const joursTravail = joursTravailContrat(contrat);
   const repartitionParDefaut = !String((contrat as any).jours_travailles || "").trim();
@@ -904,13 +1063,26 @@ async function calculer(contratId: string, periode: string,
         .eq("annee_contrat", annee)
         .order("age_min", { ascending: false });
 
+      // 🆕 06/10 — UNE CONVENTION PEUT PORTER SON PROPRE BAREME (colonne
+      // `idcc`) : les hotels, cafes, restaurants depuis le 1er aout 2025
+      // (avenant n° 35). Il l emporte sur le bareme legal (idcc vide).
+      const idccCt = Number(contrat.idcc) || 0;
+      const baremeConv = (bareme || []).some(function (b: any) {
+        return idccCt > 0 && Number(b.idcc) === idccCt;
+      });
       for (const b of (bareme || [])) {
+        const idccB = (b as any).idcc === null || (b as any).idcc === undefined ? 0 : Number((b as any).idcc);
+        if (baremeConv ? idccB !== idccCt : idccB !== 0) continue;
         const mn = Number((b as any).age_min);
         const mx = (b as any).age_max;
         if (age < mn) continue;
         if (mx !== null && mx !== undefined && age > Number(mx)) continue;
         pourcentage = Number((b as any).pourcentage);
         refConv = (b as any).reference_conventionnelle === true;
+        if (baremeConv) {
+          notesApprenti.push("Barème de rémunération de la convention collective (IDCC " + idccCt
+            + ") : " + pourcentage + " % du SMIC, plus favorable que le barème légal.");
+        }
         break;
       }
     }
@@ -1124,7 +1296,48 @@ async function calculer(contratId: string, periode: string,
 
     if (base > 0) {
       const m = cts(base);
-      lignesBrut.push({ libelle: libelle, quantite: quantite, taux: taux, montant: m });
+      // 🆕 06/10 — les heures supplementaires comprises dans l horaire : le
+      // salaire mensuel se repartit entre les 151,67 heures et elles.
+      if (contrat.salaire_mensuel && tranchesHs.length > 0 && heuresPondereesContrat > 0) {
+        const tauxBase = Number(contrat.salaire_mensuel) / heuresPondereesContrat;
+        const fr2 = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+        let partHs = 0;
+        const lignesHs: any[] = [];
+        for (const tr of tranchesHs) {
+          const h = cts(tr.heures * proportionPeriode);
+          const tx = Math.round(tauxBase * (1 + tr.majoration / 100) * 10000) / 10000;
+          const mt = cts(h * tx);
+          if (mt <= 0) continue;
+          partHs += mt;
+          hsStructHeures += h;
+          lignesHs.push({
+            libelle: "Heures supplémentaires comprises dans l'horaire, " + tr.libelle + " ("
+              + h.toLocaleString("fr-FR", fr2) + " h à " + (100 + tr.majoration) + " %)",
+            quantite: h, taux: tx, montant: mt,
+          });
+        }
+        partHs = cts(partHs);
+        hsStructBrut = partHs;
+        const suite = libelle.indexOf(" — du ") >= 0 ? libelle.slice(libelle.indexOf(" — du ")) : "";
+        lignesBrut.push({
+          libelle: "Salaire de base (" + cts(Number(dureeMensuelle) * proportionPeriode).toLocaleString("fr-FR", fr2)
+            + " h)" + suite,
+          quantite: cts(Number(dureeMensuelle) * proportionPeriode),
+          taux: Math.round(tauxBase * 10000) / 10000, montant: cts(m - partHs),
+        });
+        for (const l of lignesHs) lignesBrut.push(l);
+        notesStruct.push("Contrat à " + dureeHebdo.toLocaleString("fr-FR") + " heures par semaine : le salaire "
+          + "mensuel de " + Number(contrat.salaire_mensuel).toLocaleString("fr-FR", fr2) + " € comprend "
+          + cts(hsStructHeures).toLocaleString("fr-FR", fr2) + " heures supplémentaires ("
+          + tranchesHs.map(function (tr) { return tr.libelle + " à " + tr.majoration + " %"; }).join(", ")
+          + (majHs1 !== null ? ", majorations de la convention " + contrat.idcc : ", majorations de la loi")
+          + "). Taux horaire de base : " + (Math.round(tauxBase * 10000) / 10000).toLocaleString("fr-FR",
+            { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + " €. Le total ne change pas : il est "
+          + "réparti sur plusieurs lignes, et ces heures ouvrent la réduction de cotisations salariales, "
+          + "l'exonération d'impôt et la déduction patronale.");
+      } else {
+        lignesBrut.push({ libelle: libelle, quantite: quantite, taux: taux, montant: m });
+      }
       brutSoumis += m;
     }
   }
@@ -1264,7 +1477,13 @@ async function calculer(contratId: string, periode: string,
   //   SALARIALE se retire du net. Hors des limites, la part patronale
   //   redevient du salaire et rejoint le brut.
   // ═══════════════════════════════════════════════════════════════════
-  const pAvRepas = await parametre("AVANTAGE_REPAS", periode);
+  // 🆕 06/10 — DANS LES HOTELS, CAFES, RESTAURANTS, le repas se compte au
+  // MINIMUM GARANTI (arrete du 10 decembre 2002, article 1), et non au
+  // forfait general. La convention le dit en base par la regle
+  // `avantage_repas_minimum_garanti`.
+  const repasAuMg = lireConv("avantage_repas_minimum_garanti") === 1;
+  const pMg = repasAuMg ? await parametre("MINIMUM_GARANTI", periode) : null;
+  const pAvRepas = repasAuMg ? pMg : await parametre("AVANTAGE_REPAS", periode);
   const pAvNeglige = await parametre("AVANTAGE_REPAS_NEGLIGEABLE", periode);
   const pTrPlafond = await parametre("TR_PLAFOND_EXO", periode);
   const pTrMin = await parametre("TR_PART_MIN", periode);
@@ -1327,8 +1546,9 @@ async function calculer(contratId: string, periode: string,
     // ─────────── L AVANTAGE EN NATURE NOURRITURE ───────────
     if (t === "avantage_repas") {
       if (pAvRepas === null) {
-        notesAvantages.push("⛔ AVANTAGE EN NATURE REPAS NON CALCULÉ : le "
-          + "barème AVANTAGE_REPAS est absent de la base pour cette période. "
+        notesAvantages.push("⛔ AVANTAGE EN NATURE REPAS NON CALCULÉ : "
+          + (repasAuMg ? "le minimum garanti (MINIMUM_GARANTI) est absent" : "le barème AVANTAGE_REPAS est absent")
+          + " de la base pour cette période. "
           + "La ligne n'a PAS été portée au bulletin.");
         continue;
       }
@@ -1379,8 +1599,8 @@ async function calculer(contratId: string, periode: string,
 
       notesAvantages.push("Avantage en nature nourriture : " + nbRepas
         + " repas à " + forfait.toLocaleString("fr-FR",
-          { minimumFractionDigits: 2 }) + " € (barème URSSAF "
-        + periode.slice(0, 4) + ")"
+          { minimumFractionDigits: 2 }) + " € ("
+        + (repasAuMg ? "minimum garanti, règle des hôtels, cafés, restaurants" : "barème URSSAF " + periode.slice(0, 4)) + ")"
         + (partSalarie > 0 ? ", moins " + partSalarie.toLocaleString("fr-FR",
           { minimumFractionDigits: 2 }) + " € de participation du salarié" : "")
         + ". ⚠️ LE FORFAIT EST UN MINIMUM : si la convention collective "
@@ -1609,7 +1829,9 @@ async function calculer(contratId: string, periode: string,
     // 🆕 28/09 — pas d heures supplementaires pour un mandataire : payees,
     // elles sont une remuneration ordinaire, sans reduction ni exoneration.
     const estHc = t === "heures_comp_10" || t === "heures_comp_25";
-    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && horsSalariat) {
+    // 🆕 06/10 — les majorations de 10 % et 20 % (hotels, cafes, restaurants).
+    const estHsNature = t === "heures_sup_25" || t === "heures_sup_50" || t === "heures_sup_10" || t === "heures_sup_20";
+    if ((estHsNature || estHc) && horsSalariat) {
       notesMandat.push("⚠️ Des heures « supplémentaires » ou « complémentaires » sont saisies sur "
         + (estStage ? "un stage" : "un mandat social") + " : "
         + (estStage ? "un stagiaire n'est pas salarié. " : "un mandataire n'a pas de durée du travail. ")
@@ -1617,7 +1839,7 @@ async function calculer(contratId: string, periode: string,
         + "ordinaire, sans réduction de cotisations, sans exonération d'impôt ni déduction "
         + "patronale.");
     }
-    if ((t === "heures_sup_25" || t === "heures_sup_50" || estHc) && e.soumis_cotisations !== false && !horsSalariat) {
+    if ((estHsNature || estHc) && e.soumis_cotisations !== false && !horsSalariat) {
       hsBrut += m;
       hsHeures += Number(e.quantite || 0);
       if (estHc) { hcHeures += Number(e.quantite || 0); hcBrut += m; }
@@ -2395,7 +2617,7 @@ async function calculer(contratId: string, periode: string,
 
       // ---- LES IJSS, ESTIMEES ----
       // Salaire journalier de base = trois derniers bruts / 91,25, plafonne.
-      const { data: derniers } = await supabase
+      const { data: derniersLus } = await supabase
         .from("paie_bulletins")
         .select("brut, periode")
         .eq("contrat_id", contratId)
@@ -2403,6 +2625,9 @@ async function calculer(contratId: string, periode: string,
         .lt("periode", ab.debut_arret.slice(0, 7) + "-01")
         .order("periode", { ascending: false })
         .limit(3);
+      // 🆕 06/10 — avec les mois repris d un autre logiciel.
+      const derniers = avecRepris(derniersLus, moisReprisContrat,
+        { avant: ab.debut_arret.slice(0, 7) + "-01", desc: true, limite: 3 });
 
       let troisMois = 0;
       let estimeContrat = false;
@@ -2433,10 +2658,11 @@ async function calculer(contratId: string, periode: string,
           d.setUTCMonth(d.getUTCMonth() - 1);
           return d.toISOString().slice(0, 7) + "-01";
         })();
-        const { data: bAvant } = await supabase
-          .from("paie_bulletins").select("brut")
+        const { data: bAvantLu } = await supabase
+          .from("paie_bulletins").select("brut, periode")
           .eq("contrat_id", contratId).eq("statut", "emis").eq("periode", moisAvant)
           .limit(1);
+        const bAvant = avecRepris(bAvantLu, moisReprisContrat, { egal: moisAvant, limite: 1 });
         let brutAvant = bAvant && bAvant[0] ? Number((bAvant[0] as any).brut || 0) : 0;
         estimeContrat = !(brutAvant > 0);
         if (!(brutAvant > 0)) brutAvant = troisMois / 3;
@@ -2740,6 +2966,21 @@ async function calculer(contratId: string, periode: string,
     }
   }
 
+  // 🆕 06/10 — LES HEURES SUPPLEMENTAIRES COMPRISES DANS L HORAIRE entrent
+  // ici dans les heures supplementaires du mois, reduites dans le rapport de
+  // l absence : une heure non travaillee et non payee n ouvre aucune
+  // reduction.
+  if (hsStructBrut > 0) {
+    hsBrut += cts(hsStructBrut * ratioAbsence);
+    hsStructComptees = cts(hsStructHeures * ratioAbsence);
+    hsHeures += hsStructComptees;
+    if (ratioAbsence < 1) {
+      notesStruct.push("Absence du mois : les heures supplémentaires comprises dans l'horaire sont "
+        + "retenues à " + (Math.round(ratioAbsence * 10000) / 100).toLocaleString("fr-FR") + " % pour la "
+        + "réduction de cotisations et l'exonération d'impôt.");
+    }
+  }
+
   brutSoumis = cts(brutSoumis);
 
   // ---- LES INDEMNITES DE FIN DE MISSION ----
@@ -2886,13 +3127,14 @@ async function calculer(contratId: string, periode: string,
       if (!(mensuel > 0) && contrat.salaire_horaire) mensuel = Number(contrat.salaire_horaire) * dureeContratMois;
       if (!(mensuel > 0) && appr && appr.minimum_legal) mensuel = Number(appr.minimum_legal);
       const maintien = mensuel / 26 * solde;
-      const { data: bRef } = await supabase
+      const { data: bRefLu } = await supabase
         .from("paie_bulletins")
-        .select("brut")
+        .select("brut, periode")
         .eq("contrat_id", contratId)
         .eq("statut", "emis")
         .gte("periode", refCourante)
         .lt("periode", periode);
+      const bRef = avecRepris(bRefLu, moisReprisContrat, { depuis: refCourante, avant: periode });
       let brutRef = brutSoumis;
       for (const b0 of (bRef || [])) brutRef += Number((b0 as any).brut || 0);
       const dixieme = acquisPeriode > 0 ? (brutRef * 0.10) / acquisPeriode * solde : 0;
@@ -3012,7 +3254,7 @@ async function calculer(contratId: string, periode: string,
     const annees = moisComplets / 12;
 
     // ---- LE SALAIRE DE REFERENCE, SANS LE MOIS DE LA RUPTURE ----
-    const { data: derniers } = await supabase
+    const { data: derniersLus } = await supabase
       .from("paie_bulletins")
       .select("brut, periode")
       .eq("contrat_id", contratId)
@@ -3020,6 +3262,8 @@ async function calculer(contratId: string, periode: string,
       .lt("periode", periode)
       .order("periode", { ascending: false })
       .limit(12);
+    const derniers = avecRepris(derniersLus, moisReprisContrat,
+      { avant: periode, desc: true, limite: 12 });
     const bruts = (derniers || [])
       .map(function (x: any) { return Number(x.brut || 0); })
       .filter(function (b: number) { return b > 0; });
@@ -3048,13 +3292,15 @@ async function calculer(contratId: string, periode: string,
 
     // ---- DEUX FOIS LA REMUNERATION ANNUELLE BRUTE DE L ANNEE PRECEDENTE ----
     const anPrec = Number(periode.slice(0, 4)) - 1;
-    const { data: bulletinsN1 } = await supabase
+    const { data: bulletinsN1Lus } = await supabase
       .from("paie_bulletins")
-      .select("brut")
+      .select("brut, periode")
       .eq("contrat_id", contratId)
       .eq("statut", "emis")
       .gte("periode", anPrec + "-01-01")
       .lt("periode", (anPrec + 1) + "-01-01");
+    const bulletinsN1 = avecRepris(bulletinsN1Lus, moisReprisContrat,
+      { depuis: anPrec + "-01-01", avant: (anPrec + 1) + "-01-01" });
     let remN1 = 0;
     for (const b1 of (bulletinsN1 || [])) remN1 += Number((b1 as any).brut || 0);
     remN1 = cts(remN1);
@@ -3401,11 +3647,21 @@ async function calculer(contratId: string, periode: string,
     }
   }
 
+  const contributionsConv: string[] = [];
   for (const c of (cotisations || [])) {
     // ⚠️ CERTAINES COTISATIONS NE CONCERNENT QU UNE CATEGORIE (APEC pour
     // les cadres) ou QU UN TYPE DE CONTRAT.
     if (c.categorie && c.categorie !== contrat.categorie) continue;
     if (c.type_contrat && c.type_contrat !== contrat.type_contrat) continue;
+    // 🆕 06/10 — UNE COTISATION PEUT N EXISTER QUE DANS UNE CONVENTION
+    // (colonne `idcc`) : les contributions conventionnelles au dialogue
+    // social et a la formation des hotels, cafes, restaurants, recouvrees
+    // par l URSSAF depuis janvier 2026. Le stagiaire n est pas salarie.
+    if ((c as any).idcc !== null && (c as any).idcc !== undefined && Number((c as any).idcc) > 0) {
+      if (Number((c as any).idcc) !== (Number(contrat.idcc) || 0)) continue;
+      if (estStage) continue;
+      contributionsConv.push(String(c.libelle || c.code));
+    }
     // 🆕 27/09 — les garanties viennent desormais de la societe.
     if ((c as any).garantie_complementaire === true && lignesGaranties.length > 0) continue;
 
@@ -3686,6 +3942,12 @@ async function calculer(contratId: string, periode: string,
     }
   }
 
+  if (contributionsConv.length > 0) {
+    notesFormation.push("Contributions de la convention collective (IDCC " + contrat.idcc + ") comptées : "
+      + contributionsConv.join(", ") + ". ⚠️ Leur minimum annuel par entreprise, quand la convention en "
+      + "prévoit un, n'est pas calculé : il se régularise en fin d'année.");
+  }
+
   // 🆕 27/09 — LES LIGNES DE MUTUELLE ET DE PREVOYANCE, puis le forfait
   // social de 8 % sur leur part patronale (11 salaries et plus).
   for (const lg of lignesGaranties) {
@@ -3811,13 +4073,15 @@ async function calculer(contratId: string, periode: string,
         + "HS_PLAFOND_EXONERATION_IR est absent de la base pour cette période.");
     } else {
       const annee = String(periode).slice(0, 4);
-      const { data: precedents } = await supabase
+      const { data: precedentsLus } = await supabase
         .from("paie_bulletins")
         .select("detail, periode")
         .eq("contrat_id", contratId)
         .eq("statut", "emis")
         .gte("periode", annee + "-01-01")
         .lt("periode", periode);
+      const precedents = avecRepris(precedentsLus, moisReprisContrat,
+        { depuis: annee + "-01-01", avant: periode });
       let cumul = 0;
       for (const bp of (precedents || [])) {
         const hs0 = bp && (bp as any).detail && (bp as any).detail.heures_sup;
@@ -3946,7 +4210,7 @@ async function calculer(contratId: string, periode: string,
     const anneeCourante = periode.slice(0, 4);
     const debutAnnee = anneeCourante + "-01-01";
 
-    const { data: anterieurs } = await supabase
+    const { data: anterieursLus } = await supabase
       .from("paie_bulletins")
       .select("brut, periode, detail")
       .eq("contrat_id", contratId)
@@ -3954,6 +4218,11 @@ async function calculer(contratId: string, periode: string,
       .gte("periode", debutAnnee)
       .lt("periode", periode)
       .order("periode", { ascending: true });
+    // 🆕 06/10 — avec les mois repris d un autre logiciel : leur brut, le
+    // SMIC qu ils ont retenu et la reduction deja appliquee entrent dans le
+    // cumul, exactement comme ceux d un bulletin emis chez nous.
+    const anterieurs = avecRepris(anterieursLus, moisReprisContrat,
+      { depuis: debutAnnee, avant: periode });
 
     let brutCumul = brutTotal;
     let rgduDejaAccordee = 0;
@@ -3966,7 +4235,10 @@ async function calculer(contratId: string, periode: string,
     // supplementaires, sans prise en compte des majorations »). Trouve a
     // l essai 4 du 27/09 : 8 h payees, reduction de 409,94 € au lieu
     // d environ 476 € — l employeur perdait 66 € d allegement ce mois-la.
-    const smicHs = cts(smicRef * hsHeures);
+    // 🆕 06/10 — les heures comprises dans l horaire sont DEJA dans le SMIC
+    // de la duree du contrat (169 h pour 39 heures) : seules les heures
+    // payees en plus s y ajoutent.
+    const smicHs = cts(smicRef * Math.max(0, hsHeures - hsStructComptees));
     const smicDuMois = cts(smicMensuelRef * ratioAbsence + smicHs);
     let smicAnterieurs = 0;
 
@@ -4401,6 +4673,102 @@ async function calculer(contratId: string, periode: string,
         + cts(planche - baseApp).toFixed(2) + " € par mois. ⚠️ RAPPEL DE "
         + "SALAIRE EXIGIBLE, avec les cotisations recalculées dessus.";
     }
+  } else if (contrat.idcc && !horsSalariat && !estPro
+    && reglesConv.some(function (r) { return String(r.regle) === "minimum_horaire"; })) {
+    // ═════════════════════════════════════════════════════════════════
+    // 🆕🚨 06/10 — LA GRILLE DES MINIMA EN EUROS DE L HEURE
+    // (hotels, cafes, restaurants : cinq niveaux, trois echelons)
+    //
+    // Le niveau et l echelon se lisent dans le champ « Position » du
+    // contrat : « II-2 », « 2.2 », « niveau 2 echelon 2 » sont reconnus.
+    // Le minimum du mois = taux de la grille (ou le SMIC horaire s il est
+    // superieur) × les heures du contrat, les heures au-dela de 35 comptees
+    // avec leur majoration.
+    // Avenant n° 32 : au niveau I, l echelon 1 passe a l echelon 2 apres un
+    // an d anciennete — applique ici.
+    // ⚠️ LE CONTROLE RESTE UN CONTROLE : il n ajuste aucun montant.
+    // ═════════════════════════════════════════════════════════════════
+    const brutPos = String((contrat as any).position_conv || (contrat as any).niveau || "")
+      .toUpperCase().replace(/NIVEAU|ECHELON|ÉCHELON|NIV\.?|ECH\.?/g, " ");
+    const jetons = brutPos.match(/\b(IV|V|III|II|I|[1-5])\b/g) || [];
+    const romains: any = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
+    const enNombre = function (x: string): number { return romains[x] || Number(x) || 0; };
+    const niveauHcr = jetons.length >= 1 ? enNombre(jetons[0]) : 0;
+    let echelonHcr = jetons.length >= 2 ? enNombre(jetons[1]) : 0;
+    const eur2g = { minimumFractionDigits: 2, maximumFractionDigits: 2 };
+
+    if (niveauHcr < 1 || niveauHcr > 5 || echelonHcr < 1 || echelonHcr > 3) {
+      minimumConventionnel = {
+        idcc: contrat.idcc, position: (contrat as any).position_conv || null, respecte: null,
+        alerte: "⚠️ MINIMUM CONVENTIONNEL NON CONTRÔLÉ : le niveau et l'échelon du salarié ne sont pas "
+          + "renseignés. Les indiquer dans le champ « Position » du contrat, par exemple « II-2 » "
+          + "(niveau II, échelon 2).",
+      };
+    } else {
+      let noteEchelon = "";
+      if (niveauHcr === 1 && echelonHcr === 1) {
+        const dcG = String(contrat.date_debut || "").slice(0, 10);
+        if (dcG) {
+          let ancG = (Number(periode.slice(0, 4)) - Number(dcG.slice(0, 4))) * 12
+            + (Number(periode.slice(5, 7)) - Number(dcG.slice(5, 7)));
+          if (Number(dcG.slice(8, 10)) > 1) ancG -= 1;
+          if (ancG >= 12) {
+            echelonHcr = 2;
+            noteEchelon = " Échelon 2 retenu : au niveau I, l'échelon 1 passe à l'échelon 2 après un an "
+              + "d'ancienneté (avenant n° 32).";
+          }
+        }
+      }
+      let tauxGrille: number | null = null;
+      for (const r of reglesConv) {
+        if (String(r.regle) !== "minimum_horaire") continue;
+        if (String(r.valeur_texte || "").trim() === niveauHcr + "." + echelonHcr) tauxGrille = Number(r.valeur_num);
+      }
+      const smicH = Number(await parametre("SMIC_HORAIRE", periode)) || 0;
+      if (tauxGrille === null) {
+        minimumConventionnel = {
+          idcc: contrat.idcc, position: (contrat as any).position_conv || null, respecte: null,
+          alerte: "⚠️ MINIMUM CONVENTIONNEL NON CONTRÔLÉ : aucune ligne de la grille pour le niveau "
+            + niveauHcr + ", échelon " + echelonHcr + " à cette période.",
+        };
+      } else {
+        const tauxPlancher = Math.max(tauxGrille, smicH);
+        const horaire = !contrat.salaire_mensuel && Number(contrat.salaire_horaire) > 0;
+        const plancheG = horaire ? tauxPlancher : cts(tauxPlancher * heuresPondereesContrat);
+        const baseG = horaire ? Number(contrat.salaire_horaire) : Number(contrat.salaire_mensuel || 0);
+        minimumConventionnel = {
+          idcc: contrat.idcc,
+          coefficient: null,
+          position: "niveau " + niveauHcr + ", échelon " + echelonHcr,
+          categorie: String(contrat.categorie) === "cadre" ? "cadre" : "etam",
+          valeur_point: null,
+          indemnite_speciale: 0,
+          taux_horaire_grille: tauxGrille,
+          smic_horaire: smicH,
+          heures_ponderees: horaire ? null : Math.round(heuresPondereesContrat * 100) / 100,
+          minimum_conventionnel: horaire ? tauxGrille : cts(tauxGrille * heuresPondereesContrat),
+          plancher_retenu: plancheG,
+          salaire_de_base: cts(baseG),
+          respecte: baseG + 0.005 >= plancheG,
+          ecart: cts(baseG - plancheG),
+          note: "Minimum de la convention : niveau " + niveauHcr + ", échelon " + echelonHcr + ", "
+            + tauxGrille.toLocaleString("fr-FR", eur2g) + " € de l'heure"
+            + (smicH > tauxGrille ? " — inférieur au SMIC (" + smicH.toLocaleString("fr-FR", eur2g)
+              + " €), qui s'applique" : "") + "." + noteEchelon,
+        };
+        if (baseG > 0 && baseG + 0.005 < plancheG) {
+          minimumConventionnel.alerte = "⛔ SALAIRE INFÉRIEUR AU MINIMUM : "
+            + cts(baseG).toFixed(2).replace(".", ",") + " € " + (horaire ? "de l'heure " : "")
+            + "pour un plancher de " + cts(plancheG).toFixed(2).replace(".", ",") + " € (niveau "
+            + niveauHcr + ", échelon " + echelonHcr + ", IDCC " + contrat.idcc + " : "
+            + tauxPlancher.toLocaleString("fr-FR", eur2g) + " € de l'heure"
+            + (horaire ? "" : " × " + (Math.round(heuresPondereesContrat * 100) / 100).toLocaleString("fr-FR", eur2g)
+              + " heures, majorations comprises")
+            + "). ⚠️ RAPPEL DE SALAIRE EXIGIBLE, avec les cotisations et les congés payés "
+            + "recalculés dessus.";
+        }
+      }
+    }
   } else if (contrat.idcc && contrat.coefficient && !horsSalariat) {
     const { data: regles } = await supabase
       .from("paie_conventions_regles")
@@ -4589,6 +4957,22 @@ async function calculer(contratId: string, periode: string,
     // valorisation des conges y figurait DEUX FOIS, en court puis en long.
     // Une liste qui se repete est une liste qu on cesse de lire.
     reserves: (function () {
+      const idccR = Number(contrat.idcc) || 0;
+      const reserveConvention = reglesConv.some(function (x) { return String(x.regle) === "minimum_horaire"; })
+        ? "Convention collective IDCC " + idccR + " (hôtels, cafés, restaurants) — ce que le bulletin applique : la grille "
+          + "des minima par niveau et échelon, les majorations d'heures supplémentaires (10 %, 20 %, 50 %), le repas "
+          + "compté au minimum garanti, le barème des apprentis de la branche, les contributions conventionnelles au "
+          + "dialogue social et à la formation. Le maintien de salaire en maladie suit la loi, plus favorable que le "
+          + "texte de la convention. ⚠️ CE QU'IL N'APPLIQUE PAS : les six jours fériés garantis (à saisir quand ils "
+          + "sont payés ou compensés), l'indemnité compensatrice de nourriture quand le salarié n'est pas nourri (à "
+          + "saisir en prime), le repos compensateur du travail de nuit, les règles des extras, et la mutuelle et la "
+          + "prévoyance de la branche, qui se règlent sur le dossier de la société."
+        : (idccR === 1486 || idccR === 2378 || idccR === 0)
+          ? "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués."
+          : "⚠️ CONVENTION COLLECTIVE IDCC " + idccR + " : aucune de ses règles n'est chargée. Le bulletin applique la loi "
+            + "seule — SMIC, majorations légales des heures supplémentaires, maintien de salaire légal. Son salaire minimum, "
+            + "ses primes, ses jours de congé et son maintien de salaire propres sont à vérifier dans le texte de la "
+            + "convention avant d'émettre.";
       const r = [
         "Les taux doivent être recoupés sur boss.gouv.fr avant tout bulletin réel.",
         (pas.nature === "personnalise"
@@ -4599,7 +4983,10 @@ async function calculer(contratId: string, periode: string,
             + (contrat.type_contrat === "apprentissage"
               ? " ⚠️ Apprenti : son salaire est exonéré d'impôt jusqu'au SMIC annuel ; l'exonération n'est pas déduite de l'assiette."
               : "")),
-        "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués.",
+        // 🆕 06/10 — CE QUE LE BULLETIN APPLIQUE DE LA CONVENTION, ET CE QU IL
+        // N APPLIQUE PAS : une phrase par convention chargee, et un
+        // avertissement franc pour toutes les autres.
+        reserveConvention,
         "La RGDU est calculée en régularisation progressive sur le cumul annuel, méthode recommandée par l'URSSAF : une prime en fin d'année est régularisée le mois même plutôt que de créer un rappel.",
         // 🆕 27/09 soir — la seconde phrase (« tant qu ils ne sont pas
         // renseignes… ces lignes n apparaissent pas ») est retiree : la
@@ -4614,6 +5001,7 @@ async function calculer(contratId: string, periode: string,
       if (minimumConventionnel && minimumConventionnel.alerte) {
         r.unshift(minimumConventionnel.alerte);
       }
+      if (minimumConventionnel && minimumConventionnel.note) r.push(minimumConventionnel.note);
 
       // 🆕 22/09 — CE QUE LE FORFAIT JOURS APPORTE, ET CE QU IL NE FAIT PAS.
       if (auForfaitJours) {
@@ -4864,6 +5252,23 @@ async function calculer(contratId: string, periode: string,
       for (const n of notesGaranties) r.unshift(n);
       // 🆕 06/10 — la formation, la taxe d apprentissage, le CPF-CDD.
       for (const n of notesFormation) r.unshift(n);
+      // 🆕 06/10 — les heures supplementaires comprises dans l horaire.
+      for (const n of notesStruct) r.unshift(n);
+      // 🆕 06/10 — la reprise d un autre logiciel.
+      {
+        const an0 = String(periode).slice(0, 4);
+        const deLAnnee = moisReprisContrat.filter(function (m: any) {
+          return String(m.periode).slice(0, 4) === an0 && String(m.periode) < String(periode);
+        });
+        if (deLAnnee.length > 0) {
+          const sansSmic = deLAnnee.filter(function (m: any) { return !(m.detail && m.detail.rgdu_detail); }).length;
+          r.unshift("Reprise d'un autre logiciel : " + deLAnnee.length + " mois de l'année repris sont comptés "
+            + "dans le cumul de la réduction générale (brut, SMIC retenu, réduction déjà appliquée)"
+            + (sansSmic > 0 ? ". ⚠️ " + sansSmic + " mois repris sans SMIC retenu : un SMIC entier est compté "
+              + "pour chacun, ce qui fausse la réduction si le salarié a été absent ou à temps partiel" : "")
+            + ".");
+        }
+      }
       for (const n of notesFin) r.unshift(n);
       for (const n of notesArret) r.unshift(n);
       // 🆕 28/09 — pour un mandataire, les reserves qui ne le concernent pas
@@ -4876,7 +5281,7 @@ async function calculer(contratId: string, periode: string,
       }
       if (horsSalariat) {
         return r.filter(function (x: string) {
-          return !/^La RGDU est calculée|^Le salaire minimum conventionnel est contrôlé/.test(x);
+          return !/^La RGDU est calculée/.test(x) && x !== reserveConvention;
         });
       }
       return r;
@@ -4990,4 +5395,3 @@ export async function GET(req: NextRequest) {
       { status: 500, headers: SANS_CACHE });
   }
 }
-
