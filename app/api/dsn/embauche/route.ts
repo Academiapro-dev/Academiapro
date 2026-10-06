@@ -60,7 +60,7 @@ export const maxDuration = 60;
 //
 // ⛔ CE FICHIER N A JAMAIS ETE VU PAR dsn-val. Il est ecrit d apres le
 // cahier technique seul : a passer dans dsn-val avant tout depot.
-// ⚠️ L ENVOI EST EN MODE ESSAI (S10.G00.00.005 = 01), comme les autres.
+// ⚠️ ESSAI OU REEL : le reglage de la societe (`dsn_mode`), comme la DSN du mois.
 // ⚠️ LA ROUTE N EST APPELEE QUE PAR LE RELAIS de /api/paie/dossier, qui a
 // deja verifie la session et les droits : elle exige la cle du serveur.
 // ═══════════════════════════════════════════════════════════════════════
@@ -252,6 +252,8 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    const modeReel = q(societe.dsn_mode).toLowerCase() === "reel";
+
     // ---- LE FICHIER ----
     const anomalies: string[] = [];
     const rappels: string[] = [];
@@ -337,7 +339,9 @@ export async function POST(req: NextRequest) {
     ecrire("S10.G00.00.001", NOM_LOGICIEL);
     ecrire("S10.G00.00.002", NOM_EDITEUR);
     ecrire("S10.G00.00.003", VERSION_LOGICIEL);
-    ecrire("S10.G00.00.005", "01");            // essai
+    // 🆕 06/10 — ESSAI OU REEL : le meme reglage que la DSN du mois
+    // (`compta_societes.dsn_mode`). Tout ce qui n est pas « reel » est un essai.
+    ecrire("S10.G00.00.005", modeReel ? "02" : "01");
     ecrire("S10.G00.00.006", NORME);
     ecrire("S10.G00.00.007", "01");            // net-entreprises (MSA interdit ici)
     ecrire("S10.G00.00.008", "01");            // envoi normal
@@ -489,6 +493,7 @@ export async function POST(req: NextRequest) {
       success: true,
       nom_fichier: nomFichier,
       nature: "10",
+      mode: modeReel ? "RÉEL" : "essai",
       type: "déclaration préalable à l'embauche",
       salarie: qui,
       lignes: L.length,
@@ -497,11 +502,13 @@ export async function POST(req: NextRequest) {
       reserves: rappels.concat([
         "⛔ PASSER LE FICHIER DANS dsn-val avant tout dépôt réel : cette déclaration n'y est "
           + "encore jamais passée.",
-        "L'envoi est en MODE ESSAI (S10.G00.00.005 = 01).",
+        modeReel
+          ? "🚨 L'envoi est RÉEL (S10.G00.00.005 = 02) : déposé, il déclare l'embauche à l'URSSAF."
+          : "L'envoi est en MODE ESSAI (S10.G00.00.005 = 01) : déposé, il est contrôlé mais ne déclare rien.",
         "Cette voie est facultative : la déclaration d'embauche peut toujours se faire par la "
           + "voie habituelle de l'URSSAF.",
-        "Le canal de transmission n'est pas branché : le fichier se dépose à la main sur "
-          + "net-entreprises.",
+        "Le fichier se dépose depuis cet écran (« Déposer sur net-entreprises », avec les accès de "
+          + "la société) ou à la main. ⚠️ Aucun dépôt n'a encore eu lieu depuis le logiciel.",
       ]),
       message: anomalies.length > 0
         ? "⚠️ " + anomalies.length + " anomalie(s) à corriger avant dépôt."
