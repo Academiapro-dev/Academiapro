@@ -107,6 +107,21 @@ const MOTIFS = [
   "Complément de formation professionnelle",
 ];
 
+// 🆕 06/10 — LES MOTIFS D UN CONTRAT A DUREE DETERMINEE, en code : la liste
+// du cahier technique de la DSN (rubrique S21.G00.40.021).
+const MOTIFS_CDD = [
+  ["01", "Remplacement d'un salarié"],
+  ["02", "Accroissement temporaire de l'activité"],
+  ["03", "Emploi à caractère saisonnier"],
+  ["05", "Contrat d'usage (extra, par exemple)"],
+  ["04", "Contrat vendanges"],
+  ["06", "Contrat à objet défini"],
+  ["07", "Remplacement d'un chef d'entreprise"],
+  ["08", "Remplacement du chef d'une exploitation agricole"],
+  ["09", "Recrutement d'une personne sans emploi en difficulté"],
+  ["10", "Complément de formation professionnelle"],
+];
+
 const TYPES_ELEMENT = [
   { cle: "heures_sup_25", nom: "Heures supplémentaires 25 %", soumis: true },
   { cle: "heures_sup_50", nom: "Heures supplémentaires 50 %", soumis: true },
@@ -125,6 +140,7 @@ const TYPES_ELEMENT = [
   { cle: "indemnite_nourriture", nom: "Indemnité compensatrice de nourriture (salarié non nourri)", soumis: true },
   { cle: "jour_ferie_garanti", nom: "Jour férié garanti indemnisé", soumis: true },
   { cle: "heures_nuit", nom: "Heures de nuit (repos compensateur, rien au bulletin)", soumis: true },
+  { cle: "repos_nuit_pris", nom: "Repos compensateur de nuit pris (heures)", soumis: true },
   { cle: "heures_comp_25", nom: "Heures complémentaires 25 % (temps partiel)", soumis: true },
   { cle: "prime", nom: "Prime", soumis: true },
   { cle: "panier", nom: "Panier repas", soumis: false },
@@ -162,7 +178,9 @@ const AIDE_ELEMENT: any = {
   jour_ferie_garanti: "Quantité = nombre de jours fériés garantis travaillés et non récupérés. Taux : laisser vide. "
     + "Montant : laisser vide (une journée de salaire est calculée) ou indiquer le montant décidé.",
   heures_nuit: "Quantité = heures travaillées entre 22 h et 7 h dans le mois. Taux et montant : laisser vides. "
-    + "Rien ne s'ajoute au bulletin : la note du calcul rappelle le repos compensateur acquis.",
+    + "Rien ne s'ajoute au bulletin : le calcul tient le compteur du repos compensateur (acquis, pris, solde).",
+  repos_nuit_pris: "Quantité = heures de repos compensateur de nuit prises ce mois. Taux et montant : laisser vides. "
+    + "Rien ne s'ajoute au bulletin : le calcul les retranche du repos acquis.",
   heures_sup_10: "Heures faites EN PLUS de l'horaire du contrat, de la 36e à la 39e de la semaine. Celles qui "
     + "sont comprises dans l'horaire (contrat à 39 heures) sont déjà au bulletin : ne pas les ressaisir. "
     + "Quantité = nombre d'heures. Taux et montant : laisser vides, ils se calculent.",
@@ -932,6 +950,7 @@ export default function PagePaie() {
       apprenti_public: choisi.apprenti_public === true,
       plafond_reduit_forfait: choisi.plafond_reduit_forfait === true,
       // 🆕 06/10 — la prime de precarite d un CDD.
+      motif_recours: v(choisi.motif_recours),
       precarite: choisi.ifm_due === false
         ? (/usage|extra/i.test(v(choisi.ifm_motif_non_due)) ? "usage"
           : /saisonn/i.test(v(choisi.ifm_motif_non_due)) ? "saisonnier" : "autre")
@@ -1807,15 +1826,29 @@ export default function PagePaie() {
     setPrime(d);
   }
 
-  async function deposerSignalement(id: string, reprise?: boolean) {
+  // 🆕 06/10 — `reseau` : le fichier part sur net-entreprises avec les acces
+  // de la societe (meme route que la DSN du mois). Sans lui, le geste ne fait
+  // que NOTER un depot fait a la main sur le site.
+  async function deposerSignalement(id: string, reprise?: boolean, reseau?: boolean, confirmerReel?: boolean) {
+    if (reseau && !confirmerReel && typeof window !== "undefined" && !window.confirm(
+      "Déposer ce fichier sur net-entreprises, avec les accès enregistrés pour cette société ?")) return;
     setErr(""); setErrEv(""); setMsg("");
     setOccupe(reprise ? "depot-reprise" : "depot");
     const d = await appeler({
       action: "deposer_evenement", id: id, reprise: reprise === true,
+      par_reseau: reseau === true, confirmer_reel: confirmerReel === true,
     });
     setOccupe("");
     if (!d) return;
-    if (d.erreur) { setErrEv(d.erreur); return; }
+    if (d.erreur && reseau && !confirmerReel && String(d.erreur).indexOf("ENVOI RÉEL") >= 0) {
+      if (typeof window !== "undefined" && window.confirm(
+        "CE FICHIER EST UN ENVOI RÉEL : il déclare l'événement aux organismes et ne pourra pas être retiré. "
+        + "Confirmez-vous le dépôt ?")) {
+        await deposerSignalement(id, reprise, true, true);
+      }
+      return;
+    }
+    if (d.erreur) { setErrEv(lisible(d.erreur)); return; }
     setMsg(d.message);
     chargerEvenements(choisi ? choisi.id : "");
   }
@@ -2349,6 +2382,25 @@ export default function PagePaie() {
                   </div>
                 )}
 
+                {/* 🆕 06/10 — LE MOTIF D UN CDD : obligatoire, et declare en DSN. */}
+                {f.type_contrat === "cdd" && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px",
+                    borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span style={LIB}>Motif du contrat à durée déterminée</span>
+                    <select value={f.motif_recours || ""} style={CHAMP}
+                      onChange={(ev) => setF({ ...f, motif_recours: ev.target.value })}>
+                      <option value="">Choisir…</option>
+                      {MOTIFS_CDD.map(function (m) {
+                        return <option key={m[0]} value={m[0]}>{m[1]}</option>;
+                      })}
+                    </select>
+                    <p style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.72)", margin: "6px 0 0", lineHeight: "1.6" }}>
+                      Sans motif, le contrat peut être requalifié en contrat à durée indéterminée. Un contrat
+                      d&apos;usage ou saisonnier n&apos;ouvre pas de prime de précarité : elle est réglée « non due ».
+                    </p>
+                  </div>
+                )}
+
                 {/* 🚨 SANS CES DEUX CHAMPS, LE CONTRAT EST REQUALIFIABLE. */}
                 {f.type_contrat === "mission" && (
                   <div style={{ marginTop: "14px", paddingTop: "14px",
@@ -2541,6 +2593,22 @@ export default function PagePaie() {
                           {/* 🆕 06/10 — LA PRIME DE PRECARITE D UN CDD : elle ne se
                               reglait qu a la creation, par la base. Un extra est un
                               contrat d usage : elle n est pas due. */}
+                          {choisi.type_contrat === "cdd" && (
+                            <div style={{ flex: "1 1 260px" }}>
+                              <span style={LIB}>Motif du contrat</span>
+                              <select value={cs.motif_recours || ""} style={CHAMP}
+                                onChange={(ev) => setContratSaisie({ ...cs, motif_recours: ev.target.value })}>
+                                {!MOTIFS_CDD.some(function (m) { return m[0] === cs.motif_recours; }) && (
+                                  <option value={cs.motif_recours || ""}>
+                                    {cs.motif_recours ? cs.motif_recours + " (ancienne saisie)" : "Non renseigné — à choisir"}
+                                  </option>
+                                )}
+                                {MOTIFS_CDD.map(function (m) {
+                                  return <option key={m[0]} value={m[0]}>{m[1]}</option>;
+                                })}
+                              </select>
+                            </div>
+                          )}
                           {choisi.type_contrat === "cdd" && (
                             <div style={{ flex: "1 1 260px" }}>
                               <span style={LIB}>Prime de précarité</span>
@@ -4713,6 +4781,27 @@ export default function PagePaie() {
                                 style={{ ...LIEN, color: OR, ...cache(droitsIci.deposer) }}>
                                 {occupe === "depot-reprise"
                                   ? "…" : "reprise déposée"}
+                              </button>
+                            )}
+                            {/* 🆕 06/10 — LE DEPOT PAR LE LOGICIEL : le
+                                fichier part sur net-entreprises avec les acces
+                                de la societe. « déposé » reste, pour noter un
+                                depot fait a la main sur le site. */}
+                            {x.fichier && manques.length === 0 && (
+                              <button onClick={() => deposerSignalement(x.id, false, true)}
+                                disabled={occupe !== ""}
+                                style={{ ...LIEN, color: VERT, fontWeight: 700, ...cache(droitsIci.deposer) }}>
+                                {occupe === "depot" ? "…" : "déposer sur net-entreprises"}
+                              </button>
+                            )}
+                            {arret && x.reprise_date && x.fichier
+                              && Number(x.numero_ordre_reprise || 0) === 0
+                              && Number(x.numero_ordre || 0) > 0 && (
+                              <button onClick={() => deposerSignalement(x.id, true, true)}
+                                disabled={occupe !== ""}
+                                style={{ ...LIEN, color: VERT, fontWeight: 700, ...cache(droitsIci.deposer) }}>
+                                {occupe === "depot-reprise"
+                                  ? "…" : "déposer la reprise sur net-entreprises"}
                               </button>
                             )}
                             {/* 🆕 LE FICHIER SORT D ICI. Les deux liens
