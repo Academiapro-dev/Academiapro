@@ -697,6 +697,29 @@ function euroDsn(v: number): string {
   return Math.round(Number(v || 0)).toFixed(2);
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// 🆕🚨 06/10 — UNE ADRESSE POSTALE N ADMET PAS TOUS LES CARACTERES.
+// dsn-val, S21.G00.30.008/CSL-11 : « Caracteres non autorises pour les
+// adresses postales », sur « 12, Rue de la Republique ». La virgule, que
+// tout le monde tape apres le numero, fait rejeter la declaration.
+// Cahier technique 2026.1, les adresses : lettres, chiffres, espace,
+// apostrophe, trait d union et point ; ces quatre signes jamais en debut
+// ni en fin, jamais deux a la suite (sauf un point suivi d un espace) ;
+// cinquante caracteres au plus.
+// ⛔ ON NE REFUSE PAS L ADRESSE SAISIE : on la declare nettoyee. La fiche
+// garde ce que l utilisateur a tape.
+// ═══════════════════════════════════════════════════════════════════
+function adresseDsn(v: any): string {
+  let a = q(v).replace(/[\u2019\u2018`]/g, "'").replace(/[\u2013\u2014]/g, "-");
+  a = a.replace(/[^A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF '.\-]/g, " ");
+  a = a.replace(/\s+/g, " ");
+  a = a.replace(/ ?([-'.]) ?(?=[-'.])/g, " ");
+  a = a.replace(/ ([-']) /g, " ").replace(/ ([-'])/g, " ").replace(/([-']) /g, " ");
+  a = a.replace(/ \./g, ".").replace(/\s+/g, " ");
+  a = a.replace(/^[ '.\-]+/, "").replace(/[ '.\-]+$/, "");
+  return a.slice(0, 50).replace(/[ '.\-]+$/, "");
+}
+
 function q(v: any): string {
   if (v === null || v === undefined) return "";
   return String(v).trim();
@@ -1493,7 +1516,7 @@ export async function POST(req: NextRequest) {
   ecrire("S10.G00.01.001", siret.slice(0, 9));
   ecrire("S10.G00.01.002", siret.slice(9));
   ecrire("S10.G00.01.003", societe.raison_sociale);
-  ecrire("S10.G00.01.004", societe.adresse);
+  ecrire("S10.G00.01.004", adresseDsn(societe.adresse));
   ecrire("S10.G00.01.005", q(societe.code_postal));
   ecrire("S10.G00.01.006", societe.ville);
 
@@ -1574,7 +1597,7 @@ export async function POST(req: NextRequest) {
   // APEN = l activite de l ENTREPRISE, APET = celle de l ETABLISSEMENT. Une
   // societe a un seul etablissement porte le meme code aux deux endroits.
   ecrire("S21.G00.06.003", codeApe);
-  ecrire("S21.G00.06.004", societe.adresse);
+  ecrire("S21.G00.06.004", adresseDsn(societe.adresse));
   ecrire("S21.G00.06.005", q(societe.code_postal));
   ecrire("S21.G00.06.006", societe.ville);
 
@@ -1605,7 +1628,7 @@ export async function POST(req: NextRequest) {
   // « CST-03 / Absence de la rubrique S21.G00.11.002 ». Meme histoire que
   // le code APEN du bloc 06, racontee plus haut.
   ecrire("S21.G00.11.002", codeApe);
-  ecrire("S21.G00.11.003", societe.adresse);
+  ecrire("S21.G00.11.003", adresseDsn(societe.adresse));
   ecrire("S21.G00.11.004", q(societe.code_postal));
   ecrire("S21.G00.11.005", societe.ville);
 
@@ -1874,7 +1897,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    ecrire("S21.G00.30.008", s.adresse);
+    ecrire("S21.G00.30.008", adresseDsn(s.adresse));
     ecrire("S21.G00.30.009", q(s.code_postal));
     ecrire("S21.G00.30.010", s.ville);
 
@@ -5253,7 +5276,7 @@ export async function POST(req: NextRequest) {
     lieuxVus.push(siret);
     ecrire("S21.G00.85.001", siret);
     ecrire("S21.G00.85.002", codeApe);
-    ecrire("S21.G00.85.003", societe.adresse);
+    ecrire("S21.G00.85.003", adresseDsn(societe.adresse));
     ecrire("S21.G00.85.004", q(societe.code_postal));
     ecrire("S21.G00.85.005", societe.ville);
     ecrire("S21.G00.85.010", "01");
@@ -5314,7 +5337,7 @@ export async function POST(req: NextRequest) {
     // l activite reelle exercee sur place qui compte pour le risque.
     // 🆕 Normalise comme celui de l employeur : « 52.10B » devient « 5210B ».
     ecrire("S21.G00.85.002", apeDsn(c0.eu_code_ape));
-    ecrire("S21.G00.85.003", c0.eu_adresse);
+    ecrire("S21.G00.85.003", adresseDsn(c0.eu_adresse));
     ecrire("S21.G00.85.004", cpLieu);
     ecrire("S21.G00.85.005", c0.eu_ville);
     // ⛔ PAS DE CODE PAYS (85.006) POUR UN LIEU EN FRANCE : code postal et
