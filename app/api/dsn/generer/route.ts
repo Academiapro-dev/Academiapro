@@ -2195,7 +2195,13 @@ export async function POST(req: NextRequest) {
       ecrire("S21.G00.40.012", "0.00");
       ecrire("S21.G00.40.013", "0.00");
     } else if (dureeMensuelleRef > 0) {
-      ecrire("S21.G00.40.012", montantDsn(dureeMensuelleRef));
+      // 🆕🚨 06/10 — AU FORFAIT EN JOURS, LA REFERENCE SE DIT AUSSI EN JOURS.
+      // ⛔ Elle restait a 151,67 (des heures) sous l unite « forfait jour » :
+      // dsn-val le refuse (S21.G00.40.011/CCH-12, les deux quotites doivent
+      // etre inferieures ou egales a 31). La reference de l entreprise est le
+      // forfait legal de 218 jours, soit 18,17 jours par mois.
+      ecrire("S21.G00.40.012", joursAnnuels > 0
+        ? montantDsn(Math.round(218 / 12 * 100) / 100) : montantDsn(dureeMensuelleRef));
       ecrire("S21.G00.40.013", quotiteContrat);
     }
 
@@ -4457,6 +4463,7 @@ export async function POST(req: NextRequest) {
         ecrire82("S21.G00.82.002", "074");
         ecrire82("S21.G00.82.003", debutMois);
         ecrire82("S21.G00.82.004", finMois);
+        ecrire82("S21.G00.82.005", "@@URSSAF@@");
         notesTa.push("Taxe d'apprentissage : exonération du mois déclarée (employeur d'apprenti, masse "
           + "salariale de " + montantDsn(totalBrut) + " EUR pour un seuil de " + montantDsn(6 * smicMois)
           + " EUR — bloc « cotisation établissement », code 074, valeur 0.00). ⛔ Ce bloc n'est jamais "
@@ -4528,6 +4535,7 @@ export async function POST(req: NextRequest) {
           ecrire82("S21.G00.82.002", "076");
           ecrire82("S21.G00.82.003", "0101" + anPrec);
           ecrire82("S21.G00.82.004", "3112" + anPrec);
+          ecrire82("S21.G00.82.005", "@@URSSAF@@");
           duUrssaf += soldeTa;
           // 🆕 06/10 — LES DEDUCTIONS DU SOLDE (table tolerante : elle peut manquer).
           {
@@ -4554,12 +4562,14 @@ export async function POST(req: NextRequest) {
               ecrire82("S21.G00.82.002", "077");
               ecrire82("S21.G00.82.003", "0101" + anPrec);
               ecrire82("S21.G00.82.004", "3112" + anPrec);
+              ecrire82("S21.G00.82.005", "@@URSSAF@@");
             }
             if (alt > 0) {
               ecrire82("S21.G00.82.001", "-" + montantDsn(alt));
               ecrire82("S21.G00.82.002", "078");
               ecrire82("S21.G00.82.003", "0101" + anPrec);
               ecrire82("S21.G00.82.004", "3112" + anPrec);
+              ecrire82("S21.G00.82.005", "@@URSSAF@@");
             }
             deducCfaTa = cfa; deducAltTa = alt;
             duUrssaf -= (cfa + alt);
@@ -4593,6 +4603,8 @@ export async function POST(req: NextRequest) {
     B.push(ref + ",'" + v + "'");
   };
 
+  // 🆕 06/10 — connu hors du bloc : la reference du bloc 82 en a besoin.
+  let siretUrssafConnu = "";
   {
     const codification = q(societe.urssaf_codification);
     let siretUrssaf = "";
@@ -4606,8 +4618,10 @@ export async function POST(req: NextRequest) {
       // 🚨 L IDENTIFIANT DE L ORGANISME EST LE SIRET DE L URSSAF, pas sa
       // codification. Guide URSSAF, rubrique 81.002 : « Siret de l Urssaf ».
       // La codification (U827) sert a le retrouver dans la table.
-      if (org && q(org.siret)) siretUrssaf = q(org.siret).replace(/\D/g, "");
-      else {
+      if (org && q(org.siret)) {
+        siretUrssaf = q(org.siret).replace(/\D/g, "");
+        siretUrssafConnu = siretUrssaf;
+      } else {
         anomalies.push("La codification URSSAF « " + codification + " » de la "
           + "société est introuvable dans la table officielle des URSSAF. ⛔ LE "
           + "BORDEREAU N'EST PAS DÉCLARÉ. Choisir à nouveau l'URSSAF de la "
@@ -5135,7 +5149,21 @@ export async function POST(req: NextRequest) {
     }
     // 🆕 06/10 — le bloc 82 (cotisation etablissement) se place APRES les
     // adhesions (15) et AVANT le versement (20) : on l insere donc d abord.
-    if (C82.length > 0) L.splice(posBordereau, 0, ...C82);
+    // 🆕🚨 06/10 — S21.G00.82.005 EST OBLIGATOIRE (dsn-val, CST-03, quatre
+    // fois sur le fichier d avril) : pour l URSSAF, c est SON SIRET (cahier
+    // technique, « Référence réglementaire ou contractuelle »). Il n est connu
+    // qu ici, avec le bordereau : la rubrique attend sa valeur jusque-la.
+    if (C82.length > 0) {
+      if (siretUrssafConnu) {
+        for (let i = 0; i < C82.length; i++) C82[i] = C82[i].replace("@@URSSAF@@", siretUrssafConnu);
+      } else {
+        anomalies.push("Cotisation établissement (taxe d'apprentissage) : l'URSSAF de la société n'est pas "
+          + "renseignée, la référence obligatoire (S21.G00.82.005) manque. ⛔ dsn-val rejettera le fichier : "
+          + "choisir l'URSSAF à l'écran DSN, bloc « Recouvrement URSSAF ».");
+        for (let i = C82.length - 1; i >= 0; i--) if (C82[i].indexOf("@@URSSAF@@") >= 0) C82.splice(i, 1);
+      }
+      L.splice(posBordereau, 0, ...C82);
+    }
     if (A15.length > 0) L.splice(posBordereau, 0, ...A15);
 
     for (const cleG of Object.keys(garantiesIncompletes)) {
