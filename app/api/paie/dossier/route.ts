@@ -986,6 +986,193 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
     // `taux_pas_identifiant_crm`) : c est lui que lit aussi la DSN.
     // Un taux vide EFFACE le taux personnalise (retour a la grille).
     // ═══════════════════════════════════════════════════════════════════
+    // ═════════════════════════════════════════════════
+    // 🆕🚨 06/10 — LA REPRISE D UN DOSSIER EN COURS D ANNEE
+    //
+    // Un salarie qui arrive d un autre logiciel en cours d annee a deja des
+    // mois de paie : le moteur en a besoin (reduction generale cumulee,
+    // trois derniers salaires pour un arret, douze pour une rupture, regle
+    // du dixieme, plafond des heures supplementaires). Ils se saisissent
+    // ici, un mois par ligne, dans `paie_reprises` ; le moteur les lit comme
+    // des bulletins emis (voir /api/paie/calculer, `lireMoisRepris`).
+    //   reprise              ce qui est saisi pour un contrat
+    //   reprise_enregistrer  un mois : brut, SMIC retenu, reduction generale
+    //                        deja appliquee, heures sup. exonerees d impot
+    //   reprise_supprimer    retirer un mois
+    //   reprise_conges       le solde de conges a la date de la reprise
+    // ⛔ UN MOIS QUI A UN BULLETIN EMIS CHEZ NOUS NE SE REPREND PAS : c est
+    // le bulletin qui fait foi.
+    // ═════════════════════════════════════════════════
+    if (action === "reprise") {
+      const contratId = propre(c.contrat_id);
+      if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+      const { data: moisLus, error: eR } = await supabase
+        .from("paie_reprises")
+        .select("id, periode, brut, smic_reference, rgdu, hs_exonere_ir, saisi_par, cree_le")
+        .eq("contrat_id", contratId)
+        .order("periode", { ascending: true });
+      if (eR) {
+        return NextResponse.json({ success: true, mois: [], conges: [],
+          indisponible: "La reprise d'un autre logiciel n'est pas encore installée en base (" + eR.message + ")." });
+      }
+      const { data: cg } = await supabase
+        .from("paie_conges")
+        .select("id, periode, periode_ref, jours, notes")
+        .eq("contrat_id", contratId)
+        .like("notes", "Reprise d un autre logiciel%");
+      return NextResponse.json({ success: true, mois: moisLus || [], conges: cg || [] });
+    }
+
+    if (action === "reprise_enregistrer") {
+      const contratId = propre(c.contrat_id);
+      if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+      const mois = String(propre(c.periode) || "").slice(0, 7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mois)) {
+        return NextResponse.json({ erreur: "mois illisible : choisissez le mois repris." }, { status: 400 });
+      }
+      const periodeR = mois + "-01";
+      if (periodeR >= new Date().toISOString().slice(0, 7) + "-01") {
+        return NextResponse.json({ erreur: "un mois repris est un mois passé, payé dans l'autre logiciel : "
+          + "le mois en cours et les suivants se calculent ici." }, { status: 400 });
+      }
+      const { data: ctR, error: eC } = await supabase
+        .from("paie_contrats")
+        .select("id, tenant_id, societe_id, date_debut")
+        .eq("id", contratId)
+        .maybeSingle();
+      if (eC) return NextResponse.json({ erreur: eC.message }, { status: 500 });
+      if (!ctR) return NextResponse.json({ erreur: "contrat introuvable" }, { status: 404 });
+      const entree = String((ctR as any).date_debut || "").slice(0, 7);
+      if (entree && mois < entree) {
+        return NextResponse.json({ erreur: "ce mois est antérieur à l'entrée du salarié ("
+          + String((ctR as any).date_debut).slice(0, 10).split("-").reverse().join("/") + ")." }, { status: 400 });
+      }
+      const { data: emisR } = await supabase
+        .from("paie_bulletins")
+        .select("numero")
+        .eq("contrat_id", contratId)
+        .eq("periode", periodeR)
+        .eq("statut", "emis")
+        .limit(1);
+      if (emisR && emisR.length > 0) {
+        return NextResponse.json({ erreur: "un bulletin émis ici existe déjà pour ce mois (n° "
+          + String((emisR[0] as any).numero) + ") : c'est lui qui fait foi, le mois ne se reprend pas." }, { status: 409 });
+      }
+
+      const brutR = nombreFr(c.brut);
+      if (brutR === null || brutR <= 0 || brutR > 1000000) {
+        return NextResponse.json({ erreur: "salaire brut illisible : indiquez le brut soumis à cotisations du mois, "
+          + "tel qu'il figure sur le bulletin de l'autre logiciel." }, { status: 400 });
+      }
+      const vide = function (v: any): boolean { return v === undefined || v === null || String(v).trim() === ""; };
+      const smicR = vide(c.smic_reference) ? null : nombreFr(c.smic_reference);
+      if (!vide(c.smic_reference) && (smicR === null || smicR < 0 || smicR > 20000)) {
+        return NextResponse.json({ erreur: "SMIC retenu illisible : c'est le montant du SMIC qui a servi au calcul "
+          + "de la réduction générale ce mois-là ; laissez vide s'il n'est pas connu." }, { status: 400 });
+      }
+      const rgduR = vide(c.rgdu) ? 0 : nombreFr(c.rgdu);
+      if (rgduR === null || Math.abs(rgduR) > brutR) {
+        return NextResponse.json({ erreur: "réduction générale illisible : indiquez le montant déduit des "
+          + "cotisations patronales ce mois-là (0 s'il n'y en a pas eu)." }, { status: 400 });
+      }
+      const hsR = vide(c.hs_exonere_ir) ? 0 : nombreFr(c.hs_exonere_ir);
+      if (hsR === null || hsR < 0 || hsR > brutR) {
+        return NextResponse.json({ erreur: "montant des heures supplémentaires exonérées d'impôt illisible "
+          + "(laissez vide s'il n'y en a pas eu)." }, { status: 400 });
+      }
+
+      const { error: eU } = await supabase
+        .from("paie_reprises")
+        .upsert({
+          tenant_id: (ctR as any).tenant_id,
+          societe_id: (ctR as any).societe_id,
+          contrat_id: contratId,
+          periode: periodeR,
+          brut: Math.round(brutR * 100) / 100,
+          smic_reference: smicR === null ? null : Math.round(smicR * 100) / 100,
+          rgdu: Math.round(rgduR * 100) / 100,
+          hs_exonere_ir: Math.round(hsR * 100) / 100,
+          saisi_par: ctx.email,
+          maj_le: new Date().toISOString(),
+        }, { onConflict: "contrat_id,periode" });
+      if (eU) return NextResponse.json({ erreur: "le mois repris n'a pas pu être enregistré : " + eU.message }, { status: 500 });
+      return NextResponse.json({ success: true,
+        message: "Mois repris enregistré : " + mois.slice(5, 7) + "/" + mois.slice(0, 4) + ", brut "
+          + fr2(Math.round(brutR * 100) / 100) + " €. Il compte dans les prochains calculs ; un bulletin déjà émis ne change pas." });
+    }
+
+    if (action === "reprise_supprimer") {
+      const contratId = propre(c.contrat_id);
+      const id = propre(c.id);
+      if (!contratId || !id) return NextResponse.json({ erreur: "mois repris manquant" }, { status: 400 });
+      const { error: eD } = await supabase
+        .from("paie_reprises").delete().eq("id", id).eq("contrat_id", contratId);
+      if (eD) return NextResponse.json({ erreur: eD.message }, { status: 500 });
+      return NextResponse.json({ success: true, message: "Mois repris retiré." });
+    }
+
+    if (action === "reprise_conges") {
+      const contratId = propre(c.contrat_id);
+      if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+      const mois = String(propre(c.periode) || "").slice(0, 7);
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mois)) {
+        return NextResponse.json({ erreur: "indiquez le dernier mois payé dans l'autre logiciel." }, { status: 400 });
+      }
+      const joursR = nombreFr(c.jours);
+      if (joursR === null || joursR < 0 || joursR > 90) {
+        return NextResponse.json({ erreur: "solde de congés illisible : indiquez le nombre de jours ouvrables "
+          + "restant à prendre à la fin de ce mois (0 pour effacer)." }, { status: 400 });
+      }
+      const { data: ctG, error: eC } = await supabase
+        .from("paie_contrats")
+        .select("id, tenant_id, societe_id")
+        .eq("id", contratId)
+        .maybeSingle();
+      if (eC) return NextResponse.json({ erreur: eC.message }, { status: 500 });
+      if (!ctG) return NextResponse.json({ erreur: "contrat introuvable" }, { status: 404 });
+      const periodeG = mois + "-01";
+      const { data: emisG } = await supabase
+        .from("paie_bulletins").select("numero")
+        .eq("contrat_id", contratId).eq("periode", periodeG).eq("statut", "emis").limit(1);
+      if (emisG && emisG.length > 0) {
+        return NextResponse.json({ erreur: "un bulletin émis ici existe pour ce mois : indiquez le dernier mois "
+          + "payé dans l'AUTRE logiciel." }, { status: 409 });
+      }
+
+      // On remplace le solde repris precedent : il n y en a qu un.
+      const { error: eDel } = await supabase
+        .from("paie_conges").delete()
+        .eq("contrat_id", contratId)
+        .like("notes", "Reprise d un autre logiciel%");
+      if (eDel) return NextResponse.json({ erreur: eDel.message }, { status: 500 });
+      if (joursR === 0) {
+        return NextResponse.json({ success: true, message: "Solde de congés repris effacé." });
+      }
+      // 🚨 LA PERIODE DE REFERENCE EST CELLE DU MOIS QUI SUIT (le premier mois
+      // paye ici) : le solde repris s ajoute aux droits de la periode ouverte.
+      const suivant = new Date(periodeG + "T00:00:00Z");
+      suivant.setUTCMonth(suivant.getUTCMonth() + 1);
+      const anS = suivant.getUTCFullYear();
+      const moS = suivant.getUTCMonth() + 1;
+      const debutRefG = (moS >= 6 ? anS : anS - 1) + "-06-01";
+      const { error: eIns } = await supabase.from("paie_conges").insert({
+        tenant_id: (ctG as any).tenant_id,
+        societe_id: (ctG as any).societe_id,
+        contrat_id: contratId,
+        periode_ref: debutRefG,
+        unite: "ouvrables",
+        periode: periodeG,
+        type_mouvement: "acquisition",
+        jours: Math.round(joursR * 100) / 100,
+        notes: "Reprise d un autre logiciel : solde de conges a la fin de "
+          + mois.slice(5, 7) + "/" + mois.slice(0, 4) + " (saisi par " + ctx.email + ")",
+      });
+      if (eIns) return NextResponse.json({ erreur: "le solde repris n'a pas pu être enregistré : " + eIns.message }, { status: 500 });
+      return NextResponse.json({ success: true,
+        message: "Solde de congés repris : " + fr2(Math.round(joursR * 100) / 100) + " jours ouvrables à la fin de "
+          + mois.slice(5, 7) + "/" + mois.slice(0, 4) + "." });
+    }
+
     if (action === "taux_pas") {
       const contratId = propre(c.contrat_id);
       if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
@@ -1818,6 +2005,22 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
 
       let brutRef = 0;
       for (const b of (bulletinsRef || [])) brutRef += Number((b as any).brut || 0);
+      // 🆕 06/10 — ET LES MOIS REPRIS D UN AUTRE LOGICIEL de la periode de
+      // reference, sauf ceux qui ont un bulletin emis ici (il prime).
+      {
+        const { data: reprisRef, error: eRep } = await supabase
+          .from("paie_reprises")
+          .select("periode, brut")
+          .eq("contrat_id", contratId)
+          .gte("periode", debutRef);
+        if (!eRep) {
+          const moisEmis: Record<string, boolean> = {};
+          for (const b of (bulletinsRef || [])) moisEmis[String((b as any).periode).slice(0, 7)] = true;
+          for (const r0 of (reprisRef || [])) {
+            if (!moisEmis[String((r0 as any).periode).slice(0, 7)]) brutRef += Number((r0 as any).brut || 0);
+          }
+        }
+      }
       const dixieme = (brutRef / 10) * (jours / DROITS_ANNUELS);
 
       // ═══════════════════════════════════════════════════════════════
@@ -1859,7 +2062,7 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
           const { data: params } = await supabase
             .from("paie_parametres")
             .select("code, valeur, date_effet, date_fin")
-            .in("code", ["AVANTAGE_REPAS", "AVANTAGE_REPAS_NEGLIGEABLE"])
+            .in("code", ["AVANTAGE_REPAS", "AVANTAGE_REPAS_NEGLIGEABLE", "MINIMUM_GARANTI"])
             .lte("date_effet", dateP)
             .order("date_effet", { ascending: false });
           const lire = function (code: string): number | null {
@@ -1871,7 +2074,24 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
             }
             return null;
           };
-          const forfait = lire("AVANTAGE_REPAS");
+          // 🆕 06/10 — DANS LES HOTELS, CAFES, RESTAURANTS le repas se compte
+          // au minimum garanti (regle `avantage_repas_minimum_garanti` de la
+          // convention), comme au bulletin.
+          let repasAuMg = false;
+          {
+            const { data: ctIdcc } = await supabase.from("paie_contrats").select("idcc").eq("id", contratId).maybeSingle();
+            const idccCt = Number(ctIdcc && (ctIdcc as any).idcc) || 0;
+            if (idccCt > 0) {
+              const { data: rg } = await supabase.from("paie_conventions_regles")
+                .select("valeur_num, date_effet, date_fin").eq("idcc", idccCt)
+                .eq("regle", "avantage_repas_minimum_garanti").lte("date_effet", dateP);
+              repasAuMg = ((rg || []) as any[]).some(function (x) {
+                const fin = x.date_fin ? String(x.date_fin).slice(0, 10) : "";
+                return Number(x.valeur_num) === 1 && !(fin && fin < dateP);
+              });
+            }
+          }
+          const forfait = repasAuMg ? lire("MINIMUM_GARANTI") : lire("AVANTAGE_REPAS");
           const pctNeglige = lire("AVANTAGE_REPAS_NEGLIGEABLE") || 0;
           const part = Number(el.taux || 0);
           if (forfait === null || !(forfait > 0)) {
@@ -2932,6 +3152,11 @@ const REGLES: Record<string, Regle> = {
   modifier_contrat: { droit: "paie_contrats", cible: "contrat", ecrit: true },
   repartition: { droit: "paie_contrats", cible: "contrat", ecrit: true },
   taux_pas: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  // ---- 06/10 : la reprise d un autre logiciel ----
+  reprise: { droit: null, cible: "contrat", ecrit: false },
+  reprise_enregistrer: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  reprise_supprimer: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  reprise_conges: { droit: "paie_contrats", cible: "contrat", ecrit: true },
   elements: { droit: null, cible: "contrat", ecrit: false },
   ajouter_element: { droit: "paie_preparer", cible: "contrat", ecrit: true },
   supprimer_element: { droit: "paie_preparer", cible: "element", ecrit: true },
@@ -2951,6 +3176,10 @@ const REGLES: Record<string, Regle> = {
   calculer: { droit: null, cible: "contrat", ecrit: false },
   sortir_bulletin: { droit: "paie_preparer", cible: "contrat", ecrit: true },
   signalement: { droit: "paie_preparer", cible: "evenement:evenement_id", ecrit: true },
+  // ---- 06/10 : la declaration prealable a l embauche ----
+  embauche_etat: { droit: null, cible: "contrat", ecrit: false },
+  embauche: { droit: "paie_contrats", cible: "contrat", ecrit: true },
+  embauche_deposee: { droit: "dsn_deposer", cible: "contrat", ecrit: true },
   fin_contrat: { droit: "paie_emettre", cible: "contrat", ecrit: true },
   // ---- 28/09 : la validation ----
   tableau_mois: { droit: null, cible: "societe", ecrit: false },
@@ -2975,6 +3204,7 @@ const PERIMANTS = [
   "ajouter_element", "supprimer_element", "poser_conges", "supprimer_conges",
   "ajouter_evenement", "supprimer_evenement", "arret_ald",
   "repartition", "taux_pas", "modifier_contrat",
+  "reprise_enregistrer", "reprise_supprimer", "reprise_conges",
 ];
 
 async function contratDe(spec: string, c: any): Promise<string | null> {
@@ -3747,6 +3977,56 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
       body: JSON.stringify({ cle: process.env.CRON_SECRET || "", evenement_id: c.evenement_id, reprise: c.reprise === true }),
     });
     return reponseDuRelais(r);
+  }
+
+  // ---- 🆕 06/10 : LA DECLARATION PREALABLE A L EMBAUCHE ----
+  // `embauche_etat` relit ce qui a deja ete genere pour ce contrat ;
+  // `embauche` genere le fichier (relais vers /api/dsn/embauche) ;
+  // `embauche_deposee` note que le fichier a ete depose a la main.
+  if (action === "embauche_etat") {
+    const contratId = String(c.contrat_id || "").trim();
+    if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+    const { data: e, error: eE } = await supabase
+      .from("paie_embauches")
+      .select("id, date_embauche, heure, essai_jours, numero_ordre, nom_fichier, nb_lignes, anomalies, statut, genere_par, deposee_le, maj_le, fichier")
+      .eq("contrat_id", contratId)
+      .maybeSingle();
+    if (eE) {
+      return NextResponse.json({ success: true, embauche: null,
+        indisponible: "La déclaration d'embauche n'est pas encore installée en base (" + eE.message + ")." });
+    }
+    return NextResponse.json({ success: true, embauche: e || null });
+  }
+  if (action === "embauche") {
+    const r = await relais(ctx, "/api/dsn/embauche", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cle: process.env.CRON_SECRET || "", contrat_id: c.contrat_id,
+        heure: c.heure, essai_jours: c.essai_jours, par: ctx.email,
+      }),
+    });
+    return reponseDuRelais(r);
+  }
+  if (action === "embauche_deposee") {
+    const contratId = String(c.contrat_id || "").trim();
+    if (!contratId) return NextResponse.json({ erreur: "contrat manquant" }, { status: 400 });
+    const { data: e } = await supabase.from("paie_embauches")
+      .select("id, anomalies, statut").eq("contrat_id", contratId).maybeSingle();
+    if (!e) return NextResponse.json({ erreur: "aucune déclaration d'embauche générée pour ce contrat." }, { status: 400 });
+    const nbAno = Array.isArray((e as any).anomalies) ? (e as any).anomalies.length : 0;
+    if (nbAno > 0) {
+      return NextResponse.json({ erreur: "le fichier porte " + nbAno + " anomalie(s) : corrigez-les et "
+        + "régénérez la déclaration avant de la noter déposée." }, { status: 409 });
+    }
+    const annuler = c.annuler === true;
+    const { error: eU } = await supabase.from("paie_embauches").update({
+      statut: annuler ? "genere" : "deposee",
+      deposee_le: annuler ? null : new Date().toISOString(),
+      maj_le: new Date().toISOString(),
+    }).eq("id", (e as any).id);
+    if (eU) return NextResponse.json({ erreur: eU.message }, { status: 500 });
+    return NextResponse.json({ success: true,
+      message: annuler ? "La déclaration n'est plus notée déposée." : "Déclaration d'embauche notée déposée." });
   }
 
   // ---- LES DOCUMENTS DE FIN DE CONTRAT (relais) ----
