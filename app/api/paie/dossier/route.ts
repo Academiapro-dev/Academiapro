@@ -464,6 +464,23 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
         }
       }
 
+      // 🆕🚨 06/10 — LE MOTIF D UN CDD. Il ne se saisissait nulle part (seul
+      // l interim le demandait), alors que la DSN le declare (S21.G00.40.021)
+      // et qu un CDD sans motif est requalifiable. Il se choisit en code,
+      // dans la liste du cahier technique. Un contrat d usage (05) ou
+      // saisonnier (03) n ouvre pas de prime de precarite.
+      const MOTIFS_CDD = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"];
+      if (type === "cdd" && MOTIFS_CDD.indexOf(String(propre(c.motif_recours) || "")) < 0) {
+        return NextResponse.json({
+          erreur: "le motif du contrat à durée déterminée est obligatoire : remplacement d'un salarié, "
+            + "accroissement temporaire d'activité, emploi saisonnier, contrat d'usage… Sans motif, le contrat "
+            + "est requalifiable en contrat à durée indéterminée, et la DSN le réclame.",
+        }, { status: 400 });
+      }
+      const motifCdd = type === "cdd" ? String(propre(c.motif_recours)) : "";
+      const sansPrecarite = motifCdd === "05" ? "Contrat d'usage (extra)"
+        : (motifCdd === "03" || motifCdd === "04") ? "Emploi à caractère saisonnier" : "";
+
       const { data: ctr, error: eCtr } = await supabase
         .from("paie_contrats")
         .insert({
@@ -510,7 +527,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
             ? Math.round(nombreFr(c.forfait_jours_annuel) || 0) || null : null,
           poste_chez_eu: propre(c.poste_chez_eu),
           ifm_due: (type === "mandat_social" || type === "stage" || type === "professionnalisation"
-            || c.ifm_due === false) ? false : true,
+            || c.ifm_due === false || sansPrecarite) ? false : true,
+          ...(sansPrecarite ? { ifm_motif_non_due: sansPrecarite } : {}),
           // 🆕 28/09 — titulaire d un bac professionnel ou plus (minimum legal
           // du contrat de professionnalisation). Ecrit SEULEMENT pour ce
           // type : la colonne n existe qu apres le SQL du 28/09.
@@ -622,6 +640,16 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       // non due — contrat d usage (les « extras » des hotels, cafes,
       // restaurants), emploi saisonnier, autre cas de la loi (article
       // L1243-10). Elle ne se reglait qu a la creation, par la base.
+      // 🆕 06/10 — le motif d un CDD (code a deux chiffres).
+      if (donne("motif_recours") && typeCt === "cdd") {
+        const mr = propre(c.motif_recours);
+        const actuel = String((ct as any).motif_recours || "");
+        if (mr !== null && mr !== actuel) {
+          if (["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"].indexOf(mr) < 0) {
+            refus.push("motif du contrat à durée déterminée inconnu : « " + mr + " ».");
+          } else maj.motif_recours = mr;
+        }
+      }
       if (donne("precarite") && typeCt === "cdd") {
         const pr = propre(c.precarite) || "due";
         const motifs: any = {
@@ -1303,7 +1331,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
       // 🆕 06/10 — et trois elements des hotels, cafes, restaurants, que le
       // moteur valorise lui-meme (minimum garanti, journee de salaire).
       const SANS_CALCUL_AUTO = ["titres_restaurant", "avantage_repas",
-        "avantage_logement", "indemnite_nourriture", "jour_ferie_garanti", "heures_nuit"];
+        "avantage_logement", "indemnite_nourriture", "jour_ferie_garanti", "heures_nuit",
+        "repos_nuit_pris"];
 
       let montant = nombreFr(c.montant) || 0;
       const q = nombreFr(c.quantite);
@@ -2579,6 +2608,30 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
         }
       }
 
+      // ═══════════════════════════════════════════════════════════════
+      // 🆕🚨 06/10 — LE DEPOT PAR LE LOGICIEL (`par_reseau`)
+      // Le fichier part sur net-entreprises avec les acces de la societe, par
+      // la meme route que la DSN du mois. S il est refuse, rien n est note.
+      // S il s agit d un ESSAI, il est controle mais ne declare rien : le
+      // signalement n est PAS note depose et son numero n avance pas.
+      // ⛔ AUCUN DEPOT N A ENCORE EU LIEU DEPUIS LE LOGICIEL : a eprouver
+      // avec les acces d un vrai client.
+      // ═══════════════════════════════════════════════════════════════
+      let messageReseau = "";
+      if (c.par_reseau === true) {
+        const rr = await relais(ctx, "/api/dsn/deposer?action=deposer&v=" + Date.now()
+          + "&evenement=" + encodeURIComponent(idEv)
+          + "&nature=" + (estReprise ? "05" : String((ev as any).type_evenement) === "fin_contrat" ? "07" : "04")
+          + (c.confirmer_reel === true ? "&confirmer=reel" : "") + "&secret=" + cleEncodee(), { method: "GET" });
+        if (rr.status >= 400 || !rr.json || rr.json.success !== true) return reponseDuRelais(rr);
+        if (rr.json.reel !== true) {
+          return NextResponse.json({ success: true, essai: true,
+            message: String(rr.json.message || "Fichier d'essai déposé.")
+              + " Le signalement n'est pas noté déposé : un essai ne déclare rien." });
+        }
+        messageReseau = String(rr.json.message || "Signalement déposé.") + " ";
+      }
+
       const champ = estReprise ? "numero_ordre_reprise" : "numero_ordre";
       const avant = Number((ev as any)[champ]) || 0;
       const maj: any = { statut: "depose" };
@@ -2602,8 +2655,8 @@ async function traiter(req: NextRequest, c: any, action: string, ctx: Ctx): Prom
 
       return NextResponse.json({
         success: true,
-        message: (estReprise ? "Reprise" : "Signalement")
-          + " marqué déposé (envoi n° " + (avant + 1) + "). "
+        message: messageReseau + (estReprise ? "Reprise" : "Signalement")
+          + (messageReseau ? " noté déposé" : " marqué déposé") + " (envoi n° " + (avant + 1) + "). "
           + "⚠️ Le prochain fichier de ce type sera un « annule et remplace » "
           + "portant le n° " + (avant + 2) + ".",
       });
