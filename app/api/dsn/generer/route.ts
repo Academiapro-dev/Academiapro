@@ -2260,7 +2260,10 @@ export async function POST(req: NextRequest) {
     // suit. Nous l avons paye trois fois aujourd hui.
     // ⚠️ LE MOTIF DE RECOURS EST UN CODE (40.021), pas un libelle.
     if (q(ct.type_contrat) === "mission" || q(ct.type_contrat) === "cdd") {
-      const codeMotif = await code("S21.G00.40.021", q(ct.motif_recours), periode);
+      // 🆕 06/10 — le motif d un CDD se saisit desormais a l ecran, en CODE
+      // (deux chiffres, liste du cahier technique) : il s ecrit tel quel.
+      const codeMotif = /^\d{2}$/.test(q(ct.motif_recours)) ? q(ct.motif_recours)
+        : await code("S21.G00.40.021", q(ct.motif_recours), periode);
       if (codeMotif) ecrire("S21.G00.40.021", codeMotif);
       else {
         anomalies.push(qui + " : motif de recours « " + q(ct.motif_recours)
@@ -4342,14 +4345,25 @@ export async function POST(req: NextRequest) {
   // les stagiaires et, dans une entreprise de moins de 11 salaries, les
   // apprentis. ⚠️ Si la paie de l annee precedente n a ete ni tenue ni
   // reprise ici en entier, la masse est INCOMPLETE : une reserve le dit.
-  // ⚠️ NON GERE : les deductions du solde (subventions en nature aux CFA,
-  // creances d alternants — CTP 996 et 997).
+  //   3. 🆕 06/10 — LES DEDUCTIONS DU SOLDE (table `paie_ta_deductions`,
+  //      saisies a l ecran DSN, une ligne par societe et par annee) :
+  //        · subventions en NATURE aux CFA — code « 077 », CTP 996 ;
+  //        · creances « alternants » (250 salaries et plus) — code « 078 »,
+  //          CTP 997.
+  //      Au bloc 82 : le montant en NEGATIF, memes dates que le solde. Au
+  //      bordereau : format « F », qualifiant 921, le montant SANS signe
+  //      (table d equivalence de l URSSAF). Elles ne peuvent pas depasser
+  //      le solde : au-dela, elles sont ECRETEES et une anomalie le dit.
+  //      ⚠️ Le signe negatif au bloc 82 suit la regle des deductions de la
+  //      taxe (code 075) : il n a jamais ete eprouve dans dsn-val.
   // ⛔ CE BLOC N EST JAMAIS PASSE DANS dsn-val.
   // ═══════════════════════════════════════════════════════════════════
   const C82: string[] = [];
   const notesTa: string[] = [];
   let soldeTa = 0;
   let masseSoldeTa = 0;
+  let deducCfaTa = 0;
+  let deducAltTa = 0;
   {
     const ecrire82 = function (ref: string, valeur: any) {
       const v = latin(valeur);
@@ -4476,14 +4490,58 @@ export async function POST(req: NextRequest) {
           ecrire82("S21.G00.82.003", "0101" + anPrec);
           ecrire82("S21.G00.82.004", "3112" + anPrec);
           duUrssaf += soldeTa;
+          // 🆕 06/10 — LES DEDUCTIONS DU SOLDE (table tolerante : elle peut manquer).
+          {
+            const { data: ded, error: eDed } = await supabase.from("paie_ta_deductions")
+              .select("cfa, alternants").eq("societe_id", societeId).eq("annee", Number(anPrec)).limit(1);
+            const d0 = !eDed ? ((ded || []) as any[])[0] : null;
+            let cfa = d0 ? Math.max(0, Math.round(Number(d0.cfa || 0) * 100) / 100) : 0;
+            let alt = d0 ? Math.max(0, Math.round(Number(d0.alternants || 0) * 100) / 100) : 0;
+            if (alt > 0 && effectifTa < 250) {
+              anomalies.push("Solde de la taxe d'apprentissage : une créance « alternants » de " + montantDsn(alt)
+                + " EUR est saisie, mais elle est réservée aux entreprises de 250 salariés et plus (effectif de la "
+                + "fiche : " + effectifTa + "). ⛔ ELLE N'EST PAS DÉDUITE : corriger l'effectif ou retirer la créance.");
+              alt = 0;
+            }
+            if (cfa + alt > soldeTa + 0.001) {
+              anomalies.push("Solde de la taxe d'apprentissage : les déductions saisies (" + montantDsn(cfa + alt)
+                + " EUR) dépassent le solde (" + montantDsn(soldeTa) + " EUR). Elles sont ÉCRÊTÉES au montant du solde : "
+                + "les subventions aux CFA d'abord, la créance « alternants » ensuite. Vérifier la saisie.");
+              cfa = Math.min(cfa, soldeTa);
+              alt = Math.min(alt, Math.round((soldeTa - cfa) * 100) / 100);
+            }
+            if (cfa > 0) {
+              ecrire82("S21.G00.82.001", "-" + montantDsn(cfa));
+              ecrire82("S21.G00.82.002", "077");
+              ecrire82("S21.G00.82.003", "0101" + anPrec);
+              ecrire82("S21.G00.82.004", "3112" + anPrec);
+            }
+            if (alt > 0) {
+              ecrire82("S21.G00.82.001", "-" + montantDsn(alt));
+              ecrire82("S21.G00.82.002", "078");
+              ecrire82("S21.G00.82.003", "0101" + anPrec);
+              ecrire82("S21.G00.82.004", "3112" + anPrec);
+            }
+            deducCfaTa = cfa; deducAltTa = alt;
+            duUrssaf -= (cfa + alt);
+            if (cfa + alt > 0) {
+              notesTa.push("Déductions du solde de la taxe d'apprentissage : "
+                + (cfa > 0 ? montantDsn(cfa) + " EUR de subventions en nature aux CFA (code 077, CTP 996)" : "")
+                + (cfa > 0 && alt > 0 ? " et " : "")
+                + (alt > 0 ? montantDsn(alt) + " EUR de créance « alternants » (code 078, CTP 997)" : "")
+                + ". Reste dû : " + montantDsn(Math.round((soldeTa - cfa - alt) * 100) / 100) + " EUR. "
+                + "⚠️ L'employeur garde les justificatifs (reçus des CFA). ⛔ Ces blocs ne sont jamais passés dans dsn-val.");
+            }
+          }
           notesTa.push("Solde de la taxe d'apprentissage déclaré : " + montantDsn(soldeTa) + " EUR, soit "
             + String(tauxSolde).replace(".", ",") + " % de la masse salariale de " + anPrec + " ("
             + montantDsn(masse) + " EUR, " + nbMois + " mois de paie connus ici). "
             + (nbMois < 12 ? "🚨 MOINS DE DOUZE MOIS sont connus : si la société a payé des salaires les "
               + "autres mois, la masse est incomplète — les saisir dans « Reprise d'un autre logiciel » "
               + "puis régénérer. " : "")
-            + "⚠️ Les déductions du solde (subventions en nature aux CFA, créances d'alternants) ne sont "
-            + "pas gérées. ⛔ Ce bloc et la ligne 995 du bordereau ne sont jamais passés dans dsn-val.");
+            + "Les déductions du solde (subventions en nature aux CFA, créance « alternants ») se saisissent "
+            + "à l'écran DSN, bloc « Recouvrement URSSAF ». ⛔ Ce bloc et la ligne 995 du bordereau ne sont "
+            + "jamais passés dans dsn-val.");
         }
       }
     }
@@ -4831,6 +4889,15 @@ export async function POST(req: NextRequest) {
       if (soldeTa > 0) {
         await ligneBordereau({ ctp: "995", qualifiant: "920", assiette: masseSoldeTa,
           quoi: "solde de la taxe d'apprentissage" });
+      }
+      // 🆕 06/10 — SES DEDUCTIONS : format « F », le montant sans signe.
+      if (deducCfaTa > 0) {
+        await ligneBordereau({ ctp: "996", qualifiant: "921", montant: deducCfaTa,
+          quoi: "déduction du solde de la taxe d'apprentissage, subventions aux CFA" });
+      }
+      if (deducAltTa > 0) {
+        await ligneBordereau({ ctp: "997", qualifiant: "921", montant: deducAltTa,
+          quoi: "déduction du solde de la taxe d'apprentissage, créance alternants" });
       }
 
       // 🆕🚨 06/10 — LES CONTRIBUTIONS CONVENTIONNELLES (CTP 844 et 845) :
