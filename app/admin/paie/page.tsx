@@ -2942,6 +2942,16 @@ export default function PagePaie() {
                     {calcul.prelevement_mention ? " — " + calcul.prelevement_mention : ""}</span>
                   <span>{euros(calcul.prelevement_source || 0)} €</span>
                 </div>
+                {/* 🆕 06/10 — la base du prelevement, quand elle compte des
+                    indemnites journalieres reversees par l employeur. */}
+                {Number(calcul.ijss_imposables || 0) > 0 && (
+                  <div style={{ fontSize: "12.5px", color: "rgba(255,255,255,0.72)",
+                    paddingLeft: "12px" }}>
+                    Base du prélèvement : {euros(calcul.net_imposable)} €, dont{" "}
+                    {euros(calcul.ijss_imposables)} € d'indemnités journalières de
+                    Sécurité sociale (déclarées par la caisse).
+                  </div>
+                )}
                 <div style={{ display: "flex", justifyContent: "space-between",
                   fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
                   <span>Net à payer avant impôt</span>
@@ -2955,8 +2965,15 @@ export default function PagePaie() {
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between",
                   fontSize: "13.5px", color: "rgba(255,255,255,0.72)" }}>
+                  {/* 🆕 06/10 — decision de Jacques : le net imposable affiche
+                      est celui que l employeur declare (DSN, rubrique
+                      S21.G00.50.002), SANS les indemnites journalieres de
+                      Securite sociale, que la caisse declare elle-meme. Le
+                      calcul ne change pas : `net_imposable` reste l assiette
+                      du prelevement. */}
                   <span>Net imposable</span>
-                  <span>{euros(calcul.net_imposable)} €</span>
+                  <span>{euros(Math.round((Number(calcul.net_imposable || 0)
+                    - Math.max(0, Number(calcul.ijss_imposables || 0))) * 100) / 100)} €</span>
                 </div>
 
                 {/* ---- CE QUE PAIE L EMPLOYEUR, A PART ---- */}
