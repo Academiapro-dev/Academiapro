@@ -1698,8 +1698,11 @@ async function calculer(contratId: string, periode: string,
         + "conventionnel s'il est supérieur au SMIC : contrôlé quand le contrat porte un coefficient." : "")
       + " Cotisations de droit commun, réduction générale comprise ; en CDD, pas d'indemnité de fin de contrat "
       + "(article L1243-10). L'exonération patronale propre aux demandeurs d'emploi de 45 ans et plus a été "
-      + "supprimée au 1er janvier 2019 : seule la réduction générale s'applique (urssaf.fr). ⛔ La DSN du contrat de professionnalisation n'est pas encore adaptée (dispositif de "
-      + "politique publique) : ne pas déposer de DSN réelle avant ce point.");
+      + "supprimée au 1er janvier 2019 : seule la réduction générale s'applique (urssaf.fr).");
+    // 🆕 06/10 — la reserve « la DSN n est pas encore adaptee » est retiree ici
+    // et sur l apprenti du secteur public, le stagiaire et le mandataire : ces
+    // cas sont declares depuis le 05/10 (fichier de 1 818 lignes sorti du
+    // generateur, valide sans anomalie par dsn-val 2026.1.0.17).
     pro.salaire_contrat = cts(payeP);
   }
 
@@ -4732,17 +4735,15 @@ async function calculer(contratId: string, periode: string,
         r.unshift("Apprenti du secteur public : retraite complémentaire à l'Ircantec (pas l'Agirc-Arrco) ; "
           + "part patronale d'assurances sociales, d'allocations familiales, de dialogue social et "
           + "d'Ircantec exonérée, prise en charge par l'État ; ni chômage, ni AGS, ni réduction "
-          + "générale (Ircantec, net-entreprises). ⛔ Sa DSN n'est pas encore adaptée (dispositif 81, "
-          + "CTP 803) : ne pas déposer de DSN réelle avant ce point.");
+          + "générale (Ircantec, net-entreprises).");
       }
       // 🆕 28/09 — LE STAGE, DIT EN TETE.
       if (estStage) {
         for (const n of notesMandat.slice().reverse()) r.unshift(n);
         r.unshift("Convention de stage : le stagiaire n'est pas salarié. Ni congés payés, ni heures "
           + "supplémentaires, ni maintien en maladie, ni mutuelle collective ; gratification exonérée "
-          + "d'impôt dans la limite du SMIC annuel (article 81 bis du CGI). ⛔ Sa DSN n'est pas encore "
-          + "adaptée (nature « convention de stage ») : ne pas déposer de DSN réelle pour ce stagiaire "
-          + "avant ce point. ⚠️ Le montant net social n'intègre pas la part en franchise (à vérifier).");
+          + "d'impôt dans la limite du SMIC annuel (article 81 bis du CGI). "
+          + "⚠️ Le montant net social n'intègre pas la part en franchise (à vérifier).");
       }
       // 🆕 28/09 — LE MANDAT SOCIAL, DIT EN TETE.
       if (estMandat) {
@@ -4755,9 +4756,7 @@ async function calculer(contratId: string, periode: string,
           + (String(contrat.categorie || "") !== "cadre"
             ? " ⚠️ La retraite complémentaire traite en principe le mandataire comme un cadre "
               + "(APEC, prévoyance cadre) : le contrat n'est pas en catégorie « cadre », à vérifier."
-            : "")
-          + " ⛔ Sa DSN n'est pas encore adaptée (nature de contrat « mandat social ») : ne pas "
-          + "déposer de DSN réelle pour ce dirigeant avant ce point.");
+            : ""));
       }
       // 🚨 LES DEUX TAUX PROPRES A LA SOCIETE, DITS FRANCHEMENT QUAND ILS
       // MANQUENT : leur absence n est pas visible sur le bulletin — la
