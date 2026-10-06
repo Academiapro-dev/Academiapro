@@ -4317,6 +4317,178 @@ export async function POST(req: NextRequest) {
   const debutMois = dateDsn(periode);
   const finMois = finDeMois(periode);
 
+  // ═══════════════════════════════════════════════════════════════════
+  // 🆕🚨 06/10 — LA TAXE D APPRENTISSAGE AU NIVEAU DE L ETABLISSEMENT
+  // (bloc S21.G00.82, « cotisation etablissement »)
+  //
+  // DEUX DECLARATIONS QUI MANQUAIENT, lues au cahier technique 2026.1, au
+  // tableau d equivalence de l URSSAF et dans la documentation d un editeur
+  // de paie (Sage, « La taxe d apprentissage ») :
+  //
+  //   1. L EXONERATION DU MOIS — code « 074 ». Un employeur d apprenti dont
+  //      la masse salariale ne depasse pas six fois le SMIC ne doit pas la
+  //      taxe : cela se DECLARE, chaque mois, par un bloc 82 de code 074 et
+  //      de valeur 0.00. ⛔ Depuis le 06/10 le bulletin ne comptait plus la
+  //      taxe dans ce cas, mais la DSN ne le disait pas.
+  //
+  //   2. LE SOLDE ANNUEL — code « 076 », CTP 995. Dans la DSN d AVRIL
+  //      (exigible le 5 ou le 15 mai) : 0,09 % de la masse salariale de
+  //      l annee precedente. Bloc 82 : le MONTANT, les dates du 1er janvier
+  //      au 31 decembre de l annee precedente. Bordereau : CTP 995,
+  //      qualifiant 920, l ASSIETTE. Il n est pas du en Alsace-Moselle.
+  //
+  // LA MASSE DE L ANNEE PRECEDENTE = les bruts des bulletins EMIS ici, plus
+  // les mois repris d un autre logiciel (`paie_reprises`). En sont exclus
+  // les stagiaires et, dans une entreprise de moins de 11 salaries, les
+  // apprentis. ⚠️ Si la paie de l annee precedente n a ete ni tenue ni
+  // reprise ici en entier, la masse est INCOMPLETE : une reserve le dit.
+  // ⚠️ NON GERE : les deductions du solde (subventions en nature aux CFA,
+  // creances d alternants — CTP 996 et 997).
+  // ⛔ CE BLOC N EST JAMAIS PASSE DANS dsn-val.
+  // ═══════════════════════════════════════════════════════════════════
+  const C82: string[] = [];
+  const notesTa: string[] = [];
+  let soldeTa = 0;
+  let masseSoldeTa = 0;
+  {
+    const ecrire82 = function (ref: string, valeur: any) {
+      const v = latin(valeur);
+      if (v !== "") C82.push(ref + ",'" + v + "'");
+    };
+    const lieuTa = q(societe.code_insee) || q(societe.code_postal);
+    const alsaceMoselleTa = /^(57|67|68)/.test(lieuTa);
+    const effectifTa = Number(societe.effectif || 0);
+
+    // La societe a-t-elle ete declaree « non redevable » (taux 0 a l ecran) ?
+    let nonRedevableTa = false;
+    {
+      const { data: tx } = await supabase.from("paie_taux_societe")
+        .select("taux, date_effet, date_fin").eq("societe_id", societeId)
+        .eq("code", "TAXE_APPRENTISSAGE").lte("date_effet", periode)
+        .order("date_effet", { ascending: false });
+      for (const t of ((tx || []) as any[])) {
+        const fin = t.date_fin ? String(t.date_fin).slice(0, 10) : "";
+        if (fin && fin < periode) continue;
+        nonRedevableTa = Number(t.taux) === 0;
+        break;
+      }
+    }
+
+    const lireSmic = async function (jour: string): Promise<number> {
+      const { data: ps } = await supabase.from("paie_parametres")
+        .select("valeur, date_effet, date_fin").eq("code", "SMIC_MENSUEL").lte("date_effet", jour)
+        .order("date_effet", { ascending: false });
+      for (const x of ((ps || []) as any[])) {
+        const fin = x.date_fin ? String(x.date_fin).slice(0, 10) : "";
+        if (fin && fin < jour) continue;
+        return Number(x.valeur) || 0;
+      }
+      return 0;
+    };
+
+    // ---- 1. L EXONERATION DU MOIS ----
+    {
+      let aApprenti = false;
+      let aLigneTa = false;
+      for (const b of bulletins) {
+        const ct: any = (b as any).paie_contrats || {};
+        if (q(ct.type_contrat).toLowerCase() === "apprentissage") aApprenti = true;
+        const lignes: any[] = ((b as any).detail && (b as any).detail.lignes_cotisations) || [];
+        for (const l of lignes) {
+          if (/^TAXE_APPRENTISSAGE/.test(q(l.code).toUpperCase()) && Number(l.part_patronale || 0) !== 0) aLigneTa = true;
+        }
+      }
+      const smicMois = await lireSmic(periode);
+      if (!nonRedevableTa && aApprenti && !aLigneTa && smicMois > 0 && totalBrut <= 6 * smicMois + 0.005) {
+        ecrire82("S21.G00.82.001", "0.00");
+        ecrire82("S21.G00.82.002", "074");
+        ecrire82("S21.G00.82.003", debutMois);
+        ecrire82("S21.G00.82.004", finMois);
+        notesTa.push("Taxe d'apprentissage : exonération du mois déclarée (employeur d'apprenti, masse "
+          + "salariale de " + montantDsn(totalBrut) + " EUR pour un seuil de " + montantDsn(6 * smicMois)
+          + " EUR — bloc « cotisation établissement », code 074, valeur 0.00). ⛔ Ce bloc n'est jamais "
+          + "passé dans dsn-val.");
+      }
+    }
+
+    // ---- 2. LE SOLDE ANNUEL, DANS LA DSN D AVRIL ----
+    if (periode.slice(5, 7) === "04") {
+      const anPrec = String(Number(periode.slice(0, 4)) - 1);
+      if (nonRedevableTa) {
+        notesTa.push("Solde de la taxe d'apprentissage : non déclaré, la société est marquée « non redevable ».");
+      } else if (alsaceMoselleTa) {
+        notesTa.push("Solde de la taxe d'apprentissage : il n'est pas dû dans le Bas-Rhin, le Haut-Rhin et la Moselle.");
+      } else {
+        const { data: prec } = await supabase.from("paie_bulletins")
+          .select("brut, periode, contrat_id, paie_contrats(type_contrat)")
+          .eq("societe_id", societeId).eq("statut", "emis")
+          .gte("periode", anPrec + "-01-01").lte("periode", anPrec + "-12-31").limit(10000);
+        let masse = 0;
+        let apprentiAnnee = false;
+        const moisVus: any = {};
+        for (const b of ((prec || []) as any[])) {
+          const typeB = q(b.paie_contrats && b.paie_contrats.type_contrat).toLowerCase();
+          moisVus[String(b.periode).slice(0, 7)] = true;
+          if (typeB === "apprentissage") apprentiAnnee = true;
+          if (typeB === "stage") continue;
+          if (typeB === "apprentissage" && effectifTa < 11) continue;
+          masse += Number(b.brut || 0);
+        }
+        // Les mois repris d un autre logiciel (table tolerante : elle peut manquer).
+        {
+          const { data: rep, error: eRep } = await supabase.from("paie_reprises")
+            .select("brut, periode").eq("societe_id", societeId)
+            .gte("periode", anPrec + "-01-01").lte("periode", anPrec + "-12-31").limit(10000);
+          if (!eRep) {
+            for (const r of ((rep || []) as any[])) {
+              moisVus[String(r.periode).slice(0, 7)] = true;
+              masse += Number(r.brut || 0);
+            }
+          }
+        }
+        masse = Math.round(masse * 100) / 100;
+        let smicAnnuel = 0;
+        for (let m = 1; m <= 12; m++) smicAnnuel += await lireSmic(anPrec + "-" + String(m).padStart(2, "0") + "-01");
+        const nbMois = Object.keys(moisVus).length;
+
+        if (masse <= 0) {
+          notesTa.push("🚨 Solde de la taxe d'apprentissage (DSN d'avril) : aucune paie de " + anPrec
+            + " n'est connue ici (ni bulletin émis, ni mois repris). Le solde — 0,09 % de la masse "
+            + "salariale de " + anPrec + " — N'EST PAS DÉCLARÉ : le calculer et le déclarer à part, ou "
+            + "saisir les mois de " + anPrec + " dans « Reprise d'un autre logiciel » puis régénérer.");
+        } else if (apprentiAnnee && smicAnnuel > 0 && masse <= 6 * smicAnnuel) {
+          notesTa.push("Solde de la taxe d'apprentissage : non dû — la société a employé un apprenti en "
+            + anPrec + " et sa masse salariale (" + montantDsn(masse) + " EUR) ne dépasse pas six fois le "
+            + "SMIC annuel (" + montantDsn(6 * smicAnnuel) + " EUR). Rien n'est déclaré à ce titre.");
+        } else {
+          let tauxSolde = 0.09;
+          {
+            const { data: pt } = await supabase.from("paie_parametres")
+              .select("valeur, date_effet").eq("code", "TA_SOLDE_TAUX").lte("date_effet", periode)
+              .order("date_effet", { ascending: false }).limit(1);
+            const v = ((pt || []) as any[])[0];
+            if (v && Number(v.valeur) > 0) tauxSolde = Number(v.valeur);
+          }
+          masseSoldeTa = masse;
+          soldeTa = Math.round(masse * tauxSolde) / 100;
+          ecrire82("S21.G00.82.001", montantDsn(soldeTa));
+          ecrire82("S21.G00.82.002", "076");
+          ecrire82("S21.G00.82.003", "0101" + anPrec);
+          ecrire82("S21.G00.82.004", "3112" + anPrec);
+          duUrssaf += soldeTa;
+          notesTa.push("Solde de la taxe d'apprentissage déclaré : " + montantDsn(soldeTa) + " EUR, soit "
+            + String(tauxSolde).replace(".", ",") + " % de la masse salariale de " + anPrec + " ("
+            + montantDsn(masse) + " EUR, " + nbMois + " mois de paie connus ici). "
+            + (nbMois < 12 ? "🚨 MOINS DE DOUZE MOIS sont connus : si la société a payé des salaires les "
+              + "autres mois, la masse est incomplète — les saisir dans « Reprise d'un autre logiciel » "
+              + "puis régénérer. " : "")
+            + "⚠️ Les déductions du solde (subventions en nature aux CFA, créances d'alternants) ne sont "
+            + "pas gérées. ⛔ Ce bloc et la ligne 995 du bordereau ne sont jamais passés dans dsn-val.");
+        }
+      }
+    }
+  }
+
   const B: string[] = [];
   const ecrireB = function (ref: string, valeur: any) {
     const v = latin(valeur);
@@ -4654,6 +4826,13 @@ export async function POST(req: NextRequest) {
           assiette: assiettesFormation[ctpF] || 0, quoi: quoiF });
       }
 
+      // 🆕🚨 06/10 — LE SOLDE DE LA TAXE D APPRENTISSAGE (DSN d avril) :
+      // CTP 995, l assiette — la masse salariale de l annee precedente.
+      if (soldeTa > 0) {
+        await ligneBordereau({ ctp: "995", qualifiant: "920", assiette: masseSoldeTa,
+          quoi: "solde de la taxe d'apprentissage" });
+      }
+
       // 🆕🚨 06/10 — LES CONTRIBUTIONS CONVENTIONNELLES (CTP 844 et 845) :
       // le taux de la branche et l assiette (format « V »).
       for (const ctpC of ["844", "845"]) {
@@ -4848,6 +5027,9 @@ export async function POST(req: NextRequest) {
       ecrireA("S21.G00.15.004", adh.couvert ? "01" : "02");
       ecrireA("S21.G00.15.005", String(adh.id));
     }
+    // 🆕 06/10 — le bloc 82 (cotisation etablissement) se place APRES les
+    // adhesions (15) et AVANT le versement (20) : on l insere donc d abord.
+    if (C82.length > 0) L.splice(posBordereau, 0, ...C82);
     if (A15.length > 0) L.splice(posBordereau, 0, ...A15);
 
     for (const cleG of Object.keys(garantiesIncompletes)) {
@@ -5120,6 +5302,7 @@ export async function POST(req: NextRequest) {
   if (regimeAgricole) {
     avantDepot.push("Régime agricole : ce fichier se dépose auprès de la MSA.");
   }
+  for (const n of notesTa) avantDepot.push(n);
 
   if (nbTauxPersonnalises === 0) {
     avantDepot.push("Prélèvement à la source : tous les salariés sont au taux "
