@@ -68,6 +68,9 @@ const GROUPES = [
       // que les bulletins EMIS.
       { nom: "Paie et bulletins", href: "/admin/paie" },
       { nom: "DSN — déclarations sociales", href: "/admin/dsn" },
+      // 🆕 06/10 — L EQUIPE DE PRODUCTION : les preparateurs du service de
+      // paie, les cabinets confies a chacun, la charge du mois.
+      { nom: "Équipe de production (service de paie)", href: "/admin/production" },
     ],
   },
   {
