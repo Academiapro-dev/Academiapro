@@ -86,15 +86,33 @@ const CHEMINS_MYSTERLLC = [
 // Elles portent DEJA leur propre en-tete. Tester le chemin ne suffit pas :
 // le middleware sert /comptable/tenue sous mrcomptable.fr/tenue, et le
 // chemin vu ici est alors « /tenue ». On teste donc le DOMAINE.
+//
+// 🆕 06/10 — /demonstration : la page de la video de demonstration
+// (app/comptable/demonstration). C est l adresse envoyee aux prospects
+// (https://mrcomptable.fr/demonstration) : sans cette ligne, la barre de
+// travail du cabinet s afficherait par-dessus son en-tete.
+//
+// 🆕 06/10 — QUATRE PAGES DE VITRINE MANQUAIENT ICI : /crm, /facturation,
+// /facturation-recurrente et /tresorerie. Le menu du site y mene par leur
+// chemin interne (/comptable/crm…), ou la barre s efface deja ; mais tapees
+// directement sous le domaine (mrcomptable.fr/crm), elles recevaient la barre
+// de travail par-dessus leur propre en-tete.
+//
+// ⚠️ TOUTE NOUVELLE PAGE DE VITRINE DOIT ETRE AJOUTEE ICI LE JOUR MEME.
 const PAGES_PUBLIQUES_COMPTABLE = [
   "/",
   "/inscription",
+  "/demonstration",
   "/facture-electronique",
   "/rapprochement-bancaire",
   "/lecture-des-pieces",
   "/tenue",
   "/declarations",
   "/relance-justificatifs",
+  "/crm",
+  "/facturation",
+  "/facturation-recurrente",
+  "/tresorerie",
   "/blog",
   "/contact",
   "/cgv",
