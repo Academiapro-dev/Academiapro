@@ -5179,8 +5179,9 @@ async function calculer(contratId: string, periode: string,
           + "dialogue social et à la formation. Le maintien de salaire en maladie suit la loi, plus favorable que le "
           + "texte de la convention. Se saisissent dans les éléments du mois : l'indemnité compensatrice de "
           + "nourriture, l'indemnité d'un jour férié garanti, les heures de nuit (repos compensateur). Un extra est un "
-          + "contrat à durée déterminée dont la prime de précarité est réglée « non due — contrat d'usage ». ⚠️ CE "
-          + "QU'IL N'APPLIQUE PAS : le compteur du repos de nuit, l'ancien minimum de 50 € des contributions de la branche, "
+          + "contrat à durée déterminée dont la prime de précarité est réglée « non due — contrat d'usage ». Le compteur "
+          + "du repos compensateur de nuit est tenu (heures acquises, prises, solde). ⚠️ CE "
+          + "QU'IL N'APPLIQUE PAS : l'ancien minimum de 50 € des contributions de la branche, "
           + "et la mutuelle et la prévoyance de la branche, qui se règlent sur le dossier de la société."
         : (idccR === 1486 || idccR === 2378 || idccR === 0)
           ? "Le salaire minimum conventionnel est contrôlé quand le contrat porte un coefficient. ⚠️ Les valeurs de point ne sont pas encore recoupées sur Légifrance, et une règle de branche — la prime de vacances — n'est pas appliquée au bulletin. ⚠️ ELLE EST UNE OBLIGATION D'ENTREPRISE : la calculer depuis le bloc « Prime de vacances ». Le maintien de salaire en maladie et les congés d'ancienneté, eux, sont appliqués."
