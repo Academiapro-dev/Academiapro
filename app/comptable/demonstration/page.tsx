@@ -26,7 +26,8 @@ const NOIR = "#050508";
 //
 // LES VIDEOS. Hebergees sur YouTube, en « non repertoriee ». Chaque constante
 // porte l IDENTIFIANT de la video (ce qui suit « youtu.be/ »), pas son adresse.
-//   VIDEO_PAIE          la paie et la DSN (en ligne le 06/10/2026)
+//   VIDEO_PAIE          la paie et la DSN (en ligne le 06/10/2026 ; remontee le
+//                       07/10/2026 : calcul, PDF et DSN refilmes, memes durees)
 //   VIDEO_COMPTABILITE  toute la comptabilite — VIDE tant qu elle n est pas
 //                       tournee : son bloc ne s affiche pas, et la page n en
 //                       dit rien (on ne parle que de ce qui existe).
@@ -42,7 +43,7 @@ const NOIR = "#050508";
 // « conforme », « agree », « certifie » ni « DSN deposee » : la video montre
 // une DSN GENEREE et CONTROLEE.
 // ═══════════════════════════════════════════════════════════════════════
-const VIDEO_PAIE: string = "CNdSXDYsEhY";
+const VIDEO_PAIE: string = "Lgp_VnH6oO0";
 const VIDEO_COMPTABILITE: string = "";
 
 // ═══════════════════════════════════════════════════════════════════════
