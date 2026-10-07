@@ -93,7 +93,7 @@ export default function PageLiasse2065() {
   const LIBELLE: any = { display: "block", color: "#c8a96e", fontSize: "13px", marginBottom: "5px" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   function Ligne({ c, valeur, onChange }: any) {
@@ -103,7 +103,7 @@ export default function PageLiasse2065() {
           <span style={{ fontFamily: "monospace", color: "#c8a96e" }}>{c.code}</span> {c.libelle}
           {c.propose > 0 ? (
             <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px" }}>
-              {" "}· lu en comptabilite : {euros(c.propose)}
+              {" "}· lu en comptabilité : {euros(c.propose)}
             </span>
           ) : null}
         </span>
@@ -126,11 +126,11 @@ export default function PageLiasse2065() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Liasse 2065 · impot sur les societes</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Liasse 2065 · impôt sur les sociétés</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Du resultat comptable au resultat fiscal, puis a l impot
+          Du résultat comptable au résultat fiscal, puis à l’impôt
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -146,14 +146,14 @@ export default function PageLiasse2065() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.7" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : (
           <>
             {!d.soumis_is && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.45)" }}>
                 <p style={{ color: "#e8a33d", fontSize: "14.5px", margin: 0, lineHeight: "1.8" }}>
-                  Ce dossier n est pas marque a l impot sur les societes. La 2065 ne s applique
-                  qu aux societes qui y sont soumises.
+                  Ce dossier n’est pas marqué à l’impôt sur les sociétés. La 2065 ne s’applique
+                  qu’aux sociétés qui y sont soumises.
                 </p>
               </div>
             )}
@@ -169,14 +169,14 @@ export default function PageLiasse2065() {
                 {euros(d.resultat_comptable)}
               </p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>
-                Resultat comptable · {euros(d.produits)} de produits, {euros(d.charges)} de charges
+                Résultat comptable · {euros(d.produits)} de produits, {euros(d.charges)} de charges
               </p>
             </div>
 
             <div style={CARTE}>
-              <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 4px" }}>Reintegrations</h2>
+              <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 4px" }}>Réintégrations</h2>
               <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 10px", lineHeight: "1.7" }}>
-                Ce qui a ete deduit en comptabilite mais ne l est pas fiscalement.
+                Ce qui a été déduit en comptabilité mais ne l’est pas fiscalement.
               </p>
               {d.reintegrations.map(function (c: any) {
                 return (
@@ -187,9 +187,9 @@ export default function PageLiasse2065() {
             </div>
 
             <div style={CARTE}>
-              <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 4px" }}>Deductions</h2>
+              <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 4px" }}>Déductions</h2>
               <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 10px", lineHeight: "1.7" }}>
-                Ce qui a ete impose en comptabilite mais ne l est pas fiscalement.
+                Ce qui a été imposé en comptabilité mais ne l’est pas fiscalement.
               </p>
               {d.deductions.map(function (c: any) {
                 return (
@@ -200,7 +200,7 @@ export default function PageLiasse2065() {
             </div>
 
             <div style={CARTE}>
-              <span style={LIBELLE}>Deficits anterieurs a imputer</span>
+              <span style={LIBELLE}>Déficits antérieurs à imputer</span>
               <input
                 value={deficit}
                 onChange={(e) => setDeficit(e.target.value)}
@@ -210,7 +210,7 @@ export default function PageLiasse2065() {
               />
               {d.deficit_anterieur_propose > 0 && (
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 12px" }}>
-                  Reports anterieurs lus en comptabilite : {euros(d.deficit_anterieur_propose)}
+                  Reports antérieurs lus en comptabilité : {euros(d.deficit_anterieur_propose)}
                 </p>
               )}
 
@@ -222,7 +222,7 @@ export default function PageLiasse2065() {
                   {tauxReduit ? "✓" : ""}
                 </span>
                 <span style={{ color: "rgba(255,255,255,0.82)", fontSize: "14.5px", lineHeight: "1.6" }}>
-                  La societe remplit les conditions du taux reduit de 15 %
+                  La société remplit les conditions du taux réduit de 15 %
                 </span>
               </div>
             </div>
@@ -232,7 +232,7 @@ export default function PageLiasse2065() {
               disabled={occupe}
               style={{ background: occupe ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "15px 30px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif", width: "100%", marginBottom: "16px" }}
             >
-              {occupe ? "Calcul..." : "Calculer l impot"}
+              {occupe ? "Calcul…" : "Calculer l'impôt"}
             </button>
 
             {calcul && (
@@ -245,14 +245,14 @@ export default function PageLiasse2065() {
                 </p>
 
                 {[
-                  ["Resultat comptable", calcul.calcul.resultat_comptable],
-                  ["Reintegrations", calcul.calcul.total_reintegrations],
-                  ["Deductions", -calcul.calcul.total_deductions],
-                  ["Resultat fiscal avant deficit", calcul.calcul.resultat_fiscal_avant_deficit],
-                  ["Deficit impute", -calcul.calcul.deficit_impute],
+                  ["Résultat comptable", calcul.calcul.resultat_comptable],
+                  ["Réintégrations", calcul.calcul.total_reintegrations],
+                  ["Déductions", -calcul.calcul.total_deductions],
+                  ["Résultat fiscal avant déficit", calcul.calcul.resultat_fiscal_avant_deficit],
+                  ["Déficit imputé", -calcul.calcul.deficit_impute],
                   ["Base imposable", calcul.calcul.base_imposable],
-                  ["IS a 15 %", calcul.calcul.is_15],
-                  ["IS a 25 %", calcul.calcul.is_25],
+                  ["IS à 15 %", calcul.calcul.is_15],
+                  ["IS à 25 %", calcul.calcul.is_25],
                 ].map(function (l: any, i: number) {
                   const fort = l[0] === "Base imposable";
                   return (
@@ -265,7 +265,7 @@ export default function PageLiasse2065() {
 
                 {calcul.calcul.deficit_reportable > 0 && (
                   <p style={{ color: "#e8a33d", fontSize: "14px", margin: "12px 0 0" }}>
-                    Deficit reportable sur les exercices suivants : {euros(calcul.calcul.deficit_reportable)}
+                    Déficit reportable sur les exercices suivants : {euros(calcul.calcul.deficit_reportable)}
                   </p>
                 )}
 
