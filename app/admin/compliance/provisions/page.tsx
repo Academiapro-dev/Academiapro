@@ -69,10 +69,10 @@ export default function PageProvisions() {
         setF({ ...f, tiers: "", reference: "", montant_base: "", motif: "" });
         await charger();
       } else {
-        setErreur(data.erreur || "Operation impossible.");
+        setErreur(data.erreur || "Opération impossible.");
       }
     } catch (e: any) {
-      setErreur("Operation impossible : " + String(e));
+      setErreur("Opération impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -84,7 +84,7 @@ export default function PageProvisions() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   const base = Number(String(f.montant_base || "").replace(",", ".")) || 0;
@@ -99,11 +99,11 @@ export default function PageProvisions() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Provisions et depreciations</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Provisions et dépréciations</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Ce qui est douteux ne doit pas rester compte a sa valeur nominale
+          Ce qui est douteux ne doit pas rester compté à sa valeur nominale
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -139,11 +139,11 @@ export default function PageProvisions() {
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <div style={{ flex: "1 1 220px" }}>
-                <span style={LIBELLE}>Tiers concerne</span>
+                <span style={LIBELLE}>Tiers concerné</span>
                 <input value={f.tiers} onChange={(e) => setF({ ...f, tiers: e.target.value })} placeholder="Dupont SARL" style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 150px" }}>
-                <span style={LIBELLE}>Reference</span>
+                <span style={LIBELLE}>Référence</span>
                 <input value={f.reference} onChange={(e) => setF({ ...f, reference: e.target.value })} placeholder="FA-2026-018" style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 160px" }}>
@@ -158,7 +158,7 @@ export default function PageProvisions() {
                 <input value={f.montant_base} onChange={(e) => setF({ ...f, montant_base: e.target.value })} placeholder="1500,00" style={CHAMP} />
               </div>
               <div style={{ flex: "1 1 140px" }}>
-                <span style={LIBELLE}>Taux de depreciation (%)</span>
+                <span style={LIBELLE}>Taux de dépréciation (%)</span>
                 <input value={f.taux_depreciation} onChange={(e) => setF({ ...f, taux_depreciation: e.target.value })} placeholder="100" style={CHAMP} />
               </div>
             </div>
@@ -170,25 +170,25 @@ export default function PageProvisions() {
             )}
 
             <span style={LIBELLE}>Motif</span>
-            <textarea value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })} rows={2} placeholder="Relances restees sans reponse depuis six mois" style={CHAMP} />
+            <textarea value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })} rows={2} placeholder="Relances restées sans réponse depuis six mois" style={CHAMP} />
 
             <button
               onClick={() => envoyer(f, "creation")}
               disabled={occupe !== "" || calcule <= 0}
               style={{ background: occupe !== "" || calcule <= 0 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "creation" ? "Constitution..." : "Constituer et passer l ecriture"}
+              {occupe === "creation" ? "Constitution…" : "Constituer et passer l’écriture"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-              Le montant de base se prend hors taxes : la TVA se recupere separement si la
-              creance devient irrecouvrable.
+              Le montant de base se prend hors taxes : la TVA se récupère séparément si la
+              créance devient irrécouvrable.
             </p>
           </div>
         )}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "16px" }}>
@@ -200,7 +200,7 @@ export default function PageProvisions() {
                 <p style={{ color: "#e8a33d", fontSize: "21px", fontWeight: "bold", margin: "0 0 4px" }}>
                   {euros(d.montant_en_cours)}
                 </p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Montant provisionne</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Montant provisionné</p>
               </div>
             </div>
 
@@ -247,7 +247,7 @@ export default function PageProvisions() {
                         <input
                           value={reprise[p.id] || ""}
                           onChange={(e) => setReprise({ ...reprise, [p.id]: e.target.value })}
-                          placeholder={"Montant a reprendre (defaut : " + p.montant_restant.toFixed(2) + ")"}
+                          placeholder={"Montant à reprendre (par défaut : " + euros(p.montant_restant) + ")"}
                           style={{ ...CHAMP, flex: "1 1 200px", marginBottom: 0 }}
                         />
                         <button
@@ -255,7 +255,7 @@ export default function PageProvisions() {
                           disabled={occupe !== ""}
                           style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold" }}
                         >
-                          {occupe === p.id ? "..." : "Reprendre"}
+                          {occupe === p.id ? "…" : "Reprendre"}
                         </button>
                       </div>
                     )}
