@@ -199,7 +199,7 @@ export default function PageRevision() {
   const PETIT: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "6px 14px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   const v = d ? (VERDICTS[d.verdict] || VERDICTS.a_surveiller) : null;
@@ -245,12 +245,12 @@ export default function PageRevision() {
                 {v.texte}
               </p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
-                {d.nb_lignes} écriture(s) sur {d.nb_comptes} compte(s) ·{" "}
+                {d.nb_lignes} {d.nb_lignes > 1 ? "écritures" : "écriture"} sur {d.nb_comptes} {d.nb_comptes > 1 ? "comptes" : "compte"} ·{" "}
                 {d.equilibre ? "balance équilibrée à " + euros(d.debit) : "BALANCE DÉSÉQUILIBRÉE"}
                 <br />
                 {d.total === 0
                   ? "Aucune anomalie relevée."
-                  : d.graves + " bloquante(s), " + d.moyennes + " à corriger, " + d.faibles + " à surveiller."}
+                  : d.graves + (d.graves > 1 ? " bloquantes, " : " bloquante, ") + d.moyennes + " à corriger, " + d.faibles + " à surveiller."}
                 {dr && (
                   <>
                     <br />
@@ -260,7 +260,7 @@ export default function PageRevision() {
                     </span>
                     {" · "}
                     <span style={{ color: dr.points_ouverts > 0 ? "#e8836a" : "#4caf50" }}>
-                      {dr.points_ouverts > 0 ? dr.points_ouverts + " point(s) en suspens, " + euros(dr.montant_ouvert) : "aucun point en suspens"}
+                      {dr.points_ouverts > 0 ? dr.points_ouverts + (dr.points_ouverts > 1 ? " points" : " point") + " en suspens, " + euros(dr.montant_ouvert) : "aucun point en suspens"}
                     </span>
                   </>
                 )}
@@ -442,10 +442,10 @@ export default function PageRevision() {
               {fec && !fec.erreur && (
                 <div style={{ marginTop: "14px" }}>
                   <p style={{ color: fec.verdict === "conforme" ? "#4caf50" : fec.verdict === "rejete" ? "#e8836a" : "#e8a33d", fontSize: "18px", fontWeight: "bold", margin: "0 0 6px" }}>
-                    {fec.verdict === "conforme" ? "Conforme : aucun motif de rejet" : fec.verdict === "rejete" ? "Serait rejeté : " + fec.rejets + " motif(s)" : "Accepté avec " + fec.avertissements + " réserve(s)"}
+                    {fec.verdict === "conforme" ? "Conforme : aucun motif de rejet" : fec.verdict === "rejete" ? "Serait rejeté : " + fec.rejets + (fec.rejets > 1 ? " motifs" : " motif") : "Accepté avec " + fec.avertissements + (fec.avertissements > 1 ? " réserves" : " réserve")}
                   </p>
                   <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: "0 0 12px" }}>
-                    {fec.lignes} ligne(s), {fec.ecritures} écriture(s), {fec.journaux} journal(aux) · débit {euros(fec.debit)}, crédit {euros(fec.credit)}
+                    {fec.lignes} {fec.lignes > 1 ? "lignes" : "ligne"}, {fec.ecritures} {fec.ecritures > 1 ? "écritures" : "écriture"}, {fec.journaux} {fec.journaux > 1 ? "journaux" : "journal"} · débit {euros(fec.debit)}, crédit {euros(fec.credit)}
                   </p>
                   {(fec.anomalies || []).map(function (a: any) {
                     return (
