@@ -51,7 +51,7 @@ export default function PageAnnexes() {
   function euros(n: any) {
     const v = Number(n) || 0;
     if (v === 0) return "";
-    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
+    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function onglet(cle: string, texte: string) {
@@ -83,11 +83,11 @@ export default function PageAnnexes() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Annexes de la liasse</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Immobilisations, provisions, echeances des creances et des dettes
+          Immobilisations, provisions, échéances des créances et des dettes
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -103,7 +103,7 @@ export default function PageAnnexes() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Preparation des annexes...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Préparation des annexes…</p></div>
         ) : !d ? null : (
           <>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 14px" }}>
@@ -115,19 +115,19 @@ export default function PageAnnexes() {
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "18px" }}>
               {onglet("2033c", "2033-C · Immobilisations")}
               {onglet("2033d", "2033-D · Provisions")}
-              {onglet("2057", "2057 · Echeances")}
+              {onglet("2057", "2057 · Échéances")}
             </div>
 
             {vue === "2033c" && (
               <>
                 <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.45)" }}>
                   <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.9" }}>
-                    Valeur brute a l ouverture : <strong>{euros(d.annexe_2033_c.brut_debut) || "0,00"}</strong><br />
-                    Acquisitions de l exercice : <strong>{euros(d.annexe_2033_c.entrees) || "0,00"}</strong><br />
-                    Cessions de l exercice : <strong>{euros(d.annexe_2033_c.sorties) || "0,00"}</strong><br />
-                    Valeur brute a la cloture : <strong>{euros(d.annexe_2033_c.brut_fin) || "0,00"}</strong><br />
-                    Amortissements cumules : <strong>{euros(d.annexe_2033_c.amort_fin) || "0,00"}</strong><br />
-                    Dotations de l exercice : <strong style={{ color: "#c8a96e" }}>{euros(d.annexe_2033_c.dotations) || "0,00"}</strong>
+                    Valeur brute à l’ouverture : <strong>{euros(d.annexe_2033_c.brut_debut) || "0,00"}</strong><br />
+                    Acquisitions de l’exercice : <strong>{euros(d.annexe_2033_c.entrees) || "0,00"}</strong><br />
+                    Cessions de l’exercice : <strong>{euros(d.annexe_2033_c.sorties) || "0,00"}</strong><br />
+                    Valeur brute à la clôture : <strong>{euros(d.annexe_2033_c.brut_fin) || "0,00"}</strong><br />
+                    Amortissements cumulés : <strong>{euros(d.annexe_2033_c.amort_fin) || "0,00"}</strong><br />
+                    Dotations de l’exercice : <strong style={{ color: "#c8a96e" }}>{euros(d.annexe_2033_c.dotations) || "0,00"}</strong>
                   </p>
                 </div>
 
@@ -142,7 +142,7 @@ export default function PageAnnexes() {
                     <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", background: "rgba(200,169,110,0.12)", padding: "10px 14px", fontSize: "11.5px", color: "#c8a96e", fontWeight: "bold" }}>
                       <span>Bien</span>
                       <span style={{ textAlign: "right" }}>Brut</span>
-                      <span style={{ textAlign: "right" }}>Amort. debut</span>
+                      <span style={{ textAlign: "right" }}>Amort. début</span>
                       <span style={{ textAlign: "right" }}>Dotation</span>
                       <span style={{ textAlign: "right" }}>Valeur nette</span>
                     </div>
@@ -152,7 +152,7 @@ export default function PageAnnexes() {
                           <span>
                             {b.designation}
                             <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "11.5px" }}>
-                              {" "}· {b.compte} · {b.mode} · {b.duree} ans{b.sorti ? " · sorti" : ""}
+                              {" "}· {b.compte} · {b.mode === "degressif" ? "dégressif" : b.mode === "lineaire" ? "linéaire" : b.mode} · {b.duree} {Number(b.duree) > 1 ? "ans" : "an"}{b.sorti ? " · sorti" : ""}
                             </span>
                           </span>
                           <span style={{ textAlign: "right" }}>{euros(b.valeur_brute)}</span>
@@ -172,10 +172,10 @@ export default function PageAnnexes() {
               <>
                 <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.45)" }}>
                   <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: 0, lineHeight: "1.9" }}>
-                    Provisions a l ouverture : <strong>{euros(d.annexe_2033_d.montant_debut) || "0,00"}</strong><br />
-                    Dotations de l exercice : <strong style={{ color: "#c8a96e" }}>{euros(d.annexe_2033_d.dotations) || "0,00"}</strong><br />
-                    Reprises de l exercice : <strong>{euros(d.annexe_2033_d.reprises) || "0,00"}</strong><br />
-                    Provisions a la cloture : <strong>{euros(d.annexe_2033_d.montant_fin) || "0,00"}</strong>
+                    Provisions à l’ouverture : <strong>{euros(d.annexe_2033_d.montant_debut) || "0,00"}</strong><br />
+                    Dotations de l’exercice : <strong style={{ color: "#c8a96e" }}>{euros(d.annexe_2033_d.dotations) || "0,00"}</strong><br />
+                    Reprises de l’exercice : <strong>{euros(d.annexe_2033_d.reprises) || "0,00"}</strong><br />
+                    Provisions à la clôture : <strong>{euros(d.annexe_2033_d.montant_fin) || "0,00"}</strong>
                   </p>
                 </div>
 
@@ -191,7 +191,7 @@ export default function PageAnnexes() {
                       <span>Provision</span>
                       <span style={{ textAlign: "right" }}>Ouverture</span>
                       <span style={{ textAlign: "right" }}>Dotation</span>
-                      <span style={{ textAlign: "right" }}>Cloture</span>
+                      <span style={{ textAlign: "right" }}>Clôture</span>
                     </div>
                     {d.annexe_2033_d.provisions.map(function (p: any, i: number) {
                       return (
@@ -206,7 +206,7 @@ export default function PageAnnexes() {
                         </div>
                       );
                     })}
-                    <Total texte="TOTAL A LA CLOTURE" valeur={d.annexe_2033_d.montant_fin} />
+                    <Total texte="TOTAL À LA CLÔTURE" valeur={d.annexe_2033_d.montant_fin} />
                   </div>
                 )}
               </>
@@ -217,20 +217,20 @@ export default function PageAnnexes() {
                 {d.annexe_2057.creances_anciennes > 0 && (
                   <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.45)" }}>
                     <p style={{ color: "#e8a33d", fontSize: "14.5px", margin: 0, lineHeight: "1.8" }}>
-                      {d.annexe_2057.creances_anciennes} creance(s) datent de plus d un an. Elles
-                      se declarent a part, et meritent une depreciation si le recouvrement est
-                      douteux.
+                      {d.annexe_2057.creances_anciennes > 1
+                        ? d.annexe_2057.creances_anciennes + " créances datent de plus d’un an. Elles se déclarent à part, et méritent une dépréciation si le recouvrement est douteux."
+                        : "1 créance date de plus d’un an. Elle se déclare à part, et mérite une dépréciation si le recouvrement est douteux."}
                     </p>
                   </div>
                 )}
 
                 <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "18px 0 10px" }}>
-                  Creances · {euros(d.annexe_2057.total_creances) || "0,00"}
+                  Créances · {euros(d.annexe_2057.total_creances) || "0,00"}
                 </h2>
                 {d.annexe_2057.creances.length === 0 ? (
                   <div style={CARTE}>
                     <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                      Aucune creance non lettree.
+                      Aucune créance non lettrée.
                     </p>
                   </div>
                 ) : (
@@ -241,7 +241,7 @@ export default function PageAnnexes() {
                           <span style={{ fontFamily: "monospace", color: "#c8a96e" }}>{t.compte}</span>
                           <span>{t.libelle}</span>
                           <span style={{ textAlign: "right", color: t.a_un_an_au_plus ? "rgba(255,255,255,0.5)" : "#e8a33d" }}>
-                            {t.a_un_an_au_plus ? "moins d un an" : "plus d un an"}
+                            {t.a_un_an_au_plus ? "moins d’un an" : "plus d’un an"}
                           </span>
                           <span style={{ textAlign: "right" }}>{euros(t.solde)}</span>
                         </div>
@@ -256,7 +256,7 @@ export default function PageAnnexes() {
                 {d.annexe_2057.dettes.length === 0 ? (
                   <div style={CARTE}>
                     <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                      Aucune dette non lettree.
+                      Aucune dette non lettrée.
                     </p>
                   </div>
                 ) : (
@@ -267,7 +267,7 @@ export default function PageAnnexes() {
                           <span style={{ fontFamily: "monospace", color: "#c8a96e" }}>{t.compte}</span>
                           <span>{t.libelle}</span>
                           <span style={{ textAlign: "right", color: t.a_un_an_au_plus ? "rgba(255,255,255,0.5)" : "#e8a33d" }}>
-                            {t.a_un_an_au_plus ? "moins d un an" : "plus d un an"}
+                            {t.a_un_an_au_plus ? "moins d’un an" : "plus d’un an"}
                           </span>
                           <span style={{ textAlign: "right" }}>{euros(-t.solde)}</span>
                         </div>
