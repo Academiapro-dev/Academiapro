@@ -107,15 +107,15 @@ export default function PageImmobilisations() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   const CHAMPS = [
-    ["valeur_acquisition", "Valeur d acquisition", "2400,00"],
-    ["date_acquisition", "Date d acquisition", ""],
-    ["duree_annees", "Duree (annees)", "3"],
-    ["compte_immo", "Compte d immobilisation", "218300"],
-    ["compte_amort", "Compte d amortissement", "281830"],
+    ["valeur_acquisition", "Valeur d’acquisition", "2400,00"],
+    ["date_acquisition", "Date d’acquisition", ""],
+    ["duree_annees", "Durée (années)", "3"],
+    ["compte_immo", "Compte d’immobilisation", "218300"],
+    ["compte_amort", "Compte d’amortissement", "281830"],
   ];
 
   return (
@@ -126,11 +126,11 @@ export default function PageImmobilisations() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Immobilisations</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Les biens durables et leur plan d amortissement
+          Les biens durables et leur plan d’amortissement
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -157,7 +157,7 @@ export default function PageImmobilisations() {
 
         {formulaire && (
           <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
-            <span style={LIBELLE}>Designation du bien</span>
+            <span style={LIBELLE}>Désignation du bien</span>
             <input value={f.designation} onChange={(e) => setF({ ...f, designation: e.target.value })} placeholder="Ordinateur portable de direction" style={CHAMP} />
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
@@ -178,8 +178,8 @@ export default function PageImmobilisations() {
               <div style={{ flex: "1 1 150px" }}>
                 <span style={LIBELLE}>Mode</span>
                 <select value={f.mode} onChange={(e) => setF({ ...f, mode: e.target.value })} style={CHAMP}>
-                  <option value="lineaire">Lineaire</option>
-                  <option value="degressif">Degressif</option>
+                  <option value="lineaire">Linéaire</option>
+                  <option value="degressif">Dégressif</option>
                 </select>
               </div>
             </div>
@@ -189,7 +189,7 @@ export default function PageImmobilisations() {
               disabled={occupe !== "" || f.designation.trim().length < 2 || !f.valeur_acquisition}
               style={{ background: occupe !== "" || f.designation.trim().length < 2 || !f.valeur_acquisition ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "enr" ? "Enregistrement..." : "Enregistrer le bien"}
+              {occupe === "enr" ? "Enregistrement…" : "Enregistrer le bien"}
             </button>
           </div>
         )}
@@ -216,16 +216,16 @@ export default function PageImmobilisations() {
             {d.dotation_exercice > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(200,169,110,0.5)" }}>
                 <p style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 12px", lineHeight: "1.8" }}>
-                  Dotation de l exercice {d.annee} : <strong>{euros(d.dotation_exercice)}</strong> sur{" "}
-                  {d.en_service} bien(s) en service. Elle doit etre passee en ecriture avant la
-                  cloture.
+                  Dotation de l’exercice {d.annee} : <strong>{euros(d.dotation_exercice)}</strong> sur{" "}
+                  {d.en_service} {d.en_service > 1 ? "biens" : "bien"} en service. Elle doit être passée en écriture avant la
+                  clôture.
                 </p>
                 <button
                   onClick={passerDotation}
                   disabled={occupe !== ""}
                   style={{ background: occupe !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                 >
-                  {occupe === "dotation" ? "Passage de l ecriture..." : "Passer l ecriture de dotation"}
+                  {occupe === "dotation" ? "Passage de l’écriture…" : "Passer l’écriture de dotation"}
                 </button>
               </div>
             )}
@@ -244,14 +244,14 @@ export default function PageImmobilisations() {
                     <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
                       <div style={{ flex: "1 1 260px" }}>
                         <p style={{ color: "#c8a96e", fontSize: "12.5px", margin: "0 0 3px" }}>
-                          {b.compte_immo} · {b.mode} · en service le{" "}
+                          {b.compte_immo} · {b.mode === "degressif" ? "dégressif" : b.mode === "lineaire" ? "linéaire" : b.mode} · en service le{" "}
                           {new Date(b.date_service).toLocaleDateString("fr-FR")}
                           {b.sorti ? " · SORTI" : ""}
                         </p>
                         <h3 style={{ color: "#fff", fontSize: "16.5px", margin: "0 0 4px" }}>{b.designation}</h3>
                         <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0 }}>
-                          {euros(b.valeur_acquisition)} sur {b.duree_annees} ans
-                          {b.amorti ? " · entierement amorti" : ""}
+                          {euros(b.valeur_acquisition)} sur {b.duree_annees} {Number(b.duree_annees) > 1 ? "ans" : "an"}
+                          {b.amorti ? " · entièrement amorti" : ""}
                           {b.dotation_exercice > 0 ? " · dotation " + euros(b.dotation_exercice) : ""}
                         </p>
                       </div>
@@ -270,13 +270,13 @@ export default function PageImmobilisations() {
                     )}
 
                     <button onClick={() => setOuvert({ ...ouvert, [b.id]: !estOuvert })} style={{ ...BOUTON, marginTop: "12px" }}>
-                      {estOuvert ? "Masquer le plan" : "Voir le plan d amortissement"}
+                      {estOuvert ? "Masquer le plan" : "Voir le plan d’amortissement"}
                     </button>
 
                     {estOuvert && (
                       <div style={{ marginTop: "12px", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "8px", overflow: "hidden" }}>
                         <div style={{ display: "grid", gridTemplateColumns: "0.7fr 1fr 1fr 1fr", background: "rgba(200,169,110,0.1)", padding: "9px 12px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
-                          <span>Annee</span>
+                          <span>Année</span>
                           <span style={{ textAlign: "right" }}>Dotation</span>
                           <span style={{ textAlign: "right" }}>Cumul</span>
                           <span style={{ textAlign: "right" }}>Valeur nette</span>
