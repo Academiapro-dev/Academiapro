@@ -63,13 +63,132 @@ const TABLES: any = {
     metier: "avocat",
     ordre: "priorite",
   },
+  // 🆕 07/10 — LES SIX AUTRES BASES. Mesure du 07/10 : la recherche ne
+  // portait que sur les cabinets et les avocats ; 81 924 fiches des six
+  // autres bases n avaient ni site ni adresse, et n avaient jamais ete
+  // cherchees (lire-sites n y lisait que les sites deja connus). Jacques :
+  // « ne neglige rien […] il faudra creer des bases pour tous les secteurs ».
+  // ⚠️ L ORDRE EST CELUI DU TRAVAIL : une base ne commence que lorsque la
+  // precedente est finie. D abord celles qui ont une campagne ou un message
+  // pret (organismes, immobilier, grands organismes), puis les autres.
+  // ⚠️ TOUTE BASE AJOUTEE ICI S AJOUTE AUSSI DANS LA VEILLE
+  // (app/api/cron/veille-enrichissement/route.ts, RECHERCHE).
+  organismes: { table: "prospects_organismes", metier: "formation", ordre: "id" },
+  immobilier: { table: "prospects_immobilier", metier: "immobilier", ordre: "id" },
+  gros: { table: "prospects_gros", metier: "formation", ordre: "id" },
+  qualiopi: { table: "prospects_qualiopi", metier: "formation", ordre: "id" },
+  interim: { table: "prospects_interim", metier: "interim", ordre: "id" },
+  ecommerce: { table: "prospects_ecommerce", metier: "ecommerce", ordre: "id" },
 };
 
 // LES MOTS QUI PROUVENT LE METIER SUR LA PAGE (texte sans accents).
+// ⚠️ Ils se cherchent comme des morceaux de texte : « immobili » couvre
+// « immobilier » et « immobiliere ».
 const PREUVES_METIER: any = {
   avocat: ["avocat"],
   comptable: ["expert comptable", "expert-comptable", "expertise comptable", "comptab", "commissaire aux comptes", "audit"],
+  formation: ["formation", "formateur", "formatrice", "qualiopi", "stagiaire", "apprentissage", "alternance",
+    "coaching", "bilan de competences", "enseignement", "pedagogi", "e learning"],
+  immobilier: ["immobili", "agence immo", "syndic", "gestion locative", "biens a vendre", "biens a louer",
+    "estimation de votre bien", "mandat de vente"],
+  interim: ["interim", "travail temporaire", "recrutement", "offres d emploi", "offre d emploi"],
+  ecommerce: ["panier", "boutique", "livraison", "commande", "e commerce", "vente en ligne", "acheter", "shop"],
 };
+
+// 🆕 07/10 — LES TOURNURES DE CHAQUE METIER DANS UN NOM DE SITE.
+// Un organisme de formation ne nomme pas son site comme une agence
+// immobiliere : « dupont-formation.fr », « agence-dupont.fr »,
+// « dupont-interim.fr », « dupont-shop.fr ».
+//   suffixes / prefixes     autour du coeur du nom de la societe ;
+//   suffixesNom / prefixesNom   autour du nom du dirigeant ;
+//   generiques              les mots du metier, qui ne distinguent pas une
+//                           societe d une autre (ils s ajoutent a GENERIQUES) ;
+//   coeurDabord             le coeur seul passe EN PREMIER (un site marchand
+//                           porte le nom de sa marque, sans mot de metier).
+// ⚠️ Les cabinets comptables et les avocats gardent leurs tournures d
+// origine, ecrites dans `candidats` : elles sont eprouvees, on n y touche pas.
+const METIERS: any = {
+  formation: {
+    suffixes: ["-formation", "-formations", "formation", "-conseil", "-academy", "-institut", "-consulting"],
+    prefixes: ["formation-", "institut-", "centre-", "ecole-"],
+    suffixesNom: ["-formation", "-conseil", "-coaching", "-consulting"],
+    prefixesNom: ["cabinet-"],
+    generiques: ["formation", "formations", "formateur", "institut", "centre", "ecole", "academy", "academie",
+      "consulting", "consultant", "consultants", "association", "ass", "asso", "organisme", "pour", "service",
+      "services", "developpement", "competences", "apprentissage", "professionnelle", "professionnel",
+      "school", "business", "training", "coaching"],
+  },
+  immobilier: {
+    suffixes: ["-immobilier", "-immo", "immo", "immobilier", "-transactions", "-gestion", "-patrimoine"],
+    prefixes: ["agence-", "immobilier-", "immo-", "cabinet-"],
+    suffixesNom: ["-immobilier", "-immo", "immobilier"],
+    prefixesNom: ["agence-", "cabinet-", "immobilier-"],
+    generiques: ["immobilier", "immobiliere", "immobilieres", "immo", "agence", "agences", "transaction",
+      "transactions", "patrimoine", "invest", "investissement", "investissements", "properties", "property",
+      "home", "habitat", "location", "locations", "vente", "ventes", "syndic", "real", "estate", "imm",
+      "developpement", "asset", "management", "expert"],
+  },
+  interim: {
+    suffixes: ["-interim", "interim", "-emploi", "-rh", "-recrutement", "-travail-temporaire"],
+    prefixes: ["interim-", "agence-"],
+    suffixesNom: ["-interim", "-rh", "-recrutement"],
+    prefixesNom: [],
+    generiques: ["interim", "interimaire", "travail", "temporaire", "emploi", "rh", "recrutement", "agence",
+      "ressources", "humaines", "medical", "consulting", "services", "service", "solutions"],
+  },
+  ecommerce: {
+    suffixes: ["-shop", "shop", "-boutique", "-store", "store", "-paris", "-france"],
+    prefixes: ["boutique-", "shop-", "la-boutique-"],
+    suffixesNom: [],
+    prefixesNom: [],
+    generiques: ["shop", "boutique", "store", "www", "com", "fr", "net", "ltd", "co", "limited", "company",
+      "trading", "technology", "youxian", "gongsi", "online", "vente", "ventes", "ligne", "distribution",
+      "diffusion", "import", "export", "commerce", "ecommerce", "web"],
+    coeurDabord: true,
+  },
+};
+
+// LES MOTS GENERIQUES D UN METIER : la liste commune, plus les siens.
+function generiquesDe(metier: string): string[] {
+  const m = METIERS[metier];
+  return m && m.generiques ? GENERIQUES.concat(m.generiques) : GENERIQUES;
+}
+
+// 🆕 07/10 — LE NOM, ET CE QUI EST ENTRE PARENTHESES.
+// Dans les bases issues du registre, la parenthese porte l ENSEIGNE ou le
+// nom d usage : « DANIEL ARZOINE (VOYAGEOSCOPE) », « HOUDA HERRY
+// (ALKOUCH) », « REINE CODJOGAN (EKABERT) (REINARTDECO) » — et parfois le
+// site lui-meme : « SAS MELINE (WWW.PARFUMDO.COM) ». C est souvent
+// l enseigne, pas le nom de la personne, qui fait le nom du site.
+//   nom         ce qui est hors parentheses ;
+//   enseignes   chaque parenthese qui n est pas un site, ni la repetition
+//               du nom ;
+//   domaines    chaque parenthese qui est un nom de site.
+// ⚠️ Une enseigne n est jamais crue sur parole : le site qu elle fait
+// deviner passe la meme verification que les autres.
+function decoupe(raisonSociale: any): { nom: string; enseignes: string[]; domaines: string[] } {
+  const brut = String(raisonSociale || "");
+  const enseignes: string[] = [];
+  const domaines: string[] = [];
+  const nom = brut.replace(/\(([^()]*)\)/g, function (_tout: string, dedans: string) {
+    const d = String(dedans || "").trim();
+    if (!d) return " ";
+    if (/^(https?:\/\/)?(www\.)?[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/.*)?$/i.test(d.replace(/\s+/g, ""))) {
+      const dom = domaineDe(d);
+      if (dom && domaines.indexOf(dom) < 0) domaines.push(dom);
+      return " ";
+    }
+    enseignes.push(d);
+    return " ";
+  }).replace(/\s+/g, " ").trim();
+  const nomPlat = plat(nom);
+  const gardees = enseignes.filter(function (e, i) {
+    const p = plat(e);
+    return p.length >= 3 && p !== nomPlat && enseignes.indexOf(e) === i;
+  });
+  // Une societe dont tout le nom est entre parentheses garde ce nom.
+  return { nom: nom || brut, enseignes: gardees.slice(0, 3), domaines: domaines.slice(0, 2) };
+}
 
 // COMBIEN DE LIGNES PAR LECTURE EN BASE, ET COMBIEN EN PARALLELE.
 // ⚠️ EN PARALLELE, PAS PLUS DE SIX : chaque ligne interroge jusqu a vingt
@@ -135,6 +254,10 @@ const LIMITE_LIGNE_MS = 70000;
 // Les questions DNS sont presque gratuites ; les pages, non.
 const MAX_DOMAINES_OUVERTS = 4;
 
+// 🆕 07/10 — A PARTIR DE COMBIEN DE FICHES UN MEME SITE EST CELUI D UN
+// RESEAU (voir `traiter`).
+const SEUIL_RESEAU = 3;
+
 // LES PAGES OU CHERCHER LE SIREN QUAND L ACCUEIL NE LE PORTE PAS.
 // 🆕 01/10 — ET LA PAGE CONTACT : la ville y est presque toujours, meme
 // quand l accueil ne la donne pas.
@@ -147,6 +270,9 @@ const FORMES = [
   "sarl", "sas", "sasu", "selarl", "selas", "selafa", "selca", "selurl", "sel",
   "scp", "eurl", "sa", "snc", "sci", "scm", "aarpi", "sc", "gie", "societe", "ste",
   "l", "d",
+  // 🆕 07/10 — les organismes de formation et les agents immobiliers sont
+  // souvent des personnes : « Monsieur BERTRAND DORET », « EI AFFAF YAHI ».
+  "monsieur", "madame", "mademoiselle", "mme", "mlle", "mr", "ei", "eirl", "scop", "sasp", "scic",
 ];
 // Les mots generiques : ils ne distinguent pas un cabinet d un autre.
 const GENERIQUES = [
@@ -225,8 +351,17 @@ function propre(slug: string): string | null {
 // Le nom complet du cabinet passe d abord (c est le plus souvent le
 // domaine), puis le nom sans les mots generiques, puis le dirigeant.
 function candidats(l: any, metier: string): string[] {
-  const raison = mots(l.raison_sociale).filter(function (m) { return FORMES.indexOf(m) < 0; });
-  const coeur = raison.filter(function (m) { return GENERIQUES.indexOf(m) < 0; });
+  // 🆕 07/10 — le nom se lit sans ses parentheses (voir `decoupe`).
+  const parts = decoupe(l.raison_sociale);
+  const tournures: any = METIERS[metier] || null;
+  const generiques = generiquesDe(metier);
+  const raison = mots(parts.nom).filter(function (m) { return FORMES.indexOf(m) < 0; });
+  // 🆕 07/10 — UN NOMBRE N EST PAS LE COEUR D UN NOM : « SUP INTERIM 81 »,
+  // « ACTUAL SAUMUR 1096 ». On l ecarte du coeur (le nom entier, lui, est
+  // deja essaye tel quel), sauf s il ne reste rien d autre.
+  let coeur = raison.filter(function (m) { return generiques.indexOf(m) < 0; });
+  const sansNombres = coeur.filter(function (m) { return !/^[0-9]+$/.test(m); });
+  if (sansNombres.length > 0) coeur = sansNombres;
   const nom = mots(l.dirigeant_nom);
   const prenom = mots(l.dirigeant_prenom);
 
@@ -241,29 +376,79 @@ function candidats(l: any, metier: string): string[] {
     ajouter(raison.join("-"));
     ajouter(raison.join(""));
   }
+  // 1 bis. 🆕 07/10 — L ENSEIGNE (la parenthese du nom), telle quelle, puis
+  // avec les tournures du metier.
+  for (const e of parts.enseignes) {
+    const me = mots(e).filter(function (m) { return FORMES.indexOf(m) < 0; });
+    if (me.length === 0 || me.length > 5) continue;
+    ajouter(me.join("-"));
+    ajouter(me.join(""));
+    const ce = me.filter(function (m) { return generiques.indexOf(m) < 0; });
+    if (tournures && ce.length > 0 && ce.length <= 3 && ce.length < me.length + 1) {
+      const c = ce.join("-");
+      for (const s of tournures.suffixes.slice(0, 3)) ajouter(c + s);
+      for (const p of tournures.prefixes.slice(0, 2)) ajouter(p + c);
+    }
+  }
   // 2. Le coeur du nom, avec les tournures du metier.
   // ⚠️ LE COEUR SEUL VIENT EN DERNIER : « alpha.fr » ou « martin.com »
   // existent presque toujours et appartiennent a quelqu un d autre. Les
   // ouvrir en premier consommerait les quatre ouvertures permises.
   const coeurSeul: string[] = [];
+  // 🆕 07/10 — UN NOM LONG (« AGENCE IMM MONT BLANC COTE D AZUR ») ne donnait
+  // aucune adresse : plus de trois mots distinctifs, donc rien. Pour les
+  // metiers a tournures, ses deux puis ses trois premiers mots distinctifs
+  // sont essayes avec le mot du metier (« mont-blanc-immobilier.fr »).
+  // ⚠️ Jamais seuls : « mont-blanc.fr » est a quelqu un d autre.
+  if (tournures && coeur.length > 3) {
+    for (const n of [2, 3]) {
+      const c = coeur.slice(0, n).join("-");
+      const cc = coeur.slice(0, n).join("");
+      for (const s of tournures.suffixes.slice(0, 3)) ajouter((s.charAt(0) === "-" ? c : cc) + s);
+      for (const pf of tournures.prefixes.slice(0, 2)) ajouter(pf + c);
+    }
+  }
   if (coeur.length > 0 && coeur.length <= 3) {
     const c = coeur.join("-");
     const cc = coeur.join("");
     coeurSeul.push(c);
     if (cc !== c) coeurSeul.push(cc);
-    if (metier === "avocat") {
+    if (tournures) {
+      // 🆕 07/10 — les tournures du metier (voir METIERS).
+      // ⚠️ Pour un site marchand, la marque seule passe d abord.
+      // ⚠️ Un coeur de moins de quatre lettres (« OR-SHOP » → « or ») ne
+      // recoit pas de tournure : « or-boutique.fr » n a aucune chance d etre
+      // le bon. Le nom entier, lui, est deja essaye.
+      if (cc.length >= 4) {
+        if (tournures.coeurDabord) { ajouter(c); ajouter(cc); }
+        for (const s of tournures.suffixes) ajouter((s.charAt(0) === "-" ? c : cc) + s);
+        for (const p of tournures.prefixes) ajouter(p + c);
+      }
+    } else if (metier === "avocat") {
       ajouter(c + "-avocats"); ajouter(c + "-avocat"); ajouter("cabinet-" + c);
       ajouter(cc + "avocats"); ajouter("avocat-" + c);
+      ajouter(c + "-associes");
     } else {
       ajouter(c + "-expertise"); ajouter("cabinet-" + c); ajouter(c + "-expert-comptable");
       ajouter(c + "-conseil"); ajouter(c + "-audit"); ajouter(cc + "expertise");
+      ajouter(c + "-associes");
     }
-    ajouter(c + "-associes");
   }
   // 3. Le dirigeant.
   if (nom.length > 0 && nom.length <= 3) {
     const n = nom.join("-");
-    if (metier === "avocat") {
+    if (tournures) {
+      // 🆕 07/10 — le dirigeant, avec les tournures du metier, puis son
+      // prenom et son nom (le site d une personne qui exerce seule).
+      for (const s of tournures.suffixesNom) ajouter((s.charAt(0) === "-" ? n : nom.join("")) + s);
+      for (const pf of tournures.prefixesNom) ajouter(pf + n);
+      if (prenom.length > 0 && tournures.suffixesNom.length > 0) {
+        const pn = prenom.join("-") + "-" + n;
+        ajouter(pn + tournures.suffixesNom[0]);
+        ajouter(pn);
+        ajouter(prenom.join("") + nom.join(""));
+      }
+    } else if (metier === "avocat") {
       ajouter(n + "-avocat"); ajouter("maitre-" + n); ajouter(n + "-avocats");
       ajouter("avocat-" + n);
       if (prenom.length > 0) {
@@ -282,7 +467,10 @@ function candidats(l: any, metier: string): string[] {
   // petits mots ni la forme juridique.
   const sigle = sigleDe(l.raison_sociale);
   if (sigle) {
-    if (metier === "avocat") {
+    if (tournures) {
+      for (const s of tournures.suffixes.slice(0, 3)) ajouter(sigle + s);
+      for (const pf of tournures.prefixes.slice(0, 2)) ajouter(pf + sigle);
+    } else if (metier === "avocat") {
       ajouter(sigle + "-avocats"); ajouter("cabinet-" + sigle); ajouter(sigle + "avocats");
     } else {
       ajouter(sigle + "-expertise"); ajouter(sigle + "-expert-comptable"); ajouter("cabinet-" + sigle);
@@ -590,7 +778,7 @@ function contientMot(t: string, m: string): boolean {
 // fabrication des adresses et la verification.
 const PETITS = ["et", "de", "du", "des", "la", "le", "les", "en", "l", "d", "a", "au", "aux"];
 function sigleDe(raisonSociale: any): string | null {
-  const raison = mots(raisonSociale).filter(function (m) { return FORMES.indexOf(m) < 0; });
+  const raison = mots(decoupe(raisonSociale).nom).filter(function (m) { return FORMES.indexOf(m) < 0; });
   const pourSigle = raison.filter(function (m) { return PETITS.indexOf(m) < 0; });
   if (pourSigle.length < 3 || pourSigle.length > 6) return null;
   return pourSigle.map(function (m) { return m[0]; }).join("");
@@ -664,17 +852,33 @@ function lieuDe(brut: string, t: string, l: any): string | null {
 // distinctif, et pourtant c est son nom) ; et le sigle, quand le domaine
 // est forme sur ce sigle ET que la page l ecrit (agcexpertise.fr qui ecrit
 // « AGC »).
-function identiteDe(t: string, l: any, domaine: string): string | null {
+function identiteDe(t: string, l: any, domaine: string, metier?: string): string | null {
   const nom = mots(l.dirigeant_nom).filter(function (m) { return m.length >= 3; });
   if (nom.length > 0 && nom.every(function (m) { return contientMot(t, m); })) return "nom";
 
-  const raison = mots(l.raison_sociale).filter(function (m) { return FORMES.indexOf(m) < 0; });
+  // 🆕 07/10 — le nom sans ses parentheses, et les mots generiques du metier.
+  const parts = decoupe(l.raison_sociale);
+  const generiques = generiquesDe(metier || "");
+  const raison = mots(parts.nom).filter(function (m) { return FORMES.indexOf(m) < 0; });
   const coeur = raison
-    .filter(function (m) { return GENERIQUES.indexOf(m) < 0; })
-    .filter(function (m) { return m.length >= 3; });
+    .filter(function (m) { return generiques.indexOf(m) < 0; })
+    .filter(function (m) { return m.length >= 3; })
+    // 🆕 07/10 — un nombre seul ne prouve rien (« 81 », « 2000 »).
+    .filter(function (m) { return !/^[0-9]+$/.test(m); });
   if (coeur.length > 0 && coeur.every(function (m) { return contientMot(t, m); })) return "cabinet";
 
   if (raison.length >= 2 && (" " + t + " ").indexOf(" " + raison.join(" ") + " ") >= 0) return "nom complet du cabinet";
+
+  // 🆕 07/10 — L ENSEIGNE (la parenthese du nom) : tous ses mots distinctifs
+  // sur la page, ou l enseigne ecrite telle quelle.
+  for (const e of parts.enseignes) {
+    const me = mots(e).filter(function (m) { return FORMES.indexOf(m) < 0; });
+    const ce = me
+      .filter(function (m) { return generiques.indexOf(m) < 0; })
+      .filter(function (m) { return m.length >= 4 && !/^[0-9]+$/.test(m); });
+    if (ce.length > 0 && ce.every(function (m) { return contientMot(t, m); })) return "enseigne";
+    if (me.length >= 2 && (" " + t + " ").indexOf(" " + me.join(" ") + " ") >= 0) return "enseigne complete";
+  }
 
   const sigle = sigleDe(l.raison_sociale);
   if (sigle && sigle.length >= 3 && domaine.replace(/[^a-z0-9]/g, "").indexOf(sigle) >= 0 && contientMot(t, sigle)) {
@@ -711,7 +915,7 @@ function verifier(html: string, l: any, metier: string, domaine: string): string
   });
   if (!metierOk) return null;
 
-  const identite = identiteDe(t, l, domaine);
+  const identite = identiteDe(t, l, domaine, metier);
   if (!identite) return null;
 
   const lieu = lieuDe(brut, t, l);
@@ -726,7 +930,7 @@ function verifier(html: string, l: any, metier: string, domaine: string): string
       return "nom + " + identite;
     }
   } else {
-    const sansNom = identiteDe(t, Object.assign({}, l, { dirigeant_nom: "" }), domaine);
+    const sansNom = identiteDe(t, Object.assign({}, l, { dirigeant_nom: "" }), domaine, metier);
     if (sansNom) return "nom + " + sansNom;
   }
   return null;
@@ -744,7 +948,7 @@ function pourquoiRefuse(html: string, l: any, metier: string, domaine: string): 
   });
   if (!metierOk) return "metier absent de la page";
   if (!lieuDe(brut, t, l)) return "ni la ville, ni le code postal, ni le departement";
-  if (!identiteDe(t, l, domaine)) return "ni le nom du dirigeant, ni celui du cabinet, ni son sigle";
+  if (!identiteDe(t, l, domaine, metier)) return "ni le nom du dirigeant, ni celui du cabinet, ni son enseigne, ni son sigle";
   return "refus sans raison connue";
 }
 
@@ -785,6 +989,14 @@ async function chercher(l: any, metier: string, limite: number): Promise<any> {
     const i = liste.indexOf(suggere);
     if (i >= 0) liste.splice(i, 1);
     liste.unshift(suggere);
+  }
+  // 🆕 07/10 — LE SITE ECRIT DANS LE NOM (« SAS MELINE (WWW.PARFUMDO.COM) »)
+  // passe en tout premier. Lui aussi est verifie comme les autres.
+  const ecrits = decoupe(l.raison_sociale).domaines;
+  for (let k = ecrits.length - 1; k >= 0; k--) {
+    const i = liste.indexOf(ecrits[k]);
+    if (i >= 0) liste.splice(i, 1);
+    liste.unshift(ecrits[k]);
   }
   if (liste.length === 0) return { site: null, raison: "aucun nom exploitable", testes: 0, existants: 0 };
 
@@ -891,7 +1103,9 @@ async function aChercher(conf: any, combien: number, debut: number): Promise<any
     .is("site_cherche_le", null)
     .is("email", null)
     .or("site_web.is.null,site_web.eq.")
-    .eq("desabonne", false)
+    // 🆕 07/10 — « n est pas desabonne » : une case vide vaut « non ». Avec
+    // « = faux », une fiche dont la case est vide n aurait jamais ete cherchee.
+    .not("desabonne", "is", true)
     // 🆕 01/10 (soir) — LES CABINETS « [ND] » (non diffusibles : l INSEE ne
     // publie pas leur nom) sont ecartes. Sans nom, aucun site ne peut se
     // deviner, et Dropcontact leur avait attribue celui du « ND »… du
@@ -920,6 +1134,7 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
   // trop longues, les erreurs, les ecritures que la base a refusees.
   let tropLongues = 0;
   let erreurs = 0;
+  let reseaux = 0;
   let refus = 0;
   let premierRefus = "";
   let premiereErreur = "";
@@ -983,6 +1198,21 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
       // « trouve » que si la base l a enregistre. `site_cherche_le` est deja
       // ecrit (le paquet est marque) : il ne reste que le site.
       let ecrit = true;
+      // 🚨🆕 07/10 — LE SITE D UN RESEAU N EST PAS LE SITE D UNE AGENCE.
+      // « ACTUAL SAUMUR 1096 », « SUP INTERIM 81 », une agence d une
+      // enseigne immobiliere : le site trouve est celui du reseau, et il
+      // passe la verification (le nom du reseau, la ville, le metier). Ecrit
+      // sur chaque agence, il donnerait a des centaines de fiches la meme
+      // adresse generique du siege. Un site deja porte par trois fiches de
+      // la base n est donc plus ecrit.
+      if (r.site) {
+        const { count: dejaPorte, error: errReseau } = await supabase.from(conf.table)
+          .select("id", { count: "exact", head: true }).eq("site_web", r.site);
+        if (!errReseau && (dejaPorte || 0) >= SEUIL_RESEAU) {
+          r.site = null;
+          r.reseau = true;
+        }
+      }
       if (r.site && !essai) {
         const maj: any = { site_web: r.site, site_trouve_par: "devine:" + r.preuve };
         if (r.linkedin && Object.prototype.hasOwnProperty.call(l, "linkedin") && !l.linkedin) {
@@ -1010,6 +1240,8 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
         }
       } else if (r.site) {
         // trouve, mais non enregistre : compte dans `ecritures_refusees`.
+      } else if (r.reseau) {
+        reseaux++;
       } else if (r.en_erreur) {
         erreurs++;
       } else if (r.trop_long) {
@@ -1054,6 +1286,7 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
     dont_par_nom_et_ville: parNom,
     aucun_domaine_existant: sansDomaine,
     domaines_existants_mais_non_verifies: nonVerifies,
+    sites_de_reseau_ecartes: reseaux,
     lignes_trop_longues: tropLongues,
     erreurs: erreurs,
     ecritures_refusees: refus,
@@ -1082,7 +1315,8 @@ export async function GET(req: NextRequest) {
       const { count: aFaire, error } = await supabase
         .from(conf.table).select("id", { count: "exact", head: true })
         .is("site_cherche_le", null).is("email", null)
-        .or("site_web.is.null,site_web.eq.").eq("desabonne", false);
+        .or("site_web.is.null,site_web.eq.").not("desabonne", "is", true)
+        .neq("raison_sociale", "[ND]");
       if (error) { etat.push({ table: conf.table, erreur: error.message }); continue; }
       const { count: cherches } = await supabase
         .from(conf.table).select("id", { count: "exact", head: true })
@@ -1113,7 +1347,7 @@ export async function GET(req: NextRequest) {
     const cumul: any = {
       table: TABLES[nom].table, lignes_examinees: 0, sites_trouves: 0,
       dont_par_siren: 0, dont_par_nom_et_ville: 0, aucun_domaine_existant: 0,
-      domaines_existants_mais_non_verifies: 0, lignes_trop_longues: 0,
+      domaines_existants_mais_non_verifies: 0, sites_de_reseau_ecartes: 0, lignes_trop_longues: 0,
       erreurs: 0, ecritures_refusees: 0, exemples: [],
     };
     let vu = false;
@@ -1128,6 +1362,7 @@ export async function GET(req: NextRequest) {
       cumul.dont_par_nom_et_ville += r.dont_par_nom_et_ville;
       cumul.aucun_domaine_existant += r.aucun_domaine_existant;
       cumul.domaines_existants_mais_non_verifies += r.domaines_existants_mais_non_verifies;
+      cumul.sites_de_reseau_ecartes += r.sites_de_reseau_ecartes || 0;
       cumul.lignes_trop_longues += r.lignes_trop_longues || 0;
       cumul.erreurs += r.erreurs || 0;
       cumul.ecritures_refusees += r.ecritures_refusees || 0;
