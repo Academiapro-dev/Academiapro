@@ -88,7 +88,7 @@ export default function PageTVA() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   function Ligne({ nom, montant, sens, fort }: any) {
@@ -135,7 +135,7 @@ export default function PageTVA() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.7" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Calcul en cours…</p></div>
         ) : !d ? null : d.declaration === null ? (
           <div style={CARTE}>
             <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>{d.note}</p>
@@ -203,7 +203,7 @@ export default function PageTVA() {
                     disabled={occupe}
                     style={{ background: occupe ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                   >
-                    {occupe ? "Passage de l'écriture..." : "Passer l'écriture de liquidation"}
+                    {occupe ? "Passage de l'écriture…" : "Passer l'écriture de liquidation"}
                   </button>
                 )}
               </div>
