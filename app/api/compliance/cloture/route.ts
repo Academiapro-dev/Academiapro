@@ -24,11 +24,20 @@ const supabase = createClient(
 );
 
 function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
+  return NextResponse.json({ ok: false, erreur: "Réservé à l’administrateur." }, { status: 403 });
 }
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// Un montant et une date a la francaise, pour les messages.
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+function dateFr(iso: string): string {
+  const t = String(iso || "");
+  return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(8, 10) + "/" + t.slice(5, 7) + "/" + t.slice(0, 4) : t;
 }
 
 async function etatCloture(societeId: string, debut: string, fin: string) {
@@ -90,13 +99,19 @@ async function etatCloture(societeId: string, debut: string, fin: string) {
 
 export async function GET(req: NextRequest) {
   try {
-    const session = sessionCourante();
-    if (!session || ADMINS.indexOf(session.email) < 0) return refuse();
-
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
+
+    // 🆕 08/10 — LA PREPARATION DE LA CLOTURE S OUVRE A QUI A LE DROIT DE
+    // CLOTURER CE DOSSIER. Jusqu ici, cet ecran n etait lisible que par le
+    // compte de l administrateur : l associe d un cabinet client recevait
+    // « reserve a l administrateur » et ne pouvait donc jamais cloturer,
+    // alors que la cloture elle-meme (plus bas) lui etait deja permise par
+    // le meme droit. Meme barrage pour voir et pour faire.
+    const refusLecture = await barrage("cloturer", id);
+    if (refusLecture) return refusLecture;
 
     const { data: dossier } = await supabase
       .from("compta_societes")
@@ -113,7 +128,7 @@ export async function GET(req: NextRequest) {
 
     if (!debut || !fin) {
       return NextResponse.json(
-        { ok: false, erreur: "Renseignez les dates d exercice du dossier avant de cloturer." },
+        { ok: false, erreur: "Renseignez les dates d’exercice du dossier avant de clôturer." },
         { status: 400 }
       );
     }
@@ -137,12 +152,14 @@ export async function GET(req: NextRequest) {
       .limit(1);
 
     const anomalies: string[] = [];
-    if (!etat.equilibre) anomalies.push("La balance n est pas equilibree.");
+    if (!etat.equilibre) anomalies.push("La balance n’est pas équilibrée.");
     if ((banque || []).length > 0) {
-      anomalies.push((banque || []).length + " ligne(s) de releve ne sont pas rapprochees.");
+      anomalies.push((banque || []).length > 1
+        ? (banque || []).length + " lignes de relevé ne sont pas rapprochées."
+        : "1 ligne de relevé n’est pas rapprochée.");
     }
     if ((deja || []).length > 0) {
-      anomalies.push("Un report a-nouveaux existe deja pour cet exercice.");
+      anomalies.push("Un report à-nouveaux existe déjà pour cet exercice.");
     }
 
     return NextResponse.json({
@@ -170,7 +187,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : cloturer est le droit le plus lourd du logiciel.
@@ -195,7 +212,7 @@ export async function POST(req: NextRequest) {
 
     if (!debut || !fin) {
       return NextResponse.json(
-        { ok: false, erreur: "Renseignez les dates d exercice avant de cloturer." },
+        { ok: false, erreur: "Renseignez les dates d’exercice avant de clôturer." },
         { status: 400 }
       );
     }
@@ -210,7 +227,7 @@ export async function POST(req: NextRequest) {
 
     if ((deja || []).length > 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Cet exercice a deja ete cloture. Supprimez le report avant de recommencer." },
+        { ok: false, erreur: "Cet exercice a déjà été clôturé. Supprimez le report avant de recommencer." },
         { status: 409 }
       );
     }
@@ -219,7 +236,7 @@ export async function POST(req: NextRequest) {
 
     if (!etat.equilibre && b.forcer !== true) {
       return NextResponse.json(
-        { ok: false, erreur: "La balance n est pas equilibree : corrigez avant de cloturer." },
+        { ok: false, erreur: "La balance n’est pas équilibrée : corrigez avant de clôturer." },
         { status: 409 }
       );
     }
@@ -238,7 +255,7 @@ export async function POST(req: NextRequest) {
         ecriture_date: fin,
         compte_num: c.numero,
         compte_lib: c.libelle,
-        ecriture_lib: "Solde de cloture " + fin.slice(0, 4),
+        ecriture_lib: "Solde de clôture " + fin.slice(0, 4),
         debit: c.solde < 0 ? r2(-c.solde) : 0,
         credit: c.solde > 0 ? c.solde : 0,
         devise: "EUR",
@@ -249,8 +266,8 @@ export async function POST(req: NextRequest) {
     if (soldeGestion.length > 0) {
       const compteResultat = resultat >= 0 ? "120000" : "129000";
       const libelleResultat = resultat >= 0
-        ? "Resultat de l exercice - benefice"
-        : "Resultat de l exercice - perte";
+        ? "Résultat de l'exercice - bénéfice"
+        : "Résultat de l'exercice - perte";
 
       soldeGestion.push({
         societe_id: b.societe_id,
@@ -260,7 +277,7 @@ export async function POST(req: NextRequest) {
         ecriture_date: fin,
         compte_num: compteResultat,
         compte_lib: libelleResultat,
-        ecriture_lib: "Resultat de l exercice " + fin.slice(0, 4),
+        ecriture_lib: "Résultat de l'exercice " + fin.slice(0, 4),
         debit: resultat < 0 ? r2(-resultat) : 0,
         credit: resultat > 0 ? resultat : 0,
         devise: "EUR",
@@ -285,7 +302,7 @@ export async function POST(req: NextRequest) {
         ecriture_date: lendemain,
         compte_num: c.numero,
         compte_lib: c.libelle,
-        ecriture_lib: "Report a nouveau " + fin.slice(0, 4),
+        ecriture_lib: "Report à nouveau " + fin.slice(0, 4),
         debit: c.solde > 0 ? c.solde : 0,
         credit: c.solde < 0 ? r2(-c.solde) : 0,
         devise: "EUR",
@@ -302,8 +319,8 @@ export async function POST(req: NextRequest) {
         ecriture_num: "AN" + lendemain.slice(0, 4) + "-0001",
         ecriture_date: lendemain,
         compte_num: resultat >= 0 ? "110000" : "119000",
-        compte_lib: resultat >= 0 ? "Report a nouveau crediteur" : "Report a nouveau debiteur",
-        ecriture_lib: "Affectation du resultat " + fin.slice(0, 4),
+        compte_lib: resultat >= 0 ? "Report à nouveau créditeur" : "Report à nouveau débiteur",
+        ecriture_lib: "Affectation du résultat " + fin.slice(0, 4),
         debit: resultat < 0 ? r2(-resultat) : 0,
         credit: resultat > 0 ? resultat : 0,
         devise: "EUR",
@@ -316,8 +333,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Le report a-nouveaux ne serait pas equilibre : ecart de " + cumulAN.toFixed(2)
-            + " EUR. Aucune ecriture n a ete passee.",
+          erreur: "Le report à-nouveaux ne serait pas équilibré : écart de " + eurosFr(cumulAN)
+            + ". Aucune écriture n’a été passée.",
           ecart: cumulAN,
         },
         { status: 409 }
@@ -353,7 +370,7 @@ export async function POST(req: NextRequest) {
       cible: "exercice",
       reference: fin.slice(0, 4),
       avant: null,
-      apres: { lignes: nbVerrouillees, motif: "Verrouillage automatique a la cloture" },
+      apres: { lignes: nbVerrouillees, motif: "Verrouillage automatique à la clôture" },
       adresse_ip: ip ? String(ip).split(",")[0].trim() : null,
     });
 
@@ -364,10 +381,11 @@ export async function POST(req: NextRequest) {
       lignes_anouveaux: anouveaux.length,
       lignes_verrouillees: nbVerrouillees,
       ouverture: lendemain,
-      message: "Exercice " + fin.slice(0, 4) + " cloture. Resultat de "
-        + resultat.toFixed(2) + " EUR, " + anouveaux.length
-        + " ligne(s) reportees au " + lendemain + ". L exercice est verrouille : "
-        + nbVerrouillees + " ligne(s) ne se modifient plus.",
+      message: "Exercice " + fin.slice(0, 4) + " clôturé. Résultat de "
+        + eurosFr(resultat) + ", " + anouveaux.length
+        + (anouveaux.length > 1 ? " lignes reportées au " : " ligne reportée au ") + dateFr(lendemain)
+        + ". L’exercice est verrouillé : "
+        + nbVerrouillees + (nbVerrouillees > 1 ? " lignes ne se modifient plus." : " ligne ne se modifie plus."),
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
