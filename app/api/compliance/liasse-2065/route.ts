@@ -13,20 +13,20 @@ const SEUIL_TAUX_REDUIT = 42500;
 // Postes de retraitement courants. Le montant lu en comptabilite n est
 // qu une PROPOSITION : c est l expert-comptable qui valide.
 const REINTEGRATIONS = [
-  { code: "WE", libelle: "Amendes et penalites", racines: ["6712"] },
-  { code: "WF", libelle: "Taxe sur les vehicules de societe", racines: ["63514"] },
+  { code: "WE", libelle: "Amendes et pénalités", racines: ["6712"] },
+  { code: "WF", libelle: "Taxe sur les véhicules de société", racines: ["63514"] },
   { code: "WG", libelle: "Charges somptuaires", racines: ["6234"] },
   { code: "WH", libelle: "Quote-part de frais sur dividendes", racines: [] },
-  { code: "WI", libelle: "Impot sur les societes comptabilise", racines: ["695", "699"] },
-  { code: "WJ", libelle: "Provisions non deductibles", racines: [] },
-  { code: "WK", libelle: "Autres reintegrations", racines: [] },
+  { code: "WI", libelle: "Impôt sur les sociétés comptabilisé", racines: ["695", "699"] },
+  { code: "WJ", libelle: "Provisions non déductibles", racines: [] },
+  { code: "WK", libelle: "Autres réintégrations", racines: [] },
 ];
 
 const DEDUCTIONS = [
   { code: "XA", libelle: "Produits nets de participation", racines: [] },
-  { code: "XB", libelle: "Reprises sur provisions non deduites", racines: [] },
-  { code: "XC", libelle: "Plus-values a long terme", racines: [] },
-  { code: "XD", libelle: "Autres deductions", racines: [] },
+  { code: "XB", libelle: "Reprises sur provisions non déduites", racines: [] },
+  { code: "XC", libelle: "Plus-values à long terme", racines: [] },
+  { code: "XD", libelle: "Autres déductions", racines: [] },
 ];
 
 const supabase = createClient(
@@ -45,6 +45,11 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Un montant ecrit a la francaise : 1 234,56 €.
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
 // LA CLOTURE N EST PAS DE L EXPLOITATION. Ses lignes de solde portent un
 // numero qui se termine par -CLOTURE, et les a-nouveaux vivent dans le
 // journal AN. Les compter reviendrait a annuler l exercice qu on declare :
@@ -59,7 +64,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -193,9 +198,9 @@ export async function GET(req: NextRequest) {
       deficit_anterieur_propose: deficitAnterieur,
       seuil_taux_reduit: SEUIL_TAUX_REDUIT,
       avertissement:
-        "Les retraitements fiscaux ne sont pas calcules automatiquement : ils sont proposes "
-        + "et doivent etre valides par l expert-comptable. Un logiciel qui deciderait seul "
-        + "d une reintegration ferait courir un risque au client.",
+        "Les retraitements fiscaux ne sont pas calculés automatiquement : ils sont proposés "
+        + "et doivent être validés par l'expert-comptable. Un logiciel qui déciderait seul "
+        + "d'une réintégration ferait courir un risque au client.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
@@ -206,7 +211,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
     }
 
     // LE BARRAGE : ce calcul produit le chiffre qui sera depose.
@@ -270,15 +275,15 @@ export async function POST(req: NextRequest) {
         deficit_reportable: deficitReportable > 0 ? deficitReportable : 0,
       },
       message: base > 0
-        ? "Impot sur les societes du : " + total.toFixed(2) + " EUR sur une base de "
-          + base.toFixed(2) + " EUR."
-        : "Aucun impot du : le resultat fiscal est de " + resultatFiscal.toFixed(2)
-          + " EUR" + (deficitReportable > 0 ? ", " + deficitReportable.toFixed(2) + " EUR reportables." : "."),
+        ? "Impôt sur les sociétés dû : " + eurosFr(total) + " sur une base de "
+          + eurosFr(base) + "."
+        : "Aucun impôt dû : le résultat fiscal est de " + eurosFr(resultatFiscal)
+          + (deficitReportable > 0 ? ", " + eurosFr(deficitReportable) + " reportables." : "."),
       avertissement: tauxReduit
-        ? "Le taux reduit de 15 % suppose un capital entierement libere, detenu a 75 % au moins "
-          + "par des personnes physiques, et un chiffre d affaires inferieur au plafond legal. "
-          + "Ces conditions ne sont pas verifiables par le logiciel."
-        : "Taux normal applique sur la totalite du benefice.",
+        ? "Le taux réduit de 15 % suppose un capital entièrement libéré, détenu à 75 % au moins "
+          + "par des personnes physiques, et un chiffre d'affaires inférieur au plafond légal. "
+          + "Ces conditions ne sont pas vérifiables par le logiciel."
+        : "Taux normal appliqué sur la totalité du bénéfice.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
