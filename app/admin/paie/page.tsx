@@ -1145,7 +1145,10 @@ export default function PagePaie() {
       setMsg("Émission : " + (i + 1) + " sur " + prets.length + " (" + l.salarie + ")…");
       const d = await appeler({ action: "emettre", id: l.bulletin.id });
       if (d && d.success) ok++;
-      else refus.push(l.salarie + " : " + ((d && d.erreur) || "refusé"));
+      // 🆕 07/10 — « Rien n'a été émis » ne vaut que pour CE bulletin : dans une
+      // emission en masse, la phrase laissait croire que rien n'etait parti.
+      else refus.push(l.salarie + " (non émis) : "
+        + String((d && d.erreur) || "refusé").replace(/\s*⛔?\s*Rien n'a été émis\.?/g, "").trim());
     }
     setOccupe("");
     await chargerMois();
@@ -2534,6 +2537,18 @@ export default function PagePaie() {
                 if (choisi.coefficient) morceaux.push("coefficient " + choisi.coefficient);
                 if (choisi.code_risque_at) morceaux.push("risque AT " + choisi.code_risque_at);
                 if (choisi.vehicule) morceaux.push("véhicule de fonction");
+                // 🆕 07/10 — le motif et la prime de precarite d un CDD se lisent sur
+                // la ligne (il fallait ouvrir le formulaire pour les connaitre).
+                if (choisi.type_contrat === "cdd") {
+                  const mr = String(choisi.motif_recours || "");
+                  const trouve = MOTIFS_CDD.filter(function (m) { return m[0] === mr; })[0];
+                  if (mr) morceaux.push("motif : " + (trouve ? String(trouve[1]).replace(/ \(.*\)$/, "").toLowerCase() : mr));
+                  if (choisi.ifm_due === false) {
+                    const nd = String(choisi.ifm_motif_non_due || "");
+                    morceaux.push("prime de précarité non due" + (/usage|extra/i.test(nd) ? " (contrat d'usage)"
+                      : /saisonn/i.test(nd) ? " (emploi saisonnier)" : ""));
+                  }
+                }
                 if (choisi.lieu_travail_insee) morceaux.push("lieu de travail " + choisi.lieu_travail_insee);
                 if (choisi.date_fin) morceaux.push("fin prévue le " + dateFr(choisi.date_fin));
                 if (choisi.rompu_le) {
@@ -3814,7 +3829,7 @@ export default function PagePaie() {
                           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap",
                             marginTop: "8px", alignItems: "center" }}>
                             <input value={motifs["m_" + b.id] || ""}
-                              placeholder="justification, ou motif du renvoi ou de la levée"
+                              placeholder="justification, ou motif du renvoi ou de la levée (10 caractères au moins pour lever ou renvoyer)"
                               style={{ ...CHAMP, flex: "1 1 220px", width: "auto" }}
                               onChange={(ev) => setMotifs({ ...motifs, ["m_" + b.id]: ev.target.value })} />
                             {droitsIci.preparer && coul === "orange" && (
@@ -3926,7 +3941,24 @@ export default function PagePaie() {
                   Congés payés
                 </h3>
 
-                {conges.solde ? (
+                {/* 🆕 07/10 — UN SALARIE SORTI : l indemnite de sortie paie les jours
+                    de TOUTES les periodes, mais elle est inscrite sur la periode en
+                    cours — la ligne affichait « 5,00 acquis, solde -2,50 ». On dit
+                    ce qui a ete paye. */}
+                {(function () {
+                  const payes = (conges.mouvements || []).filter(function (m: any) { return m.type_mouvement === "paiement"; });
+                  if (payes.length === 0) return null;
+                  let j = 0; let e = 0;
+                  for (const m of payes) { j += Number(m.jours || 0); e += Number(m.valeur_retenue || 0); }
+                  return (
+                    <p style={{ fontSize: "14px", marginTop: 0 }}>
+                      Compteur soldé : <strong style={{ color: OR }}>{fr2(j)}</strong> {j > 1 ? "jours payés" : "jour payé"} à
+                      la sortie{e > 0 ? " (" + fr2(e) + " € d'indemnité compensatrice)" : ""}, toutes périodes confondues.
+                    </p>
+                  );
+                })()}
+                {(conges.mouvements || []).some(function (m: any) { return m.type_mouvement === "paiement"; }) ? null
+                : conges.solde ? (
                   <p style={{ fontSize: "14px", marginTop: 0 }}>
                     Période ouverte le {String(conges.solde.periode_ref).slice(8, 10)
                       + "/" + String(conges.solde.periode_ref).slice(5, 7)
@@ -3967,7 +3999,9 @@ export default function PagePaie() {
                 {conges.mouvements && conges.mouvements.length > 0 && (
                   <div style={{ marginTop: "14px" }}>
                     {conges.mouvements.map(function (m: any) {
-                      const prise = m.type_mouvement === "prise";
+                      // 🆕 07/10 — le paiement de sortie se lisait « acquisition ».
+                      const paiement = m.type_mouvement === "paiement";
+                      const prise = m.type_mouvement === "prise" || paiement;
                       return (
                         <div key={m.id} style={{ display: "flex",
                           justifyContent: "space-between", padding: "7px 0",
@@ -3981,7 +4015,7 @@ export default function PagePaie() {
                               color: "rgba(255,255,255,0.76)" }}>
                               {/* 🆕 02/10 — le mois en lettres, comme ailleurs. */}
                               {libelleMois(String(m.periode))}
-                              {" · "}{prise ? "prise" : "acquisition"}
+                              {" · "}{paiement ? "payés à la sortie" : prise ? "prise" : "acquisition"}
                             </span>
                             {/* 🆕 22/09 — D OU VIENNENT CES JOURS.
                                 Une acquisition d anciennete ne se distingue
@@ -3998,7 +4032,14 @@ export default function PagePaie() {
                             {/* ⚠️ LES DEUX METHODES SONT MONTREES, pas
                                 seulement le resultat : c est ce qui permet
                                 de justifier le montant devant un controle. */}
-                            {prise && m.valeur_retenue != null && (
+                            {paiement && m.valeur_retenue != null && (
+                              <span style={{ marginLeft: "10px", fontSize: "13.5px",
+                                color: "rgba(255,255,255,0.72)" }}>
+                                indemnité compensatrice{" "}
+                                <strong style={{ color: OR }}>{fr2(m.valeur_retenue)} €</strong>
+                              </span>
+                            )}
+                            {prise && !paiement && m.valeur_retenue != null && (
                               <span style={{ marginLeft: "10px", fontSize: "13.5px",
                                 color: "rgba(255,255,255,0.72)" }}>
                                 maintien {fr2(m.valeur_maintien)} €
