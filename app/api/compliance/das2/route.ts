@@ -19,10 +19,10 @@ const NATURES = [
   { racine: "6226", nature: "honoraires", libelle: "Honoraires" },
   { racine: "6221", nature: "commissions", libelle: "Commissions et courtages" },
   { racine: "6222", nature: "commissions", libelle: "Commissions sur ventes" },
-  { racine: "6227", nature: "honoraires", libelle: "Frais d actes et de contentieux" },
-  { racine: "6228", nature: "honoraires", libelle: "Divers - remunerations d intermediaires" },
+  { racine: "6227", nature: "honoraires", libelle: "Frais d'actes et de contentieux" },
+  { racine: "6228", nature: "honoraires", libelle: "Divers - rémunérations d'intermédiaires" },
   { racine: "6231", nature: "autres", libelle: "Annonces et insertions" },
-  { racine: "6516", nature: "droits", libelle: "Droits d auteur et de reproduction" },
+  { racine: "6516", nature: "droits", libelle: "Droits d'auteur et de reproduction" },
 ];
 
 const supabase = createClient(
@@ -57,14 +57,14 @@ function beneficiaire(l: any): string {
     .replace(/\s{2,}/g, " ")
     .trim();
 
-  return t || "Beneficiaire non identifie";
+  return t || "Bénéficiaire non identifié";
 }
 
 export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : elle nomme les beneficiaires d honoraires.
@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
           ...p,
           a_declarer: p.montant >= SEUIL,
           identification_incomplete: !p.identifiant
-            || p.beneficiaire === "Beneficiaire non identifie",
+            || p.beneficiaire === "Bénéficiaire non identifié",
         };
       })
       .sort(function (a: any, b: any) { return b.montant - a.montant; });
@@ -165,9 +165,9 @@ export async function GET(req: NextRequest) {
       nb_identification_incomplete: incomplets.length,
       beneficiaires: tous,
       avertissement:
-        "Les beneficiaires sont deduits du compte auxiliaire, ou a defaut du libelle "
-        + "des ecritures. Verifiez chaque identite avant depot : un beneficiaire mal "
-        + "identifie est le premier motif de rejet de la DAS2.",
+        "Les bénéficiaires sont déduits du compte auxiliaire, ou à défaut du libellé "
+        + "des écritures. Vérifiez chaque identité avant dépôt : un bénéficiaire mal "
+        + "identifié est le premier motif de rejet de la DAS2.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
