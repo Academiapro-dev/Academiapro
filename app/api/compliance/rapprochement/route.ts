@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.id) {
-      return NextResponse.json({ ok: false, erreur: "Ligne non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Ligne non précisée." }, { status: 400 });
     }
 
     const { data: ligne } = await supabase
@@ -198,7 +198,7 @@ export async function POST(req: NextRequest) {
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, message: "Ligne ecartee du rapprochement." });
+      return NextResponse.json({ ok: true, message: "Ligne écartée du rapprochement." });
     }
 
     if (b.action === "annuler") {
@@ -210,12 +210,12 @@ export async function POST(req: NextRequest) {
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, message: "Rapprochement annule." });
+      return NextResponse.json({ ok: true, message: "Rapprochement annulé." });
     }
 
     const ecriture = String(b.ecriture_num || "").trim();
     if (!ecriture) {
-      return NextResponse.json({ ok: false, erreur: "Ecriture non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Écriture non précisée." }, { status: 400 });
     }
 
     // Une ecriture ne se rapproche qu une fois : sinon deux lignes de releve
@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
 
     if (deja) {
       return NextResponse.json(
-        { ok: false, erreur: "L ecriture " + ecriture + " est deja rapprochee a une autre ligne." },
+        { ok: false, erreur: "L’écriture " + ecriture + " est déjà rapprochée à une autre ligne." },
         { status: 409 }
       );
     }
@@ -248,7 +248,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, message: "Rapproche avec " + ecriture + "." });
+    return NextResponse.json({ ok: true, message: "Ligne rapprochée avec l’écriture " + ecriture + "." });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
