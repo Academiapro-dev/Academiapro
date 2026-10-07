@@ -28,7 +28,7 @@ function r2(n: number): number {
 }
 
 function euros(n: number): string {
-  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
 export async function GET(req: NextRequest) {
@@ -176,7 +176,7 @@ export async function GET(req: NextRequest) {
 
     if ((releves || []).length > 0) {
       signaler("moyen", "Banque non rapprochée",
-        (releves || []).length + " ligne(s) de relevé sans écriture correspondante.",
+        (releves || []).length + ((releves || []).length > 1 ? " lignes" : " ligne") + " de relevé sans écriture correspondante.",
         "Passez par le rapprochement bancaire avant de clôturer.");
     }
 
@@ -193,20 +193,20 @@ export async function GET(req: NextRequest) {
 
     if ((immos || []).length > 0 && !dotationPassee) {
       signaler("moyen", "Dotation aux amortissements non passée",
-        (immos || []).length + " bien(s) immobilisés, aucune écriture de dotation sur l'exercice.",
+        (immos || []).length + ((immos || []).length > 1 ? " biens immobilisés" : " bien immobilisé") + ", aucune écriture de dotation sur l'exercice.",
         "Passez la dotation depuis l'écran des immobilisations.");
     }
 
     const uniques = Array.from(new Set(sansPiece));
     if (uniques.length > 0) {
       signaler("faible", "Écritures sans référence de pièce",
-        uniques.length + " écriture(s) n'ont aucune référence de pièce.",
+        (uniques.length > 1 ? uniques.length + " écritures n'ont" : "Une écriture n'a") + " aucune référence de pièce.",
         "Une pièce manquante est le premier reproche d'un contrôleur.");
     }
 
     if (horsPlan.length > 0) {
       signaler("faible", "Comptes absents du plan",
-        horsPlan.length + " compte(s) mouvementés ne figurent pas au plan : " + horsPlan.slice(0, 8).join(", ") + ".",
+        (horsPlan.length > 1 ? horsPlan.length + " comptes mouvementés ne figurent pas" : "Un compte mouvementé ne figure pas") + " au plan : " + horsPlan.slice(0, 8).join(", ") + ".",
         "Ajoutez-les au plan comptable pour qu'ils portent un libellé stable.");
     }
 
