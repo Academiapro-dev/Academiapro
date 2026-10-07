@@ -356,7 +356,7 @@ export async function POST(req: NextRequest) {
 
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.id) {
-      return NextResponse.json({ ok: false, erreur: "Document non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Document non précisé." }, { status: 400 });
     }
 
     const { data: doc } = await supabase
@@ -369,7 +369,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: "Document introuvable." }, { status: 404 });
     }
     if (doc.tenant_id !== session.tenantId) {
-      return NextResponse.json({ ok: false, erreur: "Document d un autre cabinet." }, { status: 403 });
+      return NextResponse.json({ ok: false, erreur: "Document d'un autre cabinet." }, { status: 403 });
     }
 
     // 🚨 UN BROUILLON NE S IMPRIME PAS. Un PDF sans numero circule, se
@@ -378,7 +378,7 @@ export async function POST(req: NextRequest) {
     if (!doc.numero) {
       return NextResponse.json({
         ok: false,
-        erreur: "Ce document n est pas encore émis : il n a pas de numéro.",
+        erreur: "Ce document n'est pas encore émis : il n'a pas de numéro.",
       }, { status: 409 });
     }
 
