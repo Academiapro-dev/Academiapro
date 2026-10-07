@@ -253,7 +253,7 @@ export default function PageLettresMission() {
                       </span>
                     </div>
                     <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13.5px", margin: "6px 0 0" }}>
-                      {(Number(m.honoraires) || 0).toLocaleString("fr-FR")} € HT {m.periodicite === "mensuelle" ? "par mois" : "par an"} · {(m.prestations || []).length} prestation(s) · signataire {m.signataire_email}
+                      {(Number(m.honoraires) || 0).toLocaleString("fr-FR")} € HT {m.periodicite === "mensuelle" ? "par mois" : "par an"} · {(m.prestations || []).length} {(m.prestations || []).length > 1 ? "prestations" : "prestation"} · signataire {m.signataire_email}
                       {m.reference_document ? " · " + m.reference_document : ""}
                     </p>
                   </div>
