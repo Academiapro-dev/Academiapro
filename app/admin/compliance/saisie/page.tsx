@@ -6,8 +6,8 @@ const JOURNAUX_DEFAUT: any = {
   VE: "Ventes",
   BQ: "Banque",
   CA: "Caisse",
-  OD: "Operations diverses",
-  AN: "A nouveaux",
+  OD: "Opérations diverses",
+  AN: "À nouveaux",
 };
 
 // Minuscules, sans accents : « Tresorerie » se trouve en tapant tresorerie.
@@ -199,7 +199,7 @@ export default function PageSaisie() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   return (
@@ -280,13 +280,13 @@ export default function PageSaisie() {
                     <input
                       value={q}
                       onChange={(e) => poserRecherche(i, e.target.value)}
-                      placeholder="Chercher un compte : 512, 6, banque..."
+                      placeholder="Chercher un compte : 512, 6, banque…"
                       style={{ ...CHAMP, marginBottom: "6px" }}
                     />
                     <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: "0 0 8px" }}>
                       {q
-                        ? proposes.length + " compte(s) sur " + comptes.length
-                        : comptes.length + " compte(s) — tapez un chiffre pour n avoir qu une classe"}
+                        ? proposes.length + (proposes.length > 1 ? " comptes sur " : " compte sur ") + comptes.length
+                        : comptes.length + (comptes.length > 1 ? " comptes" : " compte") + " — tapez un chiffre pour n’avoir qu’une classe"}
                     </p>
 
                     <select
@@ -354,12 +354,12 @@ export default function PageSaisie() {
               disabled={occupe !== "" || !pret}
               style={{ background: occupe !== "" || !pret ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" || !pret ? "#8a8a8a" : "#050508", padding: "15px 30px", borderRadius: "8px", border: "none", cursor: occupe !== "" || !pret ? "default" : "pointer", fontWeight: "bold", fontSize: "16px", fontFamily: "Georgia,serif", width: "100%" }}
             >
-              {occupe === "enr" ? "Enregistrement..." : "Enregistrer l'écriture"}
+              {occupe === "enr" ? "Enregistrement…" : "Enregistrer l'écriture"}
             </button>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-              Le bouton reste inerte tant que le debit n egale pas le credit. Le numero
-              d ecriture se fabrique tout seul, par journal et par annee, sans trou.
+              Le bouton reste inerte tant que le débit n’égale pas le crédit. Le numéro
+              d’écriture se fabrique tout seul, par journal et par année, sans trou.
             </p>
           </div>
         )}
@@ -367,17 +367,17 @@ export default function PageSaisie() {
         {dossier && (
           <>
             <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "26px 0 14px" }}>
-              Dernieres ecritures
+              Dernières écritures
             </h2>
 
             {chargement ? (
               <div style={CARTE}>
-                <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p>
+                <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p>
               </div>
             ) : !d || !d.ecritures || d.ecritures.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucune ecriture sur ce dossier.
+                  Aucune écriture sur ce dossier.
                 </p>
               </div>
             ) : (
@@ -390,7 +390,7 @@ export default function PageSaisie() {
                           {e.ecriture_num} · {e.journal_code}
                           {e.piece_ref ? " · " + e.piece_ref : ""}
                           {e.manuelle ? " · saisie manuelle" : " · automatique"}
-                          {e.verrouillee ? " · verrouillee" : ""}
+                          {e.verrouillee ? " · verrouillée" : ""}
                         </p>
                         <h3 style={{ color: "#fff", fontSize: "15.5px", margin: 0 }}>{e.libelle}</h3>
                       </div>
