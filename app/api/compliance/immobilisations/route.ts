@@ -86,7 +86,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : modifier une duree d amortissement change le resultat.
@@ -175,7 +175,7 @@ export async function POST(req: NextRequest) {
     const designation = String(b.designation || "").trim();
     if (designation.length < 2) {
       return NextResponse.json(
-        { ok: false, erreur: "La designation du bien est obligatoire." },
+        { ok: false, erreur: "La désignation du bien est obligatoire." },
         { status: 400 }
       );
     }
@@ -183,7 +183,7 @@ export async function POST(req: NextRequest) {
     const valeur = Number(String(b.valeur_acquisition || "").replace(",", "."));
     if (isNaN(valeur) || valeur <= 0) {
       return NextResponse.json(
-        { ok: false, erreur: "La valeur d acquisition doit etre positive." },
+        { ok: false, erreur: "La valeur d’acquisition doit être positive." },
         { status: 400 }
       );
     }
@@ -191,14 +191,14 @@ export async function POST(req: NextRequest) {
     const duree = Number(String(b.duree_annees || "").replace(",", "."));
     if (isNaN(duree) || duree <= 0 || duree > 50) {
       return NextResponse.json(
-        { ok: false, erreur: "La duree doit etre comprise entre 1 et 50 ans." },
+        { ok: false, erreur: "La durée doit être comprise entre 1 et 50 ans." },
         { status: 400 }
       );
     }
 
     const acquisition = String(b.date_acquisition || "").slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(acquisition)) {
-      return NextResponse.json({ ok: false, erreur: "Date d acquisition invalide." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Date d’acquisition invalide." }, { status: 400 });
     }
 
     const fiche: any = {
@@ -232,7 +232,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      message: (b.id ? "Fiche modifiee" : "Bien immobilise enregistre") + " : " + designation + ".",
+      message: (b.id ? "Fiche modifiée" : "Bien immobilisé enregistré") + " : " + designation + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
