@@ -924,15 +924,49 @@ function verifier(html: string, l: any, metier: string, domaine: string): string
   // 🆕 01/10 — SANS LIEU, DEUX IDENTITES INDEPENDANTES SUFFISENT : le nom du
   // dirigeant ET (le nom distinctif du cabinet, son nom complet ou son
   // sigle). Deux cabinets homonymes ont rarement le meme dirigeant.
+  // 🚨🆕 07/10 — « INDEPENDANTES » N ETAIT PAS VERIFIE. Premiere mesure sur
+  // les organismes de formation : « ABDOU FORMATION » retenait
+  // cabinet-abdou.fr (le nom de la societe EST le nom du dirigeant : une
+  // seule preuve, comptee deux fois), et « 3 2 1... PERMIS » retenait
+  // stephanedavid.fr (un nom tres courant, et le mot « permis » sur la
+  // page). Sans lieu, la seconde preuve doit desormais tenir a un mot de la
+  // societe qui n est PAS le nom du dirigeant, et que le NOM DU SITE porte
+  // lui-meme (voir `secondePreuve`).
   if (identite !== "nom") {
     const nom = mots(l.dirigeant_nom).filter(function (m) { return m.length >= 3; });
     if (nom.length > 0 && nom.every(function (m) { return contientMot(t, m); })) {
-      return "nom + " + identite;
+      const seconde = secondePreuve(t, l, domaine, metier);
+      if (seconde) return "nom + " + seconde;
     }
   } else {
-    const sansNom = identiteDe(t, Object.assign({}, l, { dirigeant_nom: "" }), domaine, metier);
-    if (sansNom) return "nom + " + sansNom;
+    const seconde = secondePreuve(t, l, domaine, metier);
+    if (seconde) return "nom + " + seconde;
   }
+  return null;
+}
+
+// 🆕 07/10 — LA SECONDE PREUVE, QUAND LA PAGE NE DIT PAS LE LIEU.
+// Un mot distinctif de la societe ou de son enseigne (quatre lettres au
+// moins, ni un nombre, ni un mot du metier, ni le nom ou le prenom du
+// dirigeant), ecrit sur la page ET dans le nom du site. Ou le sigle, forme
+// sur le nom du site et ecrit sur la page.
+function secondePreuve(t: string, l: any, domaine: string, metier: string): string | null {
+  const parts = decoupe(l.raison_sociale);
+  const generiques = generiquesDe(metier);
+  const personne = mots(l.dirigeant_nom).concat(mots(l.dirigeant_prenom));
+  const nomDomaine = domaine.replace(/[^a-z0-9]/g, "");
+  const distinctif = function (texte: string): boolean {
+    return mots(texte)
+      .filter(function (m) { return FORMES.indexOf(m) < 0 && generiques.indexOf(m) < 0; })
+      .filter(function (m) { return m.length >= 4 && !/^[0-9]+$/.test(m) && personne.indexOf(m) < 0; })
+      .some(function (m) { return nomDomaine.indexOf(m) >= 0 && contientMot(t, m); });
+  };
+  if (distinctif(parts.nom)) return "nom du domaine";
+  for (const e of parts.enseignes) {
+    if (distinctif(e)) return "enseigne dans le domaine";
+  }
+  const sigle = sigleDe(l.raison_sociale);
+  if (sigle && sigle.length >= 3 && nomDomaine.indexOf(sigle) >= 0 && contientMot(t, sigle)) return "sigle";
   return null;
 }
 
