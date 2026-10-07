@@ -39,6 +39,13 @@ function montantFec(n: number): string {
   return (Math.round(n * 100) / 100).toFixed(2).replace(".", ",");
 }
 
+// Une date AAAA-MM-JJ, dite a la francaise : JJ/MM/AAAA. Sert aux messages
+// seulement : les dates ecrites DANS le FEC gardent leur format officiel.
+function dateFr(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ""));
+  return m ? m[3] + "/" + m[2] + "/" + m[1] : String(d || "");
+}
+
 // Nettoie un champ texte : pas de pipe, pas de retour ligne
 function champ(s: string | null): string {
   if (!s) return "";
@@ -73,7 +80,8 @@ function champ(s: string | null): string {
 function controlerFec(lignes: any[], debut: string, fin: string) {
   const anomalies: Array<{ gravite: "rejet" | "avertissement"; code: string; detail: string; nb: number }> = [];
   function ajouter(gravite: "rejet" | "avertissement", code: string, detail: string, nb: number) {
-    if (nb > 0) anomalies.push({ gravite, code, detail, nb });
+    // Le texte s accorde avec le nombre : « (s) » devient « s » ou rien.
+    if (nb > 0) anomalies.push({ gravite, code, detail: detail.replace(/\(s\)/g, nb > 1 ? "s" : ""), nb });
   }
 
   let sansJournal = 0, sansNum = 0, sansDate = 0, sansCompte = 0, sansCompteLib = 0, sansLib = 0, sansValid = 0;
@@ -145,7 +153,7 @@ function controlerFec(lignes: any[], debut: string, fin: string) {
 
   const ecart = Math.round((totalDebit - totalCredit) * 100) / 100;
 
-  ajouter("rejet", "equilibre_global", "Le fichier n'est pas équilibré : écart de " + montantFec(ecart) + ".", Math.abs(ecart) > 0.01 ? 1 : 0);
+  ajouter("rejet", "equilibre_global", "Le fichier n'est pas équilibré : écart de " + montantFec(ecart) + " €.", Math.abs(ecart) > 0.01 ? 1 : 0);
   ajouter("rejet", "ecriture_desequilibree", "Écriture(s) déséquilibrée(s) à elle(s) seule(s)" + (exemples.length ? " : " + exemples.join(", ") : "") + ".", ecrituresDesequilibrees);
   ajouter("rejet", "journal_code_vide", "Ligne(s) sans code journal.", sansJournal);
   ajouter("rejet", "ecriture_num_vide", "Ligne(s) sans numéro d'écriture.", sansNum);
@@ -156,14 +164,14 @@ function controlerFec(lignes: any[], debut: string, fin: string) {
   ajouter("rejet", "ecriture_lib_vide", "Ligne(s) sans libellé d'écriture.", sansLib);
   ajouter("rejet", "valid_date_vide", "Ligne(s) sans date de validation : une écriture non validée n'a pas sa place dans un FEC.", sansValid);
   ajouter("rejet", "debit_et_credit", "Ligne(s) portant à la fois un débit et un crédit.", debitEtCredit);
-  ajouter("rejet", "hors_exercice", "Ligne(s) datées hors de l'exercice " + debut + " → " + fin + ".", horsExercice);
-  ajouter("rejet", "caracteres_interdits", "Libellé(s) contenant un pipe ou un retour à la ligne (nettoyés à l'export, mais à corriger à la source).", caracteres);
+  ajouter("rejet", "hors_exercice", "Ligne(s) datée(s) hors de l'exercice du " + dateFr(debut) + " au " + dateFr(fin) + ".", horsExercice);
+  ajouter("rejet", "caracteres_interdits", "Libellé(s) contenant un pipe ou un retour à la ligne (nettoyé(s) à l'export, mais à corriger à la source).", caracteres);
   ajouter("avertissement", "ni_debit_ni_credit", "Ligne(s) à zéro des deux côtés.", niDebitNiCredit);
   ajouter("avertissement", "piece_apres_ecriture", "Pièce(s) datée(s) après l'écriture.", pieceApres);
   ajouter("avertissement", "lettrage_sans_date", "Lettrage(s) sans date de lettrage.", letSansDate);
   ajouter("avertissement", "date_sans_lettrage", "Date(s) de lettrage sans code de lettrage.", dateSansLet);
   ajouter("avertissement", "valid_avant_ecriture", "Date(s) de validation antérieure(s) à l'écriture.", validAvant);
-  ajouter("avertissement", "non_chronologique", "Écriture(s) dont le numéro ne suit pas l'ordre des dates dans son journal.", nonChronologique);
+  ajouter("avertissement", "non_chronologique", "Écriture(s) dont le numéro ne suit pas l'ordre des dates du journal.", nonChronologique);
 
   const rejets = anomalies.filter(function (a) { return a.gravite === "rejet"; }).length;
   return {
@@ -207,7 +215,7 @@ export async function GET(req: NextRequest) {
 
     if (autorises.length === 0) {
       return NextResponse.json(
-        { error: "Aucun dossier ne vous est confie." },
+        { error: "Aucun dossier ne vous est confié." },
         { status: 403 }
       );
     }
@@ -220,7 +228,7 @@ export async function GET(req: NextRequest) {
 
     if (erreurDossiers) {
       return NextResponse.json(
-        { error: "Lecture des dossiers: " + erreurDossiers.message },
+        { error: "Lecture des dossiers : " + erreurDossiers.message },
         { status: 500 }
       );
     }
@@ -250,7 +258,7 @@ export async function GET(req: NextRequest) {
       if (!codeDemande && !idDemande) {
         return NextResponse.json(
           {
-            error: "Precisez le dossier : ?societe=CODE",
+            error: "Précisez le dossier.",
             dossiers: liste.map(function (s: any) {
               return { code: s.code, raison_sociale: s.raison_sociale };
             }),
@@ -309,7 +317,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       return NextResponse.json(
-        { error: "Lecture ecritures: " + error.message },
+        { error: "Lecture des écritures : " + error.message },
         { status: 500 }
       );
     }
@@ -317,8 +325,8 @@ export async function GET(req: NextRequest) {
     if (!lignes || lignes.length === 0) {
       return NextResponse.json(
         {
-          error: "Aucune ecriture pour " + dossier.raison_sociale
-            + " entre le " + debut + " et le " + fin + ".",
+          error: "Aucune écriture pour " + dossier.raison_sociale
+            + " entre le " + dateFr(debut) + " et le " + dateFr(fin) + ".",
           dossier: dossier.code,
           ok: false,
         },
@@ -350,10 +358,10 @@ export async function GET(req: NextRequest) {
     if (Math.abs(ecart) > 0.01 && req.nextUrl.searchParams.get("forcer") !== "1") {
       return NextResponse.json(
         {
-          error: "Ecritures desequilibrees : debit " + montantFec(totalDebit)
-            + " contre credit " + montantFec(totalCredit)
-            + ", ecart de " + montantFec(ecart)
-            + ". Corrigez avant de produire le FEC, ou ajoutez &forcer=1 pour l obtenir tel quel.",
+          error: "Écritures déséquilibrées : débit " + montantFec(totalDebit) + " €"
+            + " contre crédit " + montantFec(totalCredit) + " €"
+            + ", écart de " + montantFec(ecart) + " €"
+            + ". Corrigez avant de produire le FEC, ou ajoutez &forcer=1 à l'adresse pour l'obtenir tel quel.",
           debit: totalDebit,
           credit: totalCredit,
           ecart: ecart,
