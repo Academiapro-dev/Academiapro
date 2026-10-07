@@ -387,8 +387,9 @@ export default function PageSocietes() {
             {d.ecritures_orphelines > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.55)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {d.ecritures_orphelines} ligne(s) d&apos;écriture ne sont rattachées à aucun dossier :
-                  elles n&apos;apparaîtront dans aucun FEC ni aucune liasse.
+                  {d.ecritures_orphelines > 1
+                    ? d.ecritures_orphelines + " lignes d’écriture ne sont rattachées à aucun dossier : elles n’apparaîtront dans aucun FEC ni aucune liasse."
+                    : "Une ligne d’écriture n’est rattachée à aucun dossier : elle n’apparaîtra dans aucun FEC ni aucune liasse."}
                 </p>
               </div>
             )}
@@ -433,7 +434,7 @@ export default function PageSocietes() {
                       </div>
                       <div style={{ textAlign: "right" }}>
                         <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 2px" }}>{s.lignes}</p>
-                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>ligne(s) d'écriture</p>
+                        <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>{s.lignes > 1 ? "lignes" : "ligne"} d'écriture</p>
                       </div>
                     </div>
 
