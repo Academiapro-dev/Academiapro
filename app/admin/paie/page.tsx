@@ -249,7 +249,8 @@ const FIN_PROCEDURE = ["011", "012", "014", "015", "020", "026", "086",
   "117"];
 // Fin de CDD, fin de mission, ruptures conventionnelles : jamais de preavis,
 // le champ ne s affiche pas.
-const FIN_SANS_PREAVIS = ["031", "032", "043", "110"];
+// 🆕 07/10 — 081, fin de contrat d apprentissage : pas de preavis non plus.
+const FIN_SANS_PREAVIS = ["031", "032", "043", "081", "110"];
 // Fin d essai du salarie : le preavis peut rester vide (« pas de preavis »).
 const FIN_PREAVIS_FACULTATIF = ["035"];
 const PREAVIS_LIBELLES: Record<string, string> = {
@@ -4051,7 +4052,7 @@ export default function PagePaie() {
                               </span>
                             )}
                           </span>
-                          {prise && (
+                          {prise && !paiement && (
                             <button onClick={() => retirerPrise(m.id)}
                               style={{ background: "none", border: "none",
                                 color: ROUGE, cursor: "pointer", fontSize: "13.5px" }}>
