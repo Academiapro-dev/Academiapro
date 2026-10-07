@@ -19,7 +19,10 @@ export default function PageLettrage() {
         const data = await r.json();
         if (data.ok) {
           setSocietes(data.societes || []);
-          if ((data.societes || []).length === 1) setDossier(data.societes[0].id);
+          // Le dossier vient de l adresse quand on arrive depuis sa carte.
+          const p = new URLSearchParams(window.location.search).get("societe_id");
+          if (p) setDossier(p);
+          else if ((data.societes || []).length === 1) setDossier(data.societes[0].id);
         }
       } catch (e) {}
     })();
@@ -86,10 +89,10 @@ export default function PageLettrage() {
         setMessage(data.message);
         await charger();
       } else {
-        setErreur(data.erreur || "Delettrage impossible.");
+        setErreur(data.erreur || "Délettrage impossible.");
       }
     } catch (e: any) {
-      setErreur("Delettrage impossible : " + String(e));
+      setErreur("Délettrage impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -123,7 +126,7 @@ export default function PageLettrage() {
   };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   const selection = d && d.vue === "compte"
@@ -140,11 +143,11 @@ export default function PageLettrage() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Lettrage</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Rapprocher les factures de leurs reglements, compte par compte
+          Rapprocher les factures de leurs règlements, compte par compte
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -161,12 +164,12 @@ export default function PageLettrage() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : d.vue === "comptes" ? (
           d.comptes.length === 0 ? (
             <div style={CARTE}>
               <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                Aucun compte lettrable mouvemente sur ce dossier.
+                Aucun compte lettrable n’a de mouvement sur ce dossier.
               </p>
             </div>
           ) : (
@@ -189,7 +192,7 @@ export default function PageLettrage() {
                         {c.a_lettrer}
                       </p>
                       <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12px", margin: 0 }}>
-                        a lettrer sur {c.total}
+                        à lettrer sur {c.total}
                       </p>
                     </div>
                   </div>
@@ -211,14 +214,14 @@ export default function PageLettrage() {
               </p>
               <h2 style={{ color: "#fff", fontSize: "18px", margin: "0 0 8px" }}>{d.compte.libelle}</h2>
               <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "14px", margin: 0 }}>
-                {d.a_lettrer} ligne(s) a lettrer sur {d.total} · reste ouvert {euros(d.solde_ouvert)}
+                {d.a_lettrer} {d.a_lettrer > 1 ? "lignes" : "ligne"} à lettrer sur {d.total} · reste ouvert {euros(d.solde_ouvert)}
               </p>
             </div>
 
             {d.propositions.length > 0 && (
               <div style={CARTE}>
                 <h2 style={{ color: "#c8a96e", fontSize: "16px", margin: "0 0 12px" }}>
-                  Groupes qui s annulent
+                  Groupes qui s’annulent
                 </h2>
                 {d.propositions.map(function (p: any, i: number) {
                   return (
@@ -238,7 +241,7 @@ export default function PageLettrage() {
                         disabled={occupe !== ""}
                         style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold", marginTop: "6px" }}
                       >
-                        {occupe === "lettrage" ? "..." : "Lettrer ces deux lignes"}
+                        {occupe === "lettrage" ? "…" : (p.lignes.length === 2 ? "Lettrer ces deux lignes" : "Lettrer ces " + p.lignes.length + " lignes")}
                       </button>
                     </div>
                   );
@@ -249,22 +252,22 @@ export default function PageLettrage() {
             {selection.length > 0 && (
               <div style={{ ...CARTE, border: pretALettrer ? "1px solid rgba(76,175,80,0.5)" : "1px solid rgba(232,163,61,0.45)" }}>
                 <p style={{ color: pretALettrer ? "#4caf50" : "#e8a33d", fontSize: "14.5px", margin: "0 0 10px" }}>
-                  {selection.length} ligne(s) selectionnee(s) · solde {euros(soldeSelection)}
-                  {pretALettrer ? " — elles s annulent" : " — elles ne s annulent pas encore"}
+                  {selection.length} {selection.length > 1 ? "lignes sélectionnées" : "ligne sélectionnée"} · solde {euros(soldeSelection)}
+                  {pretALettrer ? " — elles s’annulent" : " — elles ne s’annulent pas encore"}
                 </p>
                 <button
                   onClick={() => lettrer(selection.map(function (l: any) { return l.id; }))}
                   disabled={occupe !== "" || !pretALettrer}
                   style={{ background: occupe !== "" || !pretALettrer ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" || !pretALettrer ? "#8a8a8a" : "#050508", padding: "12px 24px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "14.5px", fontFamily: "Georgia,serif" }}
                 >
-                  {occupe === "lettrage" ? "Lettrage..." : "Lettrer la selection"}
+                  {occupe === "lettrage" ? "Lettrage…" : "Lettrer la sélection"}
                 </button>
               </div>
             )}
 
             <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
               <div style={{ display: "grid", gridTemplateColumns: "0.5fr 0.9fr 2.2fr 1fr 0.7fr", background: "rgba(200,169,110,0.12)", padding: "12px 14px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
-                <span></span><span>Date</span><span>Libelle</span>
+                <span></span><span>Date</span><span>Libellé</span>
                 <span style={{ textAlign: "right" }}>Mouvement</span>
                 <span style={{ textAlign: "right" }}>Lettre</span>
               </div>
@@ -305,8 +308,8 @@ export default function PageLettrage() {
             </div>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "14px 0 0", lineHeight: "1.7" }}>
-              Cochez plusieurs lignes pour les lettrer ensemble — le bouton s active quand elles
-              s annulent. Touchez une lettre verte pour delettrer le groupe.
+              Cochez plusieurs lignes pour les lettrer ensemble — le bouton s’active quand elles
+              s’annulent. Touchez une lettre verte pour délettrer le groupe.
             </p>
           </>
         )}
