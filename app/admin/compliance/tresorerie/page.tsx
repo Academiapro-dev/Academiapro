@@ -125,7 +125,7 @@ export default function Tresorerie() {
                   Semaine du {jolieDate(d.creux.date)} : {euros(d.creux.solde)}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", lineHeight: "1.8", margin: 0 }}>
-                  Il reste {d.creux.semaine - 1} semaine(s) pour agir : relancer un client,
+                  Il reste {d.creux.semaine - 1} {d.creux.semaine - 1 > 1 ? "semaines" : "semaine"} pour agir : relancer un client,
                   différer un paiement, ou prévoir un financement.
                 </p>
               </div>
