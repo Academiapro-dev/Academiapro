@@ -34,7 +34,12 @@ export default function PageComptes() {
     try {
       const r = await fetch("/api/compliance/societes");
       const data = await r.json();
-      if (data.ok) setSocietes(data.societes || []);
+      if (data.ok) {
+        setSocietes(data.societes || []);
+        // Le dossier vient de l adresse quand on arrive depuis sa carte.
+        const p = new URLSearchParams(window.location.search).get("societe_id");
+        if (p) setDossier(p);
+      }
     } catch (e) {}
   }
 
@@ -58,7 +63,10 @@ export default function PageComptes() {
 
   function viderFormulaire() {
     setNumero(""); setLibelle(""); setType(""); setTauxTva("");
-    setLettrable(false); setPourDossier(false); setModifie("");
+    // 🆕 08/10 — UN NOUVEAU COMPTE EST D ABORD RESERVE AU DOSSIER OUVERT.
+    // Avant, la case etait decochee d office : un compte ajoute sans y
+    // penser rejoignait le plan commun a tous les dossiers.
+    setLettrable(false); setPourDossier(dossier !== ""); setModifie("");
   }
 
   // MODIFIER : le formulaire est rempli avec les valeurs DEJA en base.
@@ -90,7 +98,7 @@ export default function PageComptes() {
 
   async function enregistrer() {
     if (numero.trim().length < 3 || libelle.trim().length < 2) {
-      setErreur("Un numero d au moins trois chiffres et un libelle sont necessaires.");
+      setErreur("Un numéro d’au moins trois chiffres et un libellé sont nécessaires.");
       return;
     }
     setOccupe("enr");
@@ -132,7 +140,7 @@ export default function PageComptes() {
       const r = await fetch("/api/compliance/comptes?id=" + c.id, { method: "DELETE" });
       const data = await r.json();
       if (data.ok) {
-        setMessage("Compte " + data.supprime + " supprime.");
+        setMessage("Compte " + data.supprime + " supprimé.");
         await charger();
       } else {
         setErreur(data.erreur || "Suppression impossible.");
@@ -212,11 +220,11 @@ export default function PageComptes() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Plan comptable</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Un socle commun, et les comptes propres a chaque dossier
+          Un socle commun, et les comptes propres à chaque dossier
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -238,22 +246,22 @@ export default function PageComptes() {
 
         {chargement ? (
           <div style={CARTE}>
-            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture du plan...</p>
+            <p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture du plan…</p>
           </div>
         ) : !d ? null : (
           <>
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "18px" }}>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>{d.total}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Compte(s)</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{d.total > 1 ? "Comptes" : "Compte"}</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>{d.propres}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Propre(s) au dossier</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{d.propres > 1 ? "Propres au dossier" : "Propre au dossier"}</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#4caf50", fontSize: "24px", fontWeight: "bold", margin: "0 0 4px" }}>{d.mouvementes}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Mouvemente(s)</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{d.mouvementes > 1 ? "Mouvementés" : "Mouvementé"}</p>
               </div>
             </div>
 
@@ -279,7 +287,7 @@ export default function PageComptes() {
             </div>
 
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "16px" }}>
-              {[["tous", "Tout le plan"], ["dossier", "Propres au dossier"], ["mouvementes", "Mouvementes"]].map(function (p: any) {
+              {[["tous", "Tout le plan"], ["dossier", "Propres au dossier"], ["mouvementes", "Mouvementés"]].map(function (p: any) {
                 const actif = portee === p[0];
                 return (
                   <button
@@ -302,7 +310,7 @@ export default function PageComptes() {
             <input
               value={recherche}
               onChange={(e) => setRecherche(e.target.value)}
-              placeholder="Chercher un numero ou un libelle..."
+              placeholder="Chercher un numéro ou un libellé…"
               style={CHAMP}
             />
 
@@ -313,13 +321,13 @@ export default function PageComptes() {
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: "0 0 16px", lineHeight: "1.7" }}>
                   {modifie
-                    ? "Les valeurs actuelles du compte sont reprises ci-dessous. Ce que vous laissez vide sera efface."
-                    : "Un numero deja present au plan sera mis a jour plutot que cree une seconde fois."}
+                    ? "Les valeurs actuelles du compte sont reprises ci-dessous. Ce que vous laissez vide sera effacé."
+                    : "Un numéro déjà présent au plan sera mis à jour plutôt que créé une seconde fois."}
                 </p>
 
                 <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 140px" }}>
-                    <span style={LIBELLE}>Numero</span>
+                    <span style={LIBELLE}>Numéro</span>
                     <input
                       value={numero}
                       onChange={(e) => setNumero(e.target.value)}
@@ -329,7 +337,7 @@ export default function PageComptes() {
                     />
                   </div>
                   <div style={{ flex: "1 1 260px" }}>
-                    <span style={LIBELLE}>Libelle</span>
+                    <span style={LIBELLE}>Libellé</span>
                     <input value={libelle} onChange={(e) => setLibelle(e.target.value)} placeholder="Honoraires" style={CHAMP} />
                   </div>
                 </div>
@@ -337,7 +345,7 @@ export default function PageComptes() {
                 <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 160px" }}>
                     <span style={LIBELLE}>Type</span>
-                    <input value={type} onChange={(e) => setType(e.target.value)} placeholder="charge, produit, client..." style={CHAMP} />
+                    <input value={type} onChange={(e) => setType(e.target.value)} placeholder="charge, produit, client…" style={CHAMP} />
                   </div>
                   <div style={{ flex: "1 1 140px" }}>
                     <span style={LIBELLE}>Taux de TVA (%)</span>
@@ -366,7 +374,7 @@ export default function PageComptes() {
                       {pourDossier ? "✓" : ""}
                     </span>
                     <span style={{ color: "rgba(255,255,255,0.85)", fontSize: "15px", lineHeight: "1.6" }}>
-                      Reserver ce compte a ce dossier — sinon il rejoint le plan commun
+                      Réserver ce compte à ce dossier — sinon il rejoint le plan commun
                     </span>
                   </div>
                 )}
@@ -376,7 +384,7 @@ export default function PageComptes() {
                   disabled={occupe !== ""}
                   style={{ background: occupe !== "" ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe !== "" ? "#8a8a8a" : "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
                 >
-                  {occupe === "enr" ? "Enregistrement..." : modifie ? "Enregistrer les modifications" : "Enregistrer le compte"}
+                  {occupe === "enr" ? "Enregistrement…" : modifie ? "Enregistrer les modifications" : "Enregistrer le compte"}
                 </button>
               </div>
             )}
@@ -390,9 +398,9 @@ export default function PageComptes() {
             ) : (
               <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 2.2fr 0.9fr 0.6fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 16px", fontSize: "12.5px", color: "#c8a96e", fontWeight: "bold" }}>
-                  <span>Numero</span>
-                  <span>Libelle</span>
-                  <span>Portee</span>
+                  <span>Numéro</span>
+                  <span>Libellé</span>
+                  <span>Portée</span>
                   <span>Mouv.</span>
                   <span></span>
                 </div>
@@ -438,12 +446,12 @@ export default function PageComptes() {
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
               <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 10px", lineHeight: "1.8" }}>
-                Le plan commun sert de socle a tous les dossiers. Un compte cree pour un dossier
-                precis le complete, et prime sur le compte commun de meme numero.
+                Le plan commun sert de socle à tous les dossiers. Un compte créé pour un dossier
+                précis le complète, et prime sur le compte commun de même numéro.
               </p>
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: 0, lineHeight: "1.8" }}>
-                Un compte deja mouvemente ne peut pas etre supprime : la piste d audit serait
-                rompue. Rendez-le inactif si vous ne voulez plus l utiliser.
+                Un compte déjà mouvementé ne peut pas être supprimé : la piste d’audit serait
+                rompue. Rendez-le inactif si vous ne voulez plus l’utiliser.
               </p>
             </div>
           </>
