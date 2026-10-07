@@ -78,6 +78,22 @@ function q(v: any): string {
   return String(v).trim();
 }
 
+// 🆕 07/10 — L ADRESSE POSTALE EN DSN (S21.G00.30.008/CSL-11) : lettres, chiffres,
+// espace, apostrophe, trait d union et point seulement ; ces signes jamais en
+// debut ni en fin, jamais deux a la suite ; 50 caracteres. La meme fonction
+// que dans la DSN du mois (dsn-val refuse la virgule). La fiche garde ce qui
+// a ete tape.
+function adresseDsn(v: any): string {
+  let a = q(v).replace(/[\u2019\u2018`]/g, "'").replace(/[\u2013\u2014]/g, "-");
+  a = a.replace(/[^A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF '.\-]/g, " ");
+  a = a.replace(/\s+/g, " ");
+  a = a.replace(/ ?([-'.]) ?(?=[-'.])/g, " ");
+  a = a.replace(/ ([-']) /g, " ").replace(/ ([-'])/g, " ").replace(/([-']) /g, " ");
+  a = a.replace(/ \./g, ".").replace(/\s+/g, " ");
+  a = a.replace(/^[ '.\-]+/, "").replace(/[ '.\-]+$/, "");
+  return a.slice(0, 50).replace(/[ '.\-]+$/, "");
+}
+
 function cleLuhnValide(numero: string): boolean {
   const n = numero.replace(/\D/g, "");
   if (n.length === 0) return false;
@@ -349,7 +365,7 @@ export async function POST(req: NextRequest) {
     ecrire("S10.G00.01.001", siret.slice(0, 9));
     ecrire("S10.G00.01.002", siret.slice(9));
     ecrire("S10.G00.01.003", societe.raison_sociale);
-    ecrire("S10.G00.01.004", societe.adresse);
+    ecrire("S10.G00.01.004", adresseDsn(societe.adresse));
     ecrire("S10.G00.01.005", q(societe.code_postal));
     ecrire("S10.G00.01.006", societe.ville);
 
@@ -397,7 +413,7 @@ export async function POST(req: NextRequest) {
     // ══ S21.G00.11 — L ETABLISSEMENT ══
     ecrire("S21.G00.11.001", siret.slice(9));
     ecrire("S21.G00.11.002", codeApe);
-    ecrire("S21.G00.11.003", societe.adresse);
+    ecrire("S21.G00.11.003", adresseDsn(societe.adresse));
     ecrire("S21.G00.11.004", q(societe.code_postal));
     ecrire("S21.G00.11.005", societe.ville);
 
@@ -408,7 +424,7 @@ export async function POST(req: NextRequest) {
     ecrire("S21.G00.30.005", sexe);
     ecrire("S21.G00.30.006", dateDsn(sal.date_naissance));
     ecrire("S21.G00.30.007", sal.lieu_naissance);
-    ecrire("S21.G00.30.008", sal.adresse);
+    ecrire("S21.G00.30.008", adresseDsn(sal.adresse));
     ecrire("S21.G00.30.009", q(sal.code_postal));
     ecrire("S21.G00.30.010", sal.ville);
     {
