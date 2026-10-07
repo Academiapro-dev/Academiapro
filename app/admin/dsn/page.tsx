@@ -1370,10 +1370,12 @@ export default function PageDsn() {
                       };
                       return (
                         <div style={{ margin: "8px 0 0" }}>
+                          {/* 🆕 07/10 — le bouton reste a droite de la ligne, meme sous
+                              un libelle long (il passait a la ligne, a gauche). */}
                           <div style={{ display: "flex", justifyContent: "space-between",
-                            alignItems: "baseline", flexWrap: "wrap", gap: "8px" }}>
+                            alignItems: "flex-start", flexWrap: "nowrap", gap: "12px" }}>
                             <p style={{ margin: 0, fontSize: "13.5px", lineHeight: "1.6",
-                              color: "rgba(255,255,255,0.72)" }}>
+                              color: "rgba(255,255,255,0.72)", flex: "1 1 0", minWidth: 0 }}>
                               Solde de la taxe d&apos;apprentissage {anneeTa} (DSN d&apos;avril) — déductions :{" "}
                               {ded && (Number(ded.cfa) > 0 || Number(ded.alternants) > 0)
                                 ? "subventions en nature aux CFA " + eur(ded.cfa)
@@ -1383,7 +1385,8 @@ export default function PageDsn() {
                             <button
                               onClick={() => setDedOuvert(dedOuvert === soc.id ? "" : soc.id)}
                               disabled={occupe !== ""}
-                              style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", ...cache(dr(soc.id).contrats) }}>
+                              style={{ ...SECOND, padding: "7px 14px", fontSize: "13.5px", flex: "0 0 auto",
+                                whiteSpace: "nowrap", ...cache(dr(soc.id).contrats) }}>
                               {dedOuvert === soc.id ? "fermer" : "saisir les déductions"}
                             </button>
                           </div>
