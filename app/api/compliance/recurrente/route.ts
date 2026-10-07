@@ -139,7 +139,7 @@ async function numeroSuivant(tenant: string): Promise<string> {
 export async function emettreEcheance(abonnement: any, emettre: boolean) {
   const lignes = Array.isArray(abonnement.lignes) ? abonnement.lignes : [];
   if (lignes.length === 0) {
-    return { ok: false, erreur: "Cet abonnement n a aucune ligne." };
+    return { ok: false, erreur: "Cet abonnement n'a aucune ligne." };
   }
 
   let ht = 0, tva = 0, ttc = 0;
@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
 
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.action) {
-      return NextResponse.json({ ok: false, erreur: "Action non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Action non précisée." }, { status: 400 });
     }
 
     // ---------- CREER OU MODIFIER ----------
