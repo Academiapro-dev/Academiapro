@@ -23,7 +23,7 @@ const FILTRES = [
   { cle: "a_relancer", nom: "A relancer" },
   { cle: "mes_factures", nom: "Me doivent" },
   { cle: "sans_piece", nom: "Pieces manquantes" },
-  { cle: "rapprochement", nom: "Banque a justifier" },
+  { cle: "rapprochement", nom: "Banque à justifier" },
   { cle: "impayes", nom: "Impayes clients" },
   { cle: "sans_contact", nom: "Sans contact" },
   { cle: "avec_sms", nom: "SMS accepte" },
@@ -315,7 +315,7 @@ export default function CRMCabinet() {
         setErreur(data.erreur || "Preparation impossible.");
       }
     } catch (e: any) {
-      setErreur("Preparation impossible : " + String(e));
+      setErreur("Préparation impossible : " + String(e));
     }
     setOccupe("");
   }
@@ -596,8 +596,8 @@ export default function CRMCabinet() {
                 </p>
               ) : (
                 <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "13.5px", lineHeight: "1.8", margin: 0 }}>
-                  {nombre(c.sans_piece)} écriture(s) sans justificatif et {nombre(c.rapprochement)} opération(s)
-                  bancaire(s) inexpliquée(s). Chaque relance débloque une révision.
+                  {nombre(c.sans_piece)} {c.sans_piece > 1 ? "écritures" : "écriture"} sans justificatif et {nombre(c.rapprochement)}{" "}
+                  {c.rapprochement > 1 ? "opérations bancaires inexpliquées" : "opération bancaire inexpliquée"}. Chaque relance débloque une révision.
                 </p>
               )}
             </div>
@@ -606,7 +606,7 @@ export default function CRMCabinet() {
               <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.35)" }}>
                 <h3 style={{ color: ORANGE, marginTop: 0, fontSize: "14px" }}>DOSSIERS INJOIGNABLES</h3>
                 <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "13.5px", lineHeight: "1.8", margin: "0 0 12px" }}>
-                  {nombre(c.sans_contact)} dossier(s) n'ont aucune adresse ni téléphone. Aucune relance
+                  {c.sans_contact > 1 ? nombre(c.sans_contact) + " dossiers n'ont" : "Un dossier n'a"} aucune adresse ni téléphone. Aucune relance
                   ne peut partir tant qu'un contact n'y est pas enregistré.
                 </p>
                 <button onClick={() => { setOnglet("clients"); setFiltre("sans_contact"); setPage(0); }} style={BOUTON}>
@@ -659,7 +659,7 @@ export default function CRMCabinet() {
                 </button>
               )}
               <span style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px" }}>
-                {nombre(filtres.length)} dossier(s)
+                {nombre(filtres.length)} {filtres.length > 1 ? "dossiers" : "dossier"}
                 {pages > 1 ? " · page " + (page + 1) + "/" + pages : ""}
               </span>
             </div>
@@ -790,8 +790,8 @@ export default function CRMCabinet() {
                         </div>
                         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginTop: "7px", fontSize: "12.5px" }}>
                           {doit && <span style={{ color: ROUGE, fontWeight: "bold" }}>vous doit {euros(x.mes_factures_montant)}</span>}
-                          {x.sans_piece > 0 && <span style={{ color: ORANGE }}>{nombre(x.sans_piece)} pièce(s) manquante(s)</span>}
-                          {x.rapprochement > 0 && <span style={{ color: ORANGE }}>{nombre(x.rapprochement)} opération(s) bancaire(s)</span>}
+                          {x.sans_piece > 0 && <span style={{ color: ORANGE }}>{nombre(x.sans_piece)} {x.sans_piece > 1 ? "pièces manquantes" : "pièce manquante"}</span>}
+                          {x.rapprochement > 0 && <span style={{ color: ORANGE }}>{nombre(x.rapprochement)} {x.rapprochement > 1 ? "opérations bancaires" : "opération bancaire"}</span>}
                           {x.impayes > 0 && <span style={{ color: "rgba(255,255,255,0.55)" }}>{euros(x.montant_impaye)} d'impayés chez lui</span>}
                         </div>
                         {x.email && (
