@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // Un releve montre toute la vie d un client : meme cloisonnement.
@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id || !b.contenu) {
       return NextResponse.json(
-        { ok: false, erreur: "Dossier et contenu sont necessaires." },
+        { ok: false, erreur: "Dossier et contenu sont nécessaires." },
         { status: 400 }
       );
     }
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
       .filter(function (l) { return l.length > 0; });
 
     if (brutes.length === 0) {
-      return NextResponse.json({ ok: false, erreur: "Releve vide." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Relevé vide." }, { status: 400 });
     }
     if (brutes.length > MAX_LIGNES) {
       return NextResponse.json(
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
 
       const libelle = String(champs[1] || "").trim();
       if (!libelle) {
-        rejets.push({ ligne: i + 1, valeur: brutes[i].slice(0, 70), motif: "libelle absent" });
+        rejets.push({ ligne: i + 1, valeur: brutes[i].slice(0, 70), motif: "libellé absent" });
         continue;
       }
 
@@ -208,9 +208,11 @@ export async function POST(req: NextRequest) {
       deja_presentes: lignes.length - ajoutees,
       rejetees: rejets.length,
       rejets: rejets.slice(0, 40),
-      message: ajoutees + " ligne(s) ajoutee(s)"
-        + (lignes.length - ajoutees > 0 ? ", " + (lignes.length - ajoutees) + " deja presente(s)" : "")
-        + (rejets.length > 0 ? ", " + rejets.length + " ecartee(s)" : "") + ".",
+      message: ajoutees + (ajoutees > 1 ? " lignes ajoutées" : " ligne ajoutée")
+        + (lignes.length - ajoutees > 0
+          ? ", " + (lignes.length - ajoutees) + (lignes.length - ajoutees > 1 ? " déjà présentes" : " déjà présente")
+          : "")
+        + (rejets.length > 0 ? ", " + rejets.length + (rejets.length > 1 ? " écartées" : " écartée") : "") + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
