@@ -246,6 +246,23 @@ const HORS_SIGNALEMENT = ["REDUCTION_HS", "CONTRIBUTION_PATRONALE_RC",
   "FORMATION_PRO_MOINS11", "FORMATION_PRO_11PLUS", "CPF_CDD",
   "TAXE_APPRENTISSAGE", "TAXE_APPRENTISSAGE_AM", "DIALOGUE_SOCIAL"];
 
+// 🆕🚨 07/10 — LA TRANCHE 2 DE L AGIRC-ARRCO, LA CET ET L APEC, COMME DANS LA
+// DSN DU MOIS. ⛔ DEFAUT TROUVE EN RELISANT LE SIGNALEMENT D UN CADRE AU-DESSUS
+// DU PLAFOND (4 500 EUR + conges de sortie) : la tranche 2 et la CET n avaient
+// aucun code (« NON DÉCLARÉE »), le code 146 manquait, et l APEC, calculee sur
+// le brut entier, faisait declarer une assiette PLAFONNEE de 5 798,08 EUR pour
+// un plafond de 4 005. dsn-val ne le voit pas. Memes regles que le generateur
+// du mois (06/10) : tout le regime unifie sous le code 131, base plafonnee ;
+// la part patronale de tranche 2 redite en 146, montant seul ; ces lignes ne
+// font pas l assiette de leur base.
+const REPLI_TRANCHE_2: Record<string, { code: string; base: string }> = {
+  RETRAITE_C_T2: { code: "131", base: "02" },
+  CEG_T2: { code: "131", base: "02" },
+  CET: { code: "131", base: "02" },
+};
+const INTERNES_HORS_ASSIETTE = ["APEC", "CET", "RETRAITE_C_T2", "CEG_T2"];
+const INTERNES_TRANCHE_2 = ["CET", "RETRAITE_C_T2", "CEG_T2"];
+
 // 🆕 07/10 — L ADRESSE POSTALE EN DSN (S21.G00.30.008/CSL-11) : lettres, chiffres,
 // espace, apostrophe, trait d union et point seulement ; ces signes jamais en
 // debut ni en fin, jamais deux a la suite ; 50 caracteres. La meme fonction
@@ -1807,6 +1824,7 @@ export async function POST(req: NextRequest) {
       // deux CSG sont le 072) : ON LES ADDITIONNE.
       const parAssiette: any = {};
       let patronaleT1 = 0;
+      let patronaleT2 = 0;
 
       for (const l of (detail.lignes_cotisations || [])) {
         const interne = q(l.code);
@@ -1825,7 +1843,7 @@ export async function POST(req: NextRequest) {
           continue;
         }
 
-        const { data: corr } = await supabase
+        const { data: corrLue } = await supabase
           .from("dsn_codes")
           .select("code, base_rattachement")
           .eq("rubrique", "S21.G00.81.001")
@@ -1835,6 +1853,10 @@ export async function POST(req: NextRequest) {
           .order("date_effet", { ascending: false })
           .limit(1)
           .maybeSingle();
+        // 🆕 07/10 — la tranche 2 et la CET : le meme repli que la DSN du mois.
+        const repliT2 = REPLI_TRANCHE_2[interne.toUpperCase()];
+        const corr: any = (corrLue && (corrLue as any).code) ? corrLue
+          : (repliT2 ? { code: repliT2.code, base_rattachement: repliT2.base } : null);
 
         if (!corr || !(corr as any).code) {
           anomalies.push("Aucun code DSN pour la cotisation « " + interne
@@ -1861,22 +1883,33 @@ export async function POST(req: NextRequest) {
         const baseLigne = (partSalSeule && baseSalariale !== null
           && baseSalariale !== undefined && Number(baseSalariale) > 0)
           ? Number(baseSalariale) : Number(l.base);
-        if (baseLigne > parAssiette[bAss].assiette) {
+        // 🆕 07/10 — l APEC et la tranche 2 ne font pas l assiette de leur base ;
+        // une ligne de tranche 2 ne donne pas son assiette au code 131.
+        const horsAssiette = INTERNES_HORS_ASSIETTE.indexOf(interne.toUpperCase()) >= 0;
+        const deTranche2 = INTERNES_TRANCHE_2.indexOf(interne.toUpperCase()) >= 0;
+        if (baseLigne > parAssiette[bAss].assiette && !horsAssiette) {
           parAssiette[bAss].assiette = baseLigne;
         }
         if (!parAssiette[bAss].codes[cdDsn]) {
-          parAssiette[bAss].codes[cdDsn] = { montant: 0, base: baseLigne };
+          parAssiette[bAss].codes[cdDsn] = { montant: 0, base: deTranche2 ? 0 : baseLigne };
+        } else if (!deTranche2 && !(Number(parAssiette[bAss].codes[cdDsn].base) > 0)) {
+          parAssiette[bAss].codes[cdDsn].base = baseLigne;
         }
+        if (horsAssiette && !deTranche2) parAssiette[bAss].codes[cdDsn].assietteLibre = true;
         parAssiette[bAss].codes[cdDsn].montant += montant;
 
         // SIG-18 : tout bloc 131 s accompagne d un bloc 142.
-        if (cdDsn === "131") patronaleT1 += Number(l.part_patronale || 0);
+        if (cdDsn === "131") {
+          if (deTranche2) patronaleT2 += Number(l.part_patronale || 0);
+          else patronaleT1 += Number(l.part_patronale || 0);
+        }
       }
 
       const cotisation = function (cd: string, base: number, montant: number) {
         ouvrir("S21.G00.81");
         ecrire("S21.G00.81.001", cd);
-        ecrire("S21.G00.81.003", montantDsn(base));
+        // 🆕 07/10 — sans assiette quand elle n est pas celle de la base (APEC).
+        if (base > 0) ecrire("S21.G00.81.003", montantDsn(base));
         ecrire("S21.G00.81.004", montantDsn(montant));
       };
 
@@ -1904,7 +1937,8 @@ export async function POST(req: NextRequest) {
 
         const listeCodes = Object.keys(grp.codes).sort();
         for (const cd of listeCodes) {
-          cotisation(cd, grp.codes[cd].base, grp.codes[cd].montant);
+          cotisation(cd, grp.codes[cd].assietteLibre ? 0 : grp.codes[cd].base,
+            grp.codes[cd].montant);
           if (cd === "131" && patronaleT1 > 0) {
             const code142 = await code("S21.G00.81.001", "agirc_part_patronale_t1");
             if (code142) cotisation(code142, grp.codes[cd].base, patronaleT1);
@@ -1913,6 +1947,13 @@ export async function POST(req: NextRequest) {
                 + "dsn_codes. ⛔ OBLIGATOIRE avec le code 131 — contrôle "
                 + "SIG-18.");
             }
+          }
+          // 🆕🚨 07/10 — LE CODE 146 : la part patronale de la tranche 2, de sa
+          // CEG et de la CET, montant seul — comme dans la DSN du mois.
+          if (cd === "131" && patronaleT2 > 0) {
+            ouvrir("S21.G00.81");
+            ecrire("S21.G00.81.001", "146");
+            ecrire("S21.G00.81.004", montantDsn(Math.round(patronaleT2 * 100) / 100));
           }
         }
       }
