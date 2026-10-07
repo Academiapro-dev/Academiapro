@@ -1124,6 +1124,12 @@ function domaineDe(v: any): string | null {
 const REGISTRE_URL = "https://recherche-entreprises.api.gouv.fr/search";
 const DELAI_REGISTRE_MS = 4000;
 let registreActif = true;
+// 🆕 08/10 (2) — CE QUE LE REGISTRE A REPONDU PENDANT CE PASSAGE. Premier
+// essai en ligne : 40 fiches, aucune completee, et rien ne disait pourquoi
+// (une erreur du registre etait avalee en silence). Desormais la reponse
+// du passage le dit : demandes parties, reponses lues, societes retenues,
+// fiches sans SIREN ni code postal, et le premier refus rencontre.
+const registreEtat: any = { demandes: 0, reponses: 0, retenues: 0, sans_demande: 0, premier_refus: "" };
 
 function nomRegistre(v: any): string {
   return mots(decoupe(v).nom).filter(function (m) { return FORMES.indexOf(m) < 0; }).join(" ");
@@ -1139,7 +1145,7 @@ async function registre(l: any, rang: number): Promise<any> {
   else if (nomFiche.length >= 3 && cp.length === 5) {
     url = REGISTRE_URL + "?q=" + encodeURIComponent(decoupe(l.raison_sociale).nom.slice(0, 120))
       + "&code_postal=" + cp + "&per_page=10";
-  } else return null;
+  } else { registreEtat.sans_demande++; return null; }
 
   if (rang > 0) await new Promise(function (ok) { setTimeout(ok, rang * 200); });
   const stop = new AbortController();
@@ -1151,10 +1157,19 @@ async function registre(l: any, rang: number): Promise<any> {
       signal: stop.signal,
       headers: { "User-Agent": "AcademIA-Pro-enrichissement/1.0 (contact@academiapro.fr)", "Accept": "application/json" },
     });
-    if (!r.ok) return null;
+    registreEtat.demandes++;
+    if (!r.ok) {
+      if (!registreEtat.premier_refus) registreEtat.premier_refus = "http " + r.status;
+      return null;
+    }
     const j: any = await r.json();
     liste = Array.isArray(j && j.results) ? j.results : [];
-  } catch {
+    registreEtat.reponses++;
+  } catch (e: any) {
+    if (!registreEtat.premier_refus) {
+      const cause = e && e.cause ? " (" + String(e.cause.code || e.cause.message || e.cause).slice(0, 80) + ")" : "";
+      registreEtat.premier_refus = String((e && (e.name + " : " + e.message)) || e).slice(0, 160) + cause;
+    }
     return null;
   } finally {
     clearTimeout(minuteur);
@@ -1172,6 +1187,7 @@ async function registre(l: any, rang: number): Promise<any> {
     if (memes.length === 1) e = memes[0];
   }
   if (!e) return null;
+  registreEtat.retenues++;
 
   const s = e.siege || {};
   const enseignes: string[] = [];
@@ -1615,6 +1631,8 @@ export async function GET(req: NextRequest) {
   const essai = p.get("essai") === "1";
   // 🆕 08/10 — ?registre=non : sans le registre officiel (pour comparer).
   registreActif = p.get("registre") !== "non";
+  registreEtat.demandes = 0; registreEtat.reponses = 0; registreEtat.retenues = 0;
+  registreEtat.sans_demande = 0; registreEtat.premier_refus = "";
   const debut = Math.max(0, Number(p.get("debut") || 0) || 0);
   const demande = Number(p.get("lot") || 0);
   const combien = demande > 0 && demande <= 500 ? demande : LOT;
@@ -1681,6 +1699,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     mode: essai ? "essai, rien n est ecrit" : "recherche des sites",
     registre: registreActif ? "interroge" : "non interroge (?registre=non)",
+    registre_etat: registreEtat,
     resultats: resultats,
     arret: arretDuPassage || null,
     duree_s: Math.round((Date.now() - depart) / 1000),
