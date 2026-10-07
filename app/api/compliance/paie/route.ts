@@ -27,6 +27,12 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Un montant et un mois a la francaise, pour les messages.
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
 function nombre(v: any): number {
   const n = Number(String(v || "0").replace(",", ".").replace(/\s/g, ""));
   return isNaN(n) ? 0 : r2(n);
@@ -36,7 +42,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -83,7 +89,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refusDroit = await barrage("saisir", String(b.societe_id));
@@ -104,7 +110,7 @@ export async function POST(req: NextRequest) {
 
     if (brut <= 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Le salaire brut doit etre positif." },
+        { ok: false, erreur: "Le salaire brut doit être positif." },
         { status: 400 }
       );
     }
@@ -117,12 +123,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Le net ne tombe pas juste : brut " + brut.toFixed(2)
-            + " moins cotisations " + salariales.toFixed(2)
-            + (impot > 0 ? " moins impot " + impot.toFixed(2) : "")
-            + " donne " + netCalcule.toFixed(2)
-            + " alors que vous avez saisi " + netSaisi.toFixed(2)
-            + ". Verifiez le bulletin.",
+          erreur: "Le net ne tombe pas juste : brut " + eurosFr(brut)
+            + " moins cotisations " + eurosFr(salariales)
+            + (impot > 0 ? " moins impôt " + eurosFr(impot) : "")
+            + " donne " + eurosFr(netCalcule)
+            + " alors que vous avez saisi " + eurosFr(netSaisi)
+            + ". Vérifiez le bulletin.",
           net_calcule: netCalcule,
         },
         { status: 400 }
@@ -132,6 +138,8 @@ export async function POST(req: NextRequest) {
     const net = netSaisi > 0 ? netSaisi : netCalcule;
 
     const mois = date.slice(0, 7);
+    // Le mois tel qu il se lit : « septembre 2026 ».
+    const moisLisible = MOIS_FR[Number(date.slice(5, 7)) - 1] + " " + date.slice(0, 4);
     const numero = "OD" + date.slice(0, 4) + "-PAIE" + date.slice(5, 7);
 
     const { data: deja } = await supabase
@@ -143,7 +151,7 @@ export async function POST(req: NextRequest) {
 
     if ((deja || []).length > 0 && b.forcer !== true) {
       return NextResponse.json(
-        { ok: false, erreur: "Une ecriture de paie existe deja pour " + mois + "." },
+        { ok: false, erreur: "Une écriture de paie existe déjà pour " + moisLisible + "." },
         { status: 409 }
       );
     }
@@ -156,7 +164,8 @@ export async function POST(req: NextRequest) {
       ecriture_date: date,
       piece_ref: String(b.reference || "PAIE-" + mois).slice(0, 60),
       piece_date: date,
-      ecriture_lib: "Salaires " + mois + (b.effectif ? " - " + b.effectif + " salarie(s)" : ""),
+      ecriture_lib: "Salaires " + mois
+        + (b.effectif ? " - " + b.effectif + (Number(b.effectif) > 1 ? " salariés" : " salarié") : ""),
       devise: "EUR",
       valid_date: new Date().toISOString().slice(0, 10),
       saisi_par: session ? session.email : null,
@@ -203,8 +212,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "L ecriture ne tombe pas juste : debit " + debit.toFixed(2)
-            + " contre credit " + credit.toFixed(2) + ". Rien n a ete enregistre.",
+          erreur: "L’écriture ne tombe pas juste : débit " + eurosFr(debit)
+            + " contre crédit " + eurosFr(credit) + ". Rien n’a été enregistré.",
           debit: debit, credit: credit,
         },
         { status: 409 }
@@ -223,9 +232,9 @@ export async function POST(req: NextRequest) {
       brut: brut,
       net: net,
       cout_total: r2(brut + patronales),
-      message: "Paie de " + mois + " passee sous " + numero + " : "
-        + brut.toFixed(2) + " EUR de brut, " + net.toFixed(2) + " EUR de net, "
-        + r2(brut + patronales).toFixed(2) + " EUR de cout total.",
+      message: "Paie de " + moisLisible + " passée sous le numéro " + numero + " : "
+        + eurosFr(brut) + " de brut, " + eurosFr(net) + " de net, "
+        + eurosFr(r2(brut + patronales)) + " de coût total.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
