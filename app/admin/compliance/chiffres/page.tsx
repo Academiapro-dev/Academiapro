@@ -120,7 +120,7 @@ export default function PageChiffres() {
           <>
             {vue && (
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "15px", margin: "24px 0 14px" }}>
-                {vue.nom} · {vue.lignes} ligne(s) d'écriture
+                {vue.nom} · {vue.lignes} {vue.lignes > 1 ? "lignes" : "ligne"} d'écriture
               </p>
             )}
 
