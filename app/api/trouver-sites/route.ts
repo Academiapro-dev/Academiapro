@@ -1129,7 +1129,7 @@ let registreActif = true;
 // (une erreur du registre etait avalee en silence). Desormais la reponse
 // du passage le dit : demandes parties, reponses lues, societes retenues,
 // fiches sans SIREN ni code postal, et le premier refus rencontre.
-const registreEtat: any = { demandes: 0, reponses: 0, retenues: 0, sans_demande: 0, premier_refus: "" };
+const registreEtat: any = { demandes: 0, reponses: 0, retenues: 0, sans_demande: 0, trop_de_demandes: 0, premier_refus: "" };
 
 function nomRegistre(v: any): string {
   return mots(decoupe(v).nom).filter(function (m) { return FORMES.indexOf(m) < 0; }).join(" ");
@@ -1147,17 +1147,30 @@ async function registre(l: any, rang: number): Promise<any> {
       + "&code_postal=" + cp + "&per_page=10";
   } else { registreEtat.sans_demande++; return null; }
 
-  if (rang > 0) await new Promise(function (ok) { setTimeout(ok, rang * 200); });
+  // 🆕 08/10 (3) — PREMIERE MESURE EN LIGNE : 40 demandes, 13 refusees pour
+  // « trop de demandes » (429). Cinq par seconde, c etait trop pres de la
+  // limite. Les demandes d un paquet sont desormais espacees de 400 ms, et
+  // une demande refusee pour ce motif est refaite UNE fois, apres l attente
+  // que le registre indique (trois secondes au plus).
+  if (rang > 0) await new Promise(function (ok) { setTimeout(ok, rang * 400); });
   const stop = new AbortController();
-  const minuteur = setTimeout(function () { stop.abort(); }, DELAI_REGISTRE_MS);
+  const minuteur = setTimeout(function () { stop.abort(); }, DELAI_REGISTRE_MS * 2 + 3000);
   let liste: any[] = [];
   try {
-    const r = await fetch(url, {
+    const options: any = {
       cache: "no-store",
       signal: stop.signal,
       headers: { "User-Agent": "AcademIA-Pro-enrichissement/1.0 (contact@academiapro.fr)", "Accept": "application/json" },
-    });
+    };
+    let r = await fetch(url, options);
     registreEtat.demandes++;
+    if (r.status === 429) {
+      registreEtat.trop_de_demandes++;
+      const dit = Number(r.headers.get("retry-after") || 0);
+      const attente = Math.min(3000, Math.max(1000, (dit > 0 ? dit * 1000 : 1500))) + Math.floor(Math.random() * 500);
+      await new Promise(function (ok) { setTimeout(ok, attente); });
+      r = await fetch(url, options);
+    }
     if (!r.ok) {
       if (!registreEtat.premier_refus) registreEtat.premier_refus = "http " + r.status;
       return null;
@@ -1212,7 +1225,8 @@ async function registre(l: any, rang: number): Promise<any> {
     siren: String(e.siren || ""),
     fermee: String(e.etat_administratif || "") === "C",
     enseignes: enseignes.slice(0, 3),
-    dirigeant_nom: personne ? String(personne.nom) : "",
+    // « GODEL (DOREY) » : le registre ecrit le nom d usage entre parentheses.
+    dirigeant_nom: personne ? String(personne.nom).replace(/\([^()]*\)/g, " ").replace(/\s+/g, " ").trim() : "",
     dirigeant_prenom: personne ? String(personne.prenoms).split(/[\s,]+/)[0] : "",
     ville: String(s.libelle_commune || ""),
     code_postal: String(s.code_postal || ""),
@@ -1632,7 +1646,7 @@ export async function GET(req: NextRequest) {
   // 🆕 08/10 — ?registre=non : sans le registre officiel (pour comparer).
   registreActif = p.get("registre") !== "non";
   registreEtat.demandes = 0; registreEtat.reponses = 0; registreEtat.retenues = 0;
-  registreEtat.sans_demande = 0; registreEtat.premier_refus = "";
+  registreEtat.sans_demande = 0; registreEtat.trop_de_demandes = 0; registreEtat.premier_refus = "";
   const debut = Math.max(0, Number(p.get("debut") || 0) || 0);
   const demande = Number(p.get("lot") || 0);
   const combien = demande > 0 && demande <= 500 ? demande : LOT;
