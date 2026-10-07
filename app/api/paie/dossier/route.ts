@@ -4269,7 +4269,9 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
           "<h2>Un bulletin attend votre validation</h2>"
           + "<p>" + html(ctx.email) + " a soumis le bulletin " + html(r.bulletin.numero) + " de <b>" + html(nomSal)
           + "</b> (" + html(nomSoc) + ", " + html(moisEnClair(periode)) + ").</p>"
-          + "<p>Feu : <b>" + html(r.controle.couleur) + "</b>" + (just ? " · justification : « " + html(just) + " »" : "") + "</p>"
+          // 🆕 07/10 — un rouge deja leve se dit « leve », pas « rouge » tout court.
+          + "<p>Feu : <b>" + html(r.controle.couleur) + "</b>"
+          + (r.controle.couleur === "rouge" && r.bulletin.levee_motif ? " (point levé avec un motif)" : "") + (just ? " · justification : « " + html(just) + " »" : "") + "</p>"
           + (alertes.length > 0 ? "<ul>" + alertes.map(function (a: any) { return "<li>" + html(a.texte) + "</li>"; }).join("") + "</ul>" : ""));
         avis = echec ? " ⚠️ Le courriel aux validateurs n'est pas parti : " + echec
           : " " + nbAcc(qui.length, "personne prévenue", "personnes prévenues") + " par courriel.";
@@ -4278,7 +4280,10 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
 
     return NextResponse.json({ success: true, controle: r.controle,
       message: "Bulletin " + r.bulletin.numero + " soumis à validation"
-        + (r.controle.couleur === "rouge" ? " — avec un point rouge : il ne pourra être émis qu'une fois corrigé ou levé." : ".")
+        + (r.controle.couleur === "rouge"
+          ? (r.bulletin.levee_motif ? " — son point rouge est levé avec un motif."
+            : " — avec un point rouge : il ne pourra être émis qu'une fois corrigé ou levé.")
+          : ".")
         + avis });
   }
 
@@ -4306,7 +4311,7 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
         : "une levée se motive : au moins 10 caractères, ils sont inscrits au journal." }, { status: 400 });
     }
     const { data: b } = await supabase.from("paie_bulletins")
-      .select("id, numero, statut, societe_id, prepare_par, soumis_par, controle").eq("id", String(c.id)).maybeSingle();
+      .select("id, numero, statut, societe_id, prepare_par, soumis_par, controle, justification").eq("id", String(c.id)).maybeSingle();
     if (!b || (b as any).statut !== "brouillon") {
       return NextResponse.json({ erreur: "seul un bulletin en brouillon peut être " + (action === "renvoyer" ? "renvoyé." : "levé.") }, { status: 400 });
     }
@@ -4337,9 +4342,22 @@ async function actionsDuControle(req: NextRequest, c: any, action: string, ctx: 
         : " " + preparateur + " est prévenu par courriel.";
     }
 
+    // 🆕 07/10 — lever un rouge ne suffit pas toujours : s il reste un point
+    // orange sans justification, on le dit tout de suite (on ne l apprenait
+    // qu au moment d emettre).
+    let resteOrange = "";
+    if (action === "lever") {
+      const alertesB: any[] = (bb.controle && Array.isArray(bb.controle.alertes)) ? bb.controle.alertes : [];
+      const nbOr = alertesB.filter(function (a: any) { return a && a.niveau === "orange"; }).length;
+      if (nbOr > 0 && !String(bb.justification || "").trim()) {
+        resteOrange = " ⚠️ Il reste " + (nbOr > 1 ? nbOr + " points orange" : "un point orange")
+          + " à justifier avant l'émission : écrivez la justification dans le même champ, puis « justifier ».";
+      }
+    }
+
     return NextResponse.json({ success: true, message: (action === "renvoyer"
       ? "Bulletin " + bb.numero + " renvoyé avec votre motif."
-      : "Points rouges du bulletin " + bb.numero + " levés. Le motif est inscrit au journal.") + avis });
+      : "Points rouges du bulletin " + bb.numero + " levés. Le motif est inscrit au journal." + resteOrange) + avis });
   }
 
   // ═════════════════════════════════════════════════════════════════════
