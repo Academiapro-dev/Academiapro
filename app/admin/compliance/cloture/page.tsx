@@ -69,10 +69,10 @@ export default function PageCloture() {
         setConfirme(false);
         await charger();
       } else {
-        setErreur(data.erreur || "Cloture impossible.");
+        setErreur(data.erreur || "Clôture impossible.");
       }
     } catch (e: any) {
-      setErreur("Cloture impossible : " + String(e));
+      setErreur("Clôture impossible : " + String(e));
     }
     setOccupe(false);
   }
@@ -100,7 +100,7 @@ export default function PageCloture() {
   };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   const anomalies = d && d.anomalies ? d.anomalies : [];
@@ -117,9 +117,9 @@ export default function PageCloture() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Cloture de l exercice</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Clôture de l’exercice</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
           Solder les comptes de gestion et reporter les soldes de bilan
         </p>
@@ -142,7 +142,7 @@ export default function PageCloture() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.7" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Verification...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Vérification…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ ...CARTE, border: "2px solid " + (d.resultat >= 0 ? "rgba(76,175,80,0.5)" : "rgba(232,131,106,0.5)") }}>
@@ -155,7 +155,7 @@ export default function PageCloture() {
                 {euros(d.resultat)}
               </p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0 }}>
-                {d.resultat >= 0 ? "Benefice de l exercice" : "Perte de l exercice"} ·{" "}
+                {d.resultat >= 0 ? "Bénéfice de l’exercice" : "Perte de l’exercice"} ·{" "}
                 {euros(d.produits)} de produits, {euros(d.charges)} de charges
               </p>
             </div>
@@ -163,36 +163,36 @@ export default function PageCloture() {
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "16px" }}>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>{d.nb_lignes}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Ligne(s) d ecriture</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{d.nb_lignes > 1 ? "Lignes d’écriture" : "Ligne d’écriture"}</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>{d.comptes_gestion}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Comptes a solder</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Comptes à solder</p>
               </div>
               <div style={{ ...CARTE, flex: "1 1 150px", marginBottom: 0 }}>
                 <p style={{ color: "#c8a96e", fontSize: "22px", fontWeight: "bold", margin: "0 0 4px" }}>{d.comptes_bilan}</p>
-                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>A reporter</p>
+                <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>À reporter</p>
               </div>
             </div>
 
             {dejaCloture ? (
               <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)" }}>
                 <p style={{ color: "#4caf50", fontSize: "15.5px", fontWeight: "bold", margin: "0 0 10px" }}>
-                  Exercice deja cloture
+                  Exercice déjà clôturé
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "14px", margin: "0 0 6px", lineHeight: "1.8" }}>
-                  Les comptes de gestion ont ete soldes et les soldes de bilan reportes a
-                  l exercice suivant. Il n y a plus rien a cloturer ici.
+                  Les comptes de gestion ont été soldés et les soldes de bilan reportés à
+                  l’exercice suivant. Il n’y a plus rien à clôturer ici.
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.7" }}>
-                  Pour cloturer une seconde fois, il faudrait d abord supprimer le report
-                  a-nouveaux — ce qui ne se fait pas a la legere.
+                  Pour clôturer une seconde fois, il faudrait d’abord supprimer le report
+                  à-nouveaux — ce qui ne se fait pas à la légère.
                 </p>
               </div>
             ) : anomalies.length > 0 ? (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.55)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15.5px", fontWeight: "bold", margin: "0 0 10px" }}>
-                  La cloture n est pas possible en l etat
+                  La clôture n’est pas possible en l’état
                 </p>
                 {anomalies.map(function (a: string, i: number) {
                   return (
@@ -202,16 +202,16 @@ export default function PageCloture() {
                   );
                 })}
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "12px 0 0", lineHeight: "1.7" }}>
-                  Corrigez ces points, puis revenez : une cloture posee sur des comptes faux se
+                  Corrigez ces points, puis revenez : une clôture posée sur des comptes faux se
                   reporte sur tous les exercices suivants.
                 </p>
               </div>
             ) : (
               <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)" }}>
                 <p style={{ color: "#4caf50", fontSize: "15px", margin: "0 0 14px", lineHeight: "1.8" }}>
-                  Tout est en ordre. La cloture soldera les {d.comptes_gestion} comptes de charges
-                  et de produits par le resultat, puis reportera les {d.comptes_bilan} soldes de
-                  bilan au premier jour de l exercice suivant.
+                  Tout est en ordre. La clôture soldera les {d.comptes_gestion} comptes de charges
+                  et de produits par le résultat, puis reportera les {d.comptes_bilan} soldes de
+                  bilan au premier jour de l’exercice suivant.
                 </p>
 
                 {!confirme ? (
@@ -219,13 +219,13 @@ export default function PageCloture() {
                     onClick={() => setConfirme(true)}
                     style={{ background: "#c8a96e", color: "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                   >
-                    Preparer la cloture
+                    Préparer la clôture
                   </button>
                 ) : (
                   <div>
                     <p style={{ color: "#e8a33d", fontSize: "14.5px", margin: "0 0 12px", lineHeight: "1.8" }}>
-                      Cette operation ecrit des ecritures definitives. Elle ne peut pas etre
-                      annulee d un clic : il faudrait supprimer les ecritures a la main.
+                      Cette opération passe des écritures définitives. Elle ne peut pas être
+                      annulée d’un clic : il faudrait supprimer les écritures à la main.
                       Confirmez-vous ?
                     </p>
                     <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -234,7 +234,7 @@ export default function PageCloture() {
                         disabled={occupe}
                         style={{ background: occupe ? "rgba(200,169,110,0.3)" : "#c8a96e", color: occupe ? "#8a8a8a" : "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
                       >
-                        {occupe ? "Cloture en cours..." : "Oui, cloturer l exercice"}
+                        {occupe ? "Clôture en cours…" : "Oui, clôturer l’exercice"}
                       </button>
                       <button
                         onClick={() => setConfirme(false)}
@@ -251,11 +251,11 @@ export default function PageCloture() {
             {d.bilan && d.bilan.length > 0 && (
               <>
                 <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "24px 0 12px" }}>
-                  {dejaCloture ? "Soldes reportes" : "Soldes qui seront reportes"}
+                  {dejaCloture ? "Soldes reportés" : "Soldes qui seront reportés"}
                 </h2>
                 <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
                   <div style={{ display: "grid", gridTemplateColumns: "0.9fr 2.4fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 14px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
-                    <span>Compte</span><span>Libelle</span>
+                    <span>Compte</span><span>Libellé</span>
                     <span style={{ textAlign: "right" }}>Solde</span>
                   </div>
                   {d.bilan.map(function (c: any) {
