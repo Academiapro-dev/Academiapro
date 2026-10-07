@@ -70,7 +70,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -242,8 +242,8 @@ export async function GET(req: NextRequest) {
         creances_anciennes: creances.filter(function (t: any) { return !t.a_un_an_au_plus; }).length,
       },
       avertissement:
-        "Les echeances sont deduites de l anciennete des ecritures non lettrees. "
-        + "Un compte de tiers mal lettre fausse cette annexe : lettrez avant de deposer.",
+        "Les échéances sont déduites de l’ancienneté des écritures non lettrées. "
+        + "Un compte de tiers mal lettré fausse cette annexe : lettrez avant de déposer.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
