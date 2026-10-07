@@ -11,7 +11,7 @@ export const maxDuration = 60;
 
 const CLASSES: any = {
   1: "Capitaux", 2: "Immobilisations", 3: "Stocks", 4: "Tiers",
-  5: "Tresorerie", 6: "Charges", 7: "Produits",
+  5: "Trésorerie", 6: "Charges", 7: "Produits",
 };
 
 const supabase = createClient(
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     const autorises = await dossiersAutorises();
     if (autorises.length === 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Aucun dossier ne vous est confie." },
+        { ok: false, erreur: "Aucun dossier ne vous est confié." },
         { status: 403 }
       );
     }
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Precisez le dossier : ?societe=CODE",
+          erreur: "Choisissez d’abord un dossier.",
           dossiers: liste.map(function (s: any) {
             return { code: s.code, raison_sociale: s.raison_sociale };
           }),
