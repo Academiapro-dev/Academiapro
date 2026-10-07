@@ -51,7 +51,7 @@ export default function PageLiasse2033() {
     if (n === null || n === undefined) return "";
     const v = Number(n) || 0;
     if (v === 0) return "";
-    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
+    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   const avecN1 = d && d.exercice_precedent_disponible;
@@ -64,9 +64,9 @@ export default function PageLiasse2033() {
         <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
           <div style={{ display: "grid", gridTemplateColumns: grille, background: "rgba(200,169,110,0.12)", padding: "10px 14px", fontSize: "11.5px", color: "#c8a96e", fontWeight: "bold" }}>
             <span>Case</span>
-            <span>Libelle</span>
+            <span>Libellé</span>
             <span style={{ textAlign: "right" }}>Exercice</span>
-            {avecN1 && <span style={{ textAlign: "right" }}>Precedent</span>}
+            {avecN1 && <span style={{ textAlign: "right" }}>Précédent</span>}
             {avecN1 && <span style={{ textAlign: "right" }}>Variation</span>}
           </div>
 
@@ -137,11 +137,11 @@ export default function PageLiasse2033() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Liasse 2033</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Le bilan et le compte de resultat, case par case, avec l exercice precedent
+          Le bilan et le compte de résultat, case par case, avec l’exercice précédent
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -157,7 +157,7 @@ export default function PageLiasse2033() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Ventilation en cours...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Ventilation en cours…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ ...CARTE, border: "2px solid " + (d.pret_pour_edi ? "rgba(76,175,80,0.5)" : "rgba(232,163,61,0.5)") }}>
@@ -167,12 +167,12 @@ export default function PageLiasse2033() {
                 {new Date(d.periode.debut).toLocaleDateString("fr-FR")} au{" "}
                 {new Date(d.periode.fin).toLocaleDateString("fr-FR")}
                 {d.periode_precedente
-                  ? " · precedent : " + new Date(d.periode_precedente.debut).toLocaleDateString("fr-FR")
+                  ? " · précédent : " + new Date(d.periode_precedente.debut).toLocaleDateString("fr-FR")
                     + " au " + new Date(d.periode_precedente.fin).toLocaleDateString("fr-FR")
-                  : " · aucun exercice anterieur"}
+                  : " · aucun exercice antérieur"}
               </p>
               <p style={{ color: d.pret_pour_edi ? "#4caf50" : "#e8a33d", fontSize: "17px", fontWeight: "bold", margin: "0 0 10px" }}>
-                {d.pret_pour_edi ? "Liasse coherente" : "La liasse ne tombe pas juste"}
+                {d.pret_pour_edi ? "Liasse cohérente" : "La liasse ne tombe pas juste"}
               </p>
               {d.controles.map(function (c: any, i: number) {
                 return (
@@ -186,7 +186,7 @@ export default function PageLiasse2033() {
             {d.orphelins.length > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", fontWeight: "bold", margin: "0 0 10px" }}>
-                  {d.orphelins.length} compte(s) ne rentrent dans aucune case
+                  {d.orphelins.length > 1 ? d.orphelins.length + " comptes ne rentrent dans aucune case" : "1 compte ne rentre dans aucune case"}
                 </p>
                 {d.orphelins.map(function (o: any, i: number) {
                   return (
@@ -197,13 +197,13 @@ export default function PageLiasse2033() {
                   );
                 })}
                 <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "10px 0 0", lineHeight: "1.7" }}>
-                  Leur montant n apparait dans aucun total : la liasse serait fausse.
+                  Leur montant n’apparaît dans aucun total : la liasse serait fausse.
                 </p>
               </div>
             )}
 
             <h2 style={{ color: "#fff", fontSize: "19px", margin: "24px 0 12px" }}>
-              2033-A · Bilan simplifie
+              2033-A · Bilan simplifié
             </h2>
             <Bloc
               titre="Actif"
@@ -221,7 +221,7 @@ export default function PageLiasse2033() {
             />
 
             <h2 style={{ color: "#fff", fontSize: "19px", margin: "24px 0 12px" }}>
-              2033-B · Compte de resultat simplifie
+              2033-B · Compte de résultat simplifié
             </h2>
             <Bloc
               titre="Produits et charges"
@@ -238,8 +238,8 @@ export default function PageLiasse2033() {
             </div>
 
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "14px 0 0", lineHeight: "1.7" }}>
-              Touchez une case pour voir les comptes qui l alimentent. La variation se lit d un
-              coup d oeil : c est par la qu un expert-comptable commence sa revision.
+              Touchez une case pour voir les comptes qui l’alimentent. La variation se lit d’un
+              coup d’œil : c’est par là qu’un expert-comptable commence sa révision.
             </p>
           </>
         )}
