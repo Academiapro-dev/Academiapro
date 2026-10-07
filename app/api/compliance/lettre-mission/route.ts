@@ -175,7 +175,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    if (!origineLegitime(req)) return NextResponse.json({ ok: false, erreur: "Acces refuse" }, { status: 403 });
+    if (!origineLegitime(req)) return NextResponse.json({ ok: false, erreur: "Accès refusé." }, { status: 403 });
     const session = sessionCourante();
     if (!session || !session.tenantId) return NextResponse.json({ ok: false, erreur: "Connectez-vous." }, { status: 401 });
 
