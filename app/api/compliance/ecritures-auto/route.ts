@@ -24,11 +24,16 @@ const supabase = createClient(
 );
 
 function refuse() {
-  return NextResponse.json({ ok: false, erreur: "reserve a l administrateur" }, { status: 403 });
+  return NextResponse.json({ ok: false, erreur: "Réservé à l’administrateur." }, { status: 403 });
 }
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// Un montant a la francaise, pour les messages : « 1 200,00 € ».
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
 function base(req: NextRequest): string {
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id || !b.type) {
       return NextResponse.json(
-        { ok: false, erreur: "Dossier et type d ecriture sont necessaires." },
+        { ok: false, erreur: "Dossier et type d’écriture sont nécessaires." },
         { status: 400 }
       );
     }
@@ -85,7 +90,7 @@ export async function POST(req: NextRequest) {
 
       if (biens.length === 0) {
         return NextResponse.json(
-          { ok: false, erreur: "Aucune dotation a passer pour " + annee + "." },
+          { ok: false, erreur: "Aucune dotation à passer pour " + annee + "." },
           { status: 404 }
         );
       }
@@ -93,7 +98,7 @@ export async function POST(req: NextRequest) {
       const numero = "OD" + annee + "-DOTATION";
       if (await existeDeja(b.societe_id, numero)) {
         return NextResponse.json(
-          { ok: false, erreur: "La dotation " + annee + " a deja ete passee." },
+          { ok: false, erreur: "La dotation " + annee + " a déjà été passée." },
           { status: 409 }
         );
       }
@@ -147,8 +152,8 @@ export async function POST(req: NextRequest) {
         ecriture_num: numero,
         lignes: lignes.length,
         total: total,
-        message: "Dotation " + annee + " passee : " + total.toFixed(2)
-          + " EUR sur " + biens.length + " bien(s).",
+        message: "Dotation " + annee + " passée : " + eurosFr(total)
+          + " sur " + biens.length + (biens.length > 1 ? " biens." : " bien."),
       });
     }
 
@@ -167,7 +172,7 @@ export async function POST(req: NextRequest) {
       }
       if (!data.tva) {
         return NextResponse.json(
-          { ok: false, erreur: data.note || "Aucune TVA a liquider sur ce dossier." },
+          { ok: false, erreur: data.note || "Aucune TVA à liquider sur ce dossier." },
           { status: 400 }
         );
       }
@@ -178,7 +183,7 @@ export async function POST(req: NextRequest) {
 
       if (await existeDeja(b.societe_id, numero)) {
         return NextResponse.json(
-          { ok: false, erreur: "La liquidation de " + data.periode.libelle + " a deja ete passee." },
+          { ok: false, erreur: "La liquidation de " + data.periode.libelle + " a déjà été passée." },
           { status: 409 }
         );
       }
@@ -220,7 +225,7 @@ export async function POST(req: NextRequest) {
 
       if (lignes.length < 2) {
         return NextResponse.json(
-          { ok: false, erreur: "Aucun mouvement de TVA sur cette periode." },
+          { ok: false, erreur: "Aucun mouvement de TVA sur cette période." },
           { status: 404 }
         );
       }
@@ -232,8 +237,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            erreur: "L ecriture de liquidation ne tombe pas juste : ecart de "
-              + r2(debit - credit).toFixed(2) + " EUR. Rien n a ete passe.",
+            erreur: "L’écriture de liquidation ne tombe pas juste : écart de "
+              + eurosFr(r2(debit - credit)) + ". Rien n’a été passé.",
           },
           { status: 409 }
         );
@@ -248,14 +253,14 @@ export async function POST(req: NextRequest) {
         ok: true,
         ecriture_num: numero,
         lignes: lignes.length,
-        message: "Liquidation de " + data.periode.libelle + " passee : "
+        message: "Liquidation de " + data.periode.libelle + " passée : "
           + (t.a_decaisser > 0
-            ? t.a_decaisser.toFixed(2) + " EUR a decaisser."
-            : t.credit_a_reporter.toFixed(2) + " EUR de credit a reporter."),
+            ? eurosFr(t.a_decaisser) + " à décaisser."
+            : eurosFr(t.credit_a_reporter) + " de crédit à reporter."),
       });
     }
 
-    return NextResponse.json({ ok: false, erreur: "Type d ecriture inconnu." }, { status: 400 });
+    return NextResponse.json({ ok: false, erreur: "Type d’écriture inconnu." }, { status: 400 });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
