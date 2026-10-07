@@ -18,6 +18,24 @@ const JOURNAUX: any = {
   AN: "A nouveaux",
 };
 
+// 🆕 08/10 — LES MEMES JOURNAUX, TELS QU ILS S AFFICHENT. Le libelle
+// ENREGISTRE avec chaque ecriture (JOURNAUX, ci-dessus) ne change pas : les
+// ecritures deja passees portent « Operations diverses » et « A nouveaux »,
+// et un meme journal ne doit pas porter deux libelles dans le fichier des
+// ecritures. Seul ce que l ecran montre prend ses accents.
+const JOURNAUX_AFFICHES: any = {
+  AC: "Achats",
+  VE: "Ventes",
+  BQ: "Banque",
+  CA: "Caisse",
+  OD: "Opérations diverses",
+  AN: "À nouveaux",
+};
+
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "",
@@ -54,7 +72,7 @@ export async function GET(req: NextRequest) {
     const autorises = await dossiersAutorises();
     if (autorises.length === 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Aucun dossier ne vous est confie." },
+        { ok: false, erreur: "Aucun dossier ne vous est confié." },
         { status: 403 }
       );
     }
@@ -81,7 +99,7 @@ export async function GET(req: NextRequest) {
     if (!dossier) {
       return NextResponse.json({
         ok: true,
-        journaux: JOURNAUX,
+        journaux: JOURNAUX_AFFICHES,
         dossiers: liste.map(function (s: any) {
           return { id: s.id, code: s.code, raison_sociale: s.raison_sociale };
         }),
@@ -129,7 +147,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      journaux: JOURNAUX,
+      journaux: JOURNAUX_AFFICHES,
       dossier: { id: dossier.id, code: dossier.code, raison_sociale: dossier.raison_sociale },
       exercice: { debut: dossier.exercice_debut, fin: dossier.exercice_fin },
       total: ecritures.length,
@@ -144,12 +162,12 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
     }
 
     const societeId = String(b.societe_id || "").trim();
     if (!societeId) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : le droit de saisir, sur ce dossier precisement. Il verifie
@@ -194,8 +212,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "L exercice " + date.slice(0, 4) + " est verrouille."
-            + " Passez par une contrepassation plutot que par une saisie.",
+          erreur: "L’exercice " + date.slice(0, 4) + " est verrouillé."
+            + " Passez par une contrepassation plutôt que par une saisie.",
         },
         { status: 409 }
       );
@@ -203,13 +221,13 @@ export async function POST(req: NextRequest) {
 
     if (dossier.exercice_debut && date < String(dossier.exercice_debut).slice(0, 10)) {
       return NextResponse.json(
-        { ok: false, erreur: "Cette date precede l ouverture de l exercice du dossier." },
+        { ok: false, erreur: "Cette date précède l’ouverture de l’exercice du dossier." },
         { status: 400 }
       );
     }
     if (dossier.exercice_fin && date > String(dossier.exercice_fin).slice(0, 10)) {
       return NextResponse.json(
-        { ok: false, erreur: "Cette date depasse la cloture de l exercice du dossier." },
+        { ok: false, erreur: "Cette date dépasse la clôture de l’exercice du dossier." },
         { status: 400 }
       );
     }
@@ -217,7 +235,7 @@ export async function POST(req: NextRequest) {
     const libelle = propre(b.libelle, 200);
     if (!libelle || libelle.length < 3) {
       return NextResponse.json(
-        { ok: false, erreur: "Le libelle de l ecriture est obligatoire." },
+        { ok: false, erreur: "Le libellé de l’écriture est obligatoire." },
         { status: 400 }
       );
     }
@@ -225,7 +243,7 @@ export async function POST(req: NextRequest) {
     const brutes = Array.isArray(b.lignes) ? b.lignes : [];
     if (brutes.length < 2) {
       return NextResponse.json(
-        { ok: false, erreur: "Une ecriture comporte au moins deux lignes." },
+        { ok: false, erreur: "Une écriture comporte au moins deux lignes." },
         { status: 400 }
       );
     }
@@ -270,7 +288,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            erreur: "Ligne " + (i + 1) + " : une ligne porte un debit OU un credit, jamais les deux.",
+            erreur: "Ligne " + (i + 1) + " : une ligne porte un débit OU un crédit, jamais les deux.",
           },
           { status: 400 }
         );
@@ -302,8 +320,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Compte(s) absent(s) du plan de ce dossier : " + inconnus.join(", ")
-            + ". Creez-les avant de saisir.",
+          erreur: (inconnus.length > 1 ? "Comptes absents" : "Compte absent") + " du plan de ce dossier : " + inconnus.join(", ")
+            + (inconnus.length > 1 ? ". Créez-les avant de saisir." : ". Créez-le avant de saisir."),
           comptes_inconnus: inconnus,
         },
         { status: 400 }
@@ -322,9 +340,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Ecriture desequilibree : debit " + totalDebit.toFixed(2)
-            + " contre credit " + totalCredit.toFixed(2)
-            + ", ecart de " + ecart.toFixed(2) + ".",
+          erreur: "Écriture déséquilibrée : débit " + eurosFr(totalDebit)
+            + " contre crédit " + eurosFr(totalCredit)
+            + ", écart de " + eurosFr(ecart) + ".",
           debit: totalDebit,
           credit: totalCredit,
           ecart: ecart,
@@ -367,8 +385,8 @@ export async function POST(req: NextRequest) {
       lignes: lignes.length,
       debit: totalDebit,
       credit: totalCredit,
-      message: "Ecriture " + numero + " enregistree, " + lignes.length
-        + " lignes, " + totalDebit.toFixed(2) + " EUR equilibres.",
+      message: "Écriture " + numero + " enregistrée : " + lignes.length
+        + " lignes, " + eurosFr(totalDebit) + ", équilibrée.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
