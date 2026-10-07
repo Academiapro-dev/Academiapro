@@ -15,44 +15,44 @@ const BILAN_ACTIF = [
   { code: "010", libelle: "Fonds commercial", racines: ["206", "207"], sens: "debit" },
   { code: "014", libelle: "Autres immobilisations incorporelles", racines: ["201", "203", "205", "208"], sens: "debit" },
   { code: "028", libelle: "Immobilisations corporelles", racines: ["21"], sens: "debit" },
-  { code: "040", libelle: "Immobilisations financieres", racines: ["26", "27"], sens: "debit" },
-  { code: "044", libelle: "Amortissements et depreciations", racines: ["28", "29"], sens: "credit" },
-  { code: "050", libelle: "Stocks de matieres premieres", racines: ["31", "32"], sens: "debit" },
+  { code: "040", libelle: "Immobilisations financières", racines: ["26", "27"], sens: "debit" },
+  { code: "044", libelle: "Amortissements et dépréciations", racines: ["28", "29"], sens: "credit" },
+  { code: "050", libelle: "Stocks de matières premières", racines: ["31", "32"], sens: "debit" },
   { code: "060", libelle: "Stocks de marchandises", racines: ["37"], sens: "debit" },
-  { code: "068", libelle: "Creances clients et comptes rattaches", racines: ["411", "413", "416", "418"], sens: "debit" },
-  { code: "072", libelle: "Autres creances", racines: ["40", "409", "425", "43", "44", "45", "46"], sens: "debit" },
-  { code: "084", libelle: "Disponibilites", racines: ["51", "53", "58"], sens: "debit" },
-  { code: "092", libelle: "Charges constatees d avance", racines: ["486"], sens: "debit" },
+  { code: "068", libelle: "Créances clients et comptes rattachés", racines: ["411", "413", "416", "418"], sens: "debit" },
+  { code: "072", libelle: "Autres créances", racines: ["40", "409", "425", "43", "44", "45", "46"], sens: "debit" },
+  { code: "084", libelle: "Disponibilités", racines: ["51", "53", "58"], sens: "debit" },
+  { code: "092", libelle: "Charges constatées d’avance", racines: ["486"], sens: "debit" },
 ];
 
 const BILAN_PASSIF = [
   { code: "120", libelle: "Capital social ou individuel", racines: ["101", "108"], sens: "credit" },
-  { code: "126", libelle: "Reserves", racines: ["106"], sens: "credit" },
-  { code: "130", libelle: "Report a nouveau", racines: ["110", "119"], sens: "credit" },
-  { code: "136", libelle: "Resultat de l exercice", racines: ["120", "129"], sens: "credit" },
+  { code: "126", libelle: "Réserves", racines: ["106"], sens: "credit" },
+  { code: "130", libelle: "Report à nouveau", racines: ["110", "119"], sens: "credit" },
+  { code: "136", libelle: "Résultat de l’exercice", racines: ["120", "129"], sens: "credit" },
   { code: "154", libelle: "Provisions pour risques et charges", racines: ["15"], sens: "credit" },
-  { code: "156", libelle: "Emprunts et dettes assimilees", racines: ["16", "17"], sens: "credit" },
-  { code: "166", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"], sens: "credit" },
+  { code: "156", libelle: "Emprunts et dettes assimilées", racines: ["16", "17"], sens: "credit" },
+  { code: "166", libelle: "Fournisseurs et comptes rattachés", racines: ["401", "403", "404", "408"], sens: "credit" },
   { code: "172", libelle: "Autres dettes", racines: ["41", "419", "42", "43", "44", "45", "46"], sens: "credit" },
-  { code: "174", libelle: "Produits constates d avance", racines: ["487"], sens: "credit" },
+  { code: "174", libelle: "Produits constatés d’avance", racines: ["487"], sens: "credit" },
 ];
 
 const RESULTAT = [
   { code: "210", libelle: "Ventes de marchandises", racines: ["707"], sens: "credit" },
   { code: "214", libelle: "Production vendue - biens", racines: ["701", "702", "703"], sens: "credit" },
   { code: "218", libelle: "Production vendue - services", racines: ["704", "705", "706", "708"], sens: "credit" },
-  { code: "222", libelle: "Production stockee et immobilisee", racines: ["71", "72"], sens: "credit" },
-  { code: "224", libelle: "Subventions d exploitation", racines: ["74"], sens: "credit" },
+  { code: "222", libelle: "Production stockée et immobilisée", racines: ["71", "72"], sens: "credit" },
+  { code: "224", libelle: "Subventions d’exploitation", racines: ["74"], sens: "credit" },
   { code: "226", libelle: "Autres produits", racines: ["75", "78", "79"], sens: "credit" },
   { code: "234", libelle: "Achats de marchandises", racines: ["607"], sens: "debit" },
-  { code: "238", libelle: "Achats de matieres premieres", racines: ["601", "602"], sens: "debit" },
+  { code: "238", libelle: "Achats de matières premières", racines: ["601", "602"], sens: "debit" },
   { code: "242", libelle: "Autres charges externes", racines: ["604", "605", "606", "61", "62"], sens: "debit" },
-  { code: "244", libelle: "Impots, taxes et versements assimiles", racines: ["63"], sens: "debit" },
+  { code: "244", libelle: "Impôts, taxes et versements assimilés", racines: ["63"], sens: "debit" },
   { code: "250", libelle: "Salaires et traitements", racines: ["641", "644", "648"], sens: "debit" },
   { code: "252", libelle: "Charges sociales", racines: ["645", "646", "647"], sens: "debit" },
   { code: "254", libelle: "Dotations aux amortissements", racines: ["681"], sens: "debit" },
   { code: "262", libelle: "Autres charges", racines: ["65", "67", "69"], sens: "debit" },
-  { code: "264", libelle: "Charges financieres", racines: ["66"], sens: "debit" },
+  { code: "264", libelle: "Charges financières", racines: ["66"], sens: "debit" },
 ];
 
 const supabase = createClient(
@@ -69,6 +69,11 @@ const supabase = createClient(
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// Un montant a la francaise, pour les controles affiches : « 1 200,00 ».
+function fr2(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function ventiler(lignes: any[]) {
@@ -154,7 +159,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -235,34 +240,34 @@ export async function GET(req: NextRequest) {
     const controles = [
       {
         nom: exerciceOuvert
-          ? "Actif egale passif plus resultat"
-          : "Total actif egale total passif",
+          ? "Actif égale passif plus résultat"
+          : "Total actif égale total passif",
         ok: Math.abs(ecartResiduel) < 0.01,
         detail: exerciceOuvert
-          ? "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2)
-            + " · Resultat " + n.resultat_exercice.toFixed(2)
+          ? "Actif " + fr2(n.total_actif) + " · Passif " + fr2(n.total_passif)
+            + " · Résultat " + fr2(n.resultat_exercice)
             + (Math.abs(ecartResiduel) < 0.01
-              ? " — l ecart correspond exactement au resultat de l exercice"
-              : " — il reste " + ecartResiduel.toFixed(2) + " d ecart inexplique")
-          : "Actif " + n.total_actif.toFixed(2) + " · Passif " + n.total_passif.toFixed(2),
+              ? " — l’écart correspond exactement au résultat de l’exercice"
+              : " — il reste " + fr2(ecartResiduel) + " d’écart inexpliqué")
+          : "Actif " + fr2(n.total_actif) + " · Passif " + fr2(n.total_passif),
       },
       {
         nom: exerciceOuvert
-          ? "Le resultat sera porte au bilan a la cloture"
-          : "Le resultat du compte de resultat se retrouve au bilan",
+          ? "Le résultat sera porté au bilan à la clôture"
+          : "Le résultat du compte de résultat se retrouve au bilan",
         ok: exerciceOuvert
           ? true
           : Math.abs(r2(n.resultat_exercice - n.resultat_bilan)) < 0.01,
         detail: exerciceOuvert
-          ? "Exercice ouvert : resultat calcule " + n.resultat_exercice.toFixed(2)
-            + ", pas encore affecte aux comptes 120 ou 129"
-          : "Calcule " + n.resultat_exercice.toFixed(2)
-            + " · au bilan " + n.resultat_bilan.toFixed(2),
+          ? "Exercice ouvert : résultat calculé " + fr2(n.resultat_exercice)
+            + ", pas encore affecté aux comptes 120 ou 129"
+          : "Calculé " + fr2(n.resultat_exercice)
+            + " · au bilan " + fr2(n.resultat_bilan),
       },
       {
-        nom: "Tous les comptes sont ventiles",
+        nom: "Tous les comptes sont ventilés",
         ok: n.orphelins.length === 0,
-        detail: n.orphelins.length === 0 ? "Aucun compte orphelin" : n.orphelins.length + " compte(s) hors liasse",
+        detail: n.orphelins.length === 0 ? "Aucun compte orphelin" : n.orphelins.length + (n.orphelins.length > 1 ? " comptes hors liasse" : " compte hors liasse"),
       },
     ];
 
@@ -293,8 +298,8 @@ export async function GET(req: NextRequest) {
       controles: controles,
       pret_pour_edi: controles.every(function (c: any) { return c.ok; }),
       avertissement:
-        "Ventilation etablie sur les racines du plan comptable general. A verifier par "
-        + "l expert-comptable avant toute teletransmission.",
+        "Ventilation établie sur les racines du plan comptable général. À vérifier par "
+        + "l’expert-comptable avant toute télétransmission.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
