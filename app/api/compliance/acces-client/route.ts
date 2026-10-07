@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
     const societeId = new URL(req.url).searchParams.get("societe");
     if (!societeId) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // Le dossier doit appartenir au cabinet connecte.
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requete illisible." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
     }
 
     const societeId = propre(b.societe_id, 60);
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
 
     if (!societeId || !email || email.indexOf("@") < 1) {
       return NextResponse.json(
-        { ok: false, erreur: "Le dossier et une adresse valable sont necessaires." },
+        { ok: false, erreur: "Le dossier et une adresse valable sont nécessaires." },
         { status: 400 }
       );
     }
@@ -189,8 +189,8 @@ export async function POST(req: NextRequest) {
       lien: lien,
       courriel_envoye: envoye,
       message: envoye
-        ? "L acces est ouvert et le lien a ete envoye."
-        : "L acces est ouvert. Transmettez le lien vous-meme.",
+        ? "L'accès est ouvert et le lien a été envoyé."
+        : "L'accès est ouvert. Transmettez le lien vous-même.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
@@ -207,7 +207,7 @@ export async function DELETE(req: NextRequest) {
 
     const id = new URL(req.url).searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Acces non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Accès non précisé." }, { status: 400 });
     }
 
     const { error } = await supabase
