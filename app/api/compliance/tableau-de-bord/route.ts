@@ -169,8 +169,8 @@ export async function GET(req: NextRequest) {
       const raisons: string[] = [];
       if (!equilibre && p.lignes > 0) { priorite = priorite + 100; raisons.push("balance déséquilibrée"); }
       if (tvaAtraiter) { priorite = priorite + 50; raisons.push("TVA du mois non liquidée"); }
-      if (p.relevesOuverts > 0) { priorite = priorite + 20; raisons.push(p.relevesOuverts + " ligne(s) de relevé à rapprocher"); }
-      if (sansPiece > 0) { priorite = priorite + 5; raisons.push(sansPiece + " écriture(s) sans pièce"); }
+      if (p.relevesOuverts > 0) { priorite = priorite + 20; raisons.push(p.relevesOuverts + (p.relevesOuverts > 1 ? " lignes" : " ligne") + " de relevé à rapprocher"); }
+      if (sansPiece > 0) { priorite = priorite + 5; raisons.push(sansPiece + (sansPiece > 1 ? " écritures" : " écriture") + " sans pièce"); }
       if (dormant && p.lignes > 0) { priorite = priorite + 10; raisons.push("aucune écriture depuis plus de 40 jours"); }
 
       // On ne reclame un SIREN qu a une societe francaise : une societe
