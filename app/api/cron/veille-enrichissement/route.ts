@@ -58,9 +58,17 @@ const supabase = createClient(
 
 // LES BASES — les memes que dans les deux routes de l outil.
 // ⚠️ SI UNE BASE EST AJOUTEE A trouver-sites OU A lire-sites, L AJOUTER ICI.
+// 🆕 07/10 — la recherche porte desormais sur les huit bases (elle ne
+// portait que sur les cabinets et les avocats).
 const RECHERCHE: any = {
   cabinets: "prospects_cabinets",
   avocats: "prospects_avocats",
+  organismes: "prospects_organismes",
+  immobilier: "prospects_immobilier",
+  gros: "prospects_gros",
+  qualiopi: "prospects_qualiopi",
+  interim: "prospects_interim",
+  ecommerce: "prospects_ecommerce",
 };
 const LECTURE: any = {
   cabinets: "prospects_cabinets",
@@ -154,7 +162,9 @@ async function observerRecherche(): Promise<any> {
     const { count, error } = await supabase.from(table)
       .select("id", { count: "exact", head: true })
       .is("site_cherche_le", null).is("email", null)
-      .or("site_web.is.null,site_web.eq.").eq("desabonne", false)
+      // 🆕 07/10 — meme filtre que trouver-sites : une case « desabonne »
+      // vide vaut « non ».
+      .or("site_web.is.null,site_web.eq.").not("desabonne", "is", true)
       .neq("raison_sociale", "[ND]");
     if (error) { erreurs.push(nom + " : " + String(error.message || error).slice(0, 160)); continue; }
     const d = await derniere(table, "site_cherche_le");
