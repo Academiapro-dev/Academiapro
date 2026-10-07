@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LECTURE : consulter les exercices et la piste d audit d un dossier confie
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : verrouiller, liberer ou contrepasser touche des ecritures
@@ -116,14 +116,14 @@ export async function POST(req: NextRequest) {
     if (b.action === "verrouiller" || b.action === "deverrouiller") {
       const annee = String(b.annee || "").slice(0, 4);
       if (!/^\d{4}$/.test(annee)) {
-        return NextResponse.json({ ok: false, erreur: "Annee invalide." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Année invalide." }, { status: 400 });
       }
 
       const verrou = b.action === "verrouiller";
 
       if (!verrou && motif.length < 3) {
         return NextResponse.json(
-          { ok: false, erreur: "Le motif du deverrouillage est obligatoire : il sera consigne dans la piste d audit." },
+          { ok: false, erreur: "Le motif du déverrouillage est obligatoire : il sera consigné dans la piste d’audit." },
           { status: 400 }
         );
       }
@@ -155,19 +155,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         lignes: nb,
-        message: nb + " ligne(s) d ecriture de " + annee + (verrou ? " verrouillees." : " deverrouillees."),
+        message: nb + (nb > 1 ? " lignes d’écriture de " : " ligne d’écriture de ") + annee
+          + (verrou ? (nb > 1 ? " verrouillées." : " verrouillée.") : (nb > 1 ? " déverrouillées." : " déverrouillée.")),
       });
     }
 
     if (b.action === "contrepasser") {
       const numero = String(b.ecriture_num || "").trim();
       if (!numero) {
-        return NextResponse.json({ ok: false, erreur: "Ecriture non precisee." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Écriture non précisée." }, { status: 400 });
       }
 
       if (motif.length < 3) {
         return NextResponse.json(
-          { ok: false, erreur: "Le motif de la contrepassation est obligatoire : il sera consigne dans la piste d audit." },
+          { ok: false, erreur: "Le motif de la contrepassation est obligatoire : il sera consigné dans la piste d’audit." },
           { status: 400 }
         );
       }
@@ -181,7 +182,7 @@ export async function POST(req: NextRequest) {
 
       const lignes = originales || [];
       if (lignes.length === 0) {
-        return NextResponse.json({ ok: false, erreur: "Ecriture introuvable." }, { status: 404 });
+        return NextResponse.json({ ok: false, erreur: "Écriture introuvable." }, { status: 404 });
       }
 
       const { data: deja } = await supabase
@@ -193,7 +194,7 @@ export async function POST(req: NextRequest) {
 
       if ((deja || []).length > 0) {
         return NextResponse.json(
-          { ok: false, erreur: "L ecriture " + numero + " a deja ete contrepassee." },
+          { ok: false, erreur: "L’écriture " + numero + " a déjà été contrepassée." },
           { status: 409 }
         );
       }
@@ -247,7 +248,7 @@ export async function POST(req: NextRequest) {
 
       if (Math.abs(r2(debit - credit)) > 0.005) {
         return NextResponse.json(
-          { ok: false, erreur: "L ecriture d origine n est pas equilibree : contrepassation refusee." },
+          { ok: false, erreur: "L’écriture d’origine n’est pas équilibrée : contrepassation refusée." },
           { status: 409 }
         );
       }
@@ -268,8 +269,8 @@ export async function POST(req: NextRequest) {
         ok: true,
         ecriture_num: nouveau,
         lignes: miroir.length,
-        message: "Ecriture " + numero + " contrepassee par " + nouveau
-          + ". L originale reste intacte au journal.",
+        message: "Écriture " + numero + " contrepassée par " + nouveau
+          + ". L’originale reste intacte au journal.",
       });
     }
 
