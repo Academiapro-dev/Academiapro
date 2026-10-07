@@ -37,13 +37,13 @@ function coffreEtChemin(chemin: string): { coffre: string; chemin: string } {
 }
 
 const TYPES: any = {
-  facture_achat: "Facture d achat",
+  facture_achat: "Facture d’achat",
   facture_vente: "Facture de vente",
   note_frais: "Note de frais",
-  releve_bancaire: "Releve bancaire",
+  releve_bancaire: "Relevé bancaire",
   contrat: "Contrat",
   bulletin_paie: "Bulletin de paie",
-  avis_impot: "Avis d imposition",
+  avis_impot: "Avis d’imposition",
   autre: "Autre",
 };
 
@@ -79,7 +79,7 @@ export async function GET(req: NextRequest) {
         .maybeSingle();
 
       if (!ligne) {
-        return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
+        return NextResponse.json({ ok: false, erreur: "Pièce introuvable." }, { status: 404 });
       }
 
       // Un lien signe donne acces au justificatif lui-meme.
@@ -107,7 +107,7 @@ export async function GET(req: NextRequest) {
 
     const id = (url.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
     if (type.indexOf("application/json") >= 0) {
       const b = await req.json().catch(function () { return null; });
       if (!b || !b.id) {
-        return NextResponse.json({ ok: false, erreur: "Piece non precisee." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Pièce non précisée." }, { status: 400 });
       }
 
       const { data: piece } = await supabase
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
         .maybeSingle();
 
       if (!piece) {
-        return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
+        return NextResponse.json({ ok: false, erreur: "Pièce introuvable." }, { status: 404 });
       }
 
       const refus = await barrage("deposer_pieces", piece.societe_id);
@@ -203,7 +203,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
-        message: b.ecriture_num ? "Piece rattachee a " + b.ecriture_num + "." : "Rattachement retire.",
+        message: b.ecriture_num ? "Pièce rattachée à l’écriture " + b.ecriture_num + "." : "Rattachement retiré.",
       });
     }
 
@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
 
     const societeId = String(form.get("societe_id") || "").trim();
     if (!societeId) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await barrage("deposer_pieces", societeId);
@@ -226,7 +226,7 @@ export async function POST(req: NextRequest) {
 
     const fichier = form.get("fichier") as File | null;
     if (!fichier || typeof fichier.arrayBuffer !== "function") {
-      return NextResponse.json({ ok: false, erreur: "Aucun fichier recu." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Aucun fichier reçu." }, { status: 400 });
     }
     if (fichier.size > TAILLE_MAX) {
       return NextResponse.json(
@@ -264,10 +264,10 @@ export async function POST(req: NextRequest) {
           ok: false,
           doublon: true,
           piece_existante: p.id,
-          erreur: "Ce fichier est deja au dossier sous le nom « " + p.nom + " »"
-            + (quand ? ", depose le " + quand : "")
-            + (p.ecriture_num ? ", rattache a l ecriture " + p.ecriture_num : "")
-            + ". Rien n a ete depose.",
+          erreur: "Ce fichier est déjà au dossier sous le nom « " + p.nom + " »"
+            + (quand ? ", déposé le " + quand : "")
+            + (p.ecriture_num ? ", rattaché à l’écriture " + p.ecriture_num : "")
+            + ". Rien n’a été déposé.",
         },
         { status: 409 }
       );
@@ -286,7 +286,7 @@ export async function POST(req: NextRequest) {
 
     if (erreurDepot) {
       return NextResponse.json(
-        { ok: false, erreur: "Depot impossible : " + erreurDepot.message },
+        { ok: false, erreur: "Dépôt impossible : " + erreurDepot.message },
         { status: 500 }
       );
     }
@@ -328,7 +328,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       piece: (data || [])[0] || null,
       empreinte: empreinte,
-      message: "Piece deposee et son empreinte calculee.",
+      message: "Pièce déposée, son empreinte est calculée.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
@@ -339,7 +339,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Piece non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Pièce non précisée." }, { status: 400 });
     }
 
     const { data: piece } = await supabase
@@ -349,7 +349,7 @@ export async function DELETE(req: NextRequest) {
       .maybeSingle();
 
     if (!piece) {
-      return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
+      return NextResponse.json({ ok: false, erreur: "Pièce introuvable." }, { status: 404 });
     }
 
     const refus = await barrage("deposer_pieces", piece.societe_id);
@@ -359,8 +359,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Cette piece justifie l ecriture " + piece.ecriture_num
-            + ". Detachez-la avant de la supprimer.",
+          erreur: "Cette pièce justifie l’écriture " + piece.ecriture_num
+            + ". Détachez-la avant de la supprimer.",
         },
         { status: 409 }
       );
@@ -375,7 +375,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ ok: true, message: "Piece supprimee." });
+    return NextResponse.json({ ok: true, message: "Pièce supprimée." });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
   }
