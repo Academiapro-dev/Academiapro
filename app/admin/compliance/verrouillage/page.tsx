@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 
 const ACTIONS: any = {
   verrouillage: { texte: "Verrouillage", couleur: "#4caf50" },
-  deverrouillage: { texte: "Deverrouillage", couleur: "#e8836a" },
+  deverrouillage: { texte: "Déverrouillage", couleur: "#e8836a" },
   contrepassation: { texte: "Contrepassation", couleur: "#e8a33d" },
 };
 
@@ -97,11 +97,11 @@ export default function PageVerrouillage() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Verrouillage et piste d audit</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Verrouillage et piste d’audit</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Une ecriture verrouillee ne se modifie plus : elle se contrepasse
+          Une écriture verrouillée ne se modifie plus : elle se contrepasse
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -122,7 +122,7 @@ export default function PageVerrouillage() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px", lineHeight: "1.7" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : (
           <>
             <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "22px 0 12px" }}>Exercices</h2>
@@ -130,7 +130,7 @@ export default function PageVerrouillage() {
             {d.exercices.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucune ecriture sur ce dossier.
+                  Aucune écriture sur ce dossier.
                 </p>
               </div>
             ) : (
@@ -142,10 +142,10 @@ export default function PageVerrouillage() {
                         <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 3px" }}>{e.annee}</h3>
                         <p style={{ color: e.verrouille ? "#4caf50" : e.partiel ? "#e8a33d" : "rgba(255,255,255,0.5)", fontSize: "13.5px", margin: 0 }}>
                           {e.verrouille
-                            ? "Verrouille · " + e.total + " ligne(s) d ecriture"
+                            ? "Verrouillé · " + e.total + (e.total > 1 ? " lignes d’écriture" : " ligne d’écriture")
                             : e.partiel
-                              ? e.verrouillees + " verrouillees sur " + e.total
-                              : "Ouvert · " + e.total + " ligne(s) d ecriture"}
+                              ? e.verrouillees + (e.verrouillees > 1 ? " verrouillées sur " : " verrouillée sur ") + e.total
+                              : "Ouvert · " + e.total + (e.total > 1 ? " lignes d’écriture" : " ligne d’écriture")}
                         </p>
                       </div>
                     </div>
@@ -156,14 +156,14 @@ export default function PageVerrouillage() {
                         disabled={occupe !== ""}
                         style={{ ...BOUTON, background: "#c8a96e", color: "#050508", border: "none", fontWeight: "bold", marginTop: "12px" }}
                       >
-                        {occupe === e.annee ? "..." : "Verrouiller " + e.annee}
+                        {occupe === e.annee ? "…" : "Verrouiller " + e.annee}
                       </button>
                     ) : (
                       <div style={{ marginTop: "12px" }}>
                         <input
                           value={motif[e.annee] || ""}
                           onChange={(ev) => setMotif({ ...motif, [e.annee]: ev.target.value })}
-                          placeholder="Motif du deverrouillage — il sera consigne"
+                          placeholder="Motif du déverrouillage — il sera consigné"
                           style={CHAMP}
                         />
                         <button
@@ -171,7 +171,7 @@ export default function PageVerrouillage() {
                           disabled={occupe !== "" || (motif[e.annee] || "").trim().length < 3}
                           style={{ ...BOUTON, color: "#e8836a", borderColor: "rgba(232,131,106,0.45)" }}
                         >
-                          {occupe === e.annee ? "..." : "Deverrouiller"}
+                          {occupe === e.annee ? "…" : "Déverrouiller"}
                         </button>
                       </div>
                     )}
@@ -181,17 +181,17 @@ export default function PageVerrouillage() {
             )}
 
             <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "26px 0 12px" }}>
-              Contrepasser une ecriture
+              Contrepasser une écriture
             </h2>
             <div style={CARTE}>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "13.5px", margin: "0 0 12px", lineHeight: "1.75" }}>
-                L ecriture d origine reste intacte au journal. Son miroir exact est ecrit a la
+                L’écriture d’origine reste intacte au journal. Son miroir exact est écrit à la
                 date du jour, et la correction se voit. Le motif est obligatoire : il sera
-                consigne dans la piste d audit.
+                consigné dans la piste d’audit.
               </p>
               <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                 <div style={{ flex: "1 1 180px" }}>
-                  <span style={LIBELLE}>Reference de l ecriture</span>
+                  <span style={LIBELLE}>Référence de l’écriture</span>
                   <input value={cp.ecriture_num} onChange={(e) => setCp({ ...cp, ecriture_num: e.target.value })} placeholder="AC2026-0012" style={CHAMP} />
                 </div>
                 <div style={{ flex: "1 1 240px" }}>
@@ -204,18 +204,18 @@ export default function PageVerrouillage() {
                 disabled={occupe !== "" || !cpPret}
                 style={{ background: occupe !== "" || !cpPret ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "13px 26px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif" }}
               >
-                {occupe === "cp" ? "Contrepassation..." : "Contrepasser"}
+                {occupe === "cp" ? "Contrepassation…" : "Contrepasser"}
               </button>
             </div>
 
             <h2 style={{ color: "#c8a96e", fontSize: "17px", margin: "26px 0 12px" }}>
-              Piste d audit
+              Piste d’audit
             </h2>
 
             {d.audit.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucun evenement consigne sur ce dossier.
+                  Aucun événement consigné sur ce dossier.
                 </p>
               </div>
             ) : (
@@ -230,7 +230,7 @@ export default function PageVerrouillage() {
                         <span style={{ color: act.couleur, fontSize: "13.5px", fontWeight: "bold" }}>
                           {act.texte}
                           <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: "normal" }}>
-                            {" "}· {a.cible} {a.reference}
+                            {" "}· {a.cible === "ecriture" ? "écriture" : a.cible} {a.reference}
                           </span>
                         </span>
                         <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "12.5px" }}>
@@ -241,8 +241,8 @@ export default function PageVerrouillage() {
                         {a.email}
                         {leMotif
                           ? " · motif : " + leMotif
-                          : (exigeUnMotif ? " · motif non renseigne" : "")}
-                        {a.apres && a.apres.lignes ? " · " + a.apres.lignes + " ligne(s)" : ""}
+                          : (exigeUnMotif ? " · motif non renseigné" : "")}
+                        {a.apres && a.apres.lignes ? " · " + a.apres.lignes + (a.apres.lignes > 1 ? " lignes" : " ligne") : ""}
                         {a.apres && a.apres.ecriture_num ? " · devient " + a.apres.ecriture_num : ""}
                       </p>
                     </div>
@@ -253,9 +253,9 @@ export default function PageVerrouillage() {
 
             <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
               <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-                Le deverrouillage reste possible — un cabinet en a parfois besoin — mais il
-                laisse une trace ici, avec son motif. C est ce qui distingue une correction
-                assumee d une comptabilite refaite apres coup.
+                Le déverrouillage reste possible — un cabinet en a parfois besoin — mais il
+                laisse une trace ici, avec son motif. C’est ce qui distingue une correction
+                assumée d’une comptabilité refaite après coup.
               </p>
             </div>
           </>
