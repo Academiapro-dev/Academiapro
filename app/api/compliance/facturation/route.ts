@@ -164,7 +164,7 @@ async function documentAutorise(id: any, tenant: string) {
     .eq("id", id)
     .maybeSingle();
   if (!data) return { erreur: "Document introuvable.", code: 404 };
-  if (data.tenant_id !== tenant) return { erreur: "Document d un autre cabinet.", code: 403 };
+  if (data.tenant_id !== tenant) return { erreur: "Document d'un autre cabinet.", code: 403 };
   return { doc: data };
 }
 
@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
 
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.action) {
-      return NextResponse.json({ ok: false, erreur: "Action non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Action non précisée." }, { status: 400 });
     }
 
     // ---------- CREER UN DOCUMENT ----------
@@ -424,7 +424,7 @@ export async function POST(req: NextRequest) {
 
       if ((count || 0) === 0) {
         return NextResponse.json({
-          ok: false, erreur: "Aucune ligne : ce document n a rien à facturer.",
+          ok: false, erreur: "Aucune ligne : ce document n'a rien à facturer.",
         }, { status: 400 });
       }
 
@@ -551,7 +551,7 @@ export async function POST(req: NextRequest) {
 
       if (v.doc.type !== "facture" || !v.doc.numero) {
         return NextResponse.json({
-          ok: false, erreur: "Un avoir ne s établit que sur une facture émise.",
+          ok: false, erreur: "Un avoir ne s'établit que sur une facture émise.",
         }, { status: 400 });
       }
 
