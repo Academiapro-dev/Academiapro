@@ -13,40 +13,40 @@ export const maxDuration = 60;
 // « tiers » designe un poste dont les comptes changent de cote selon leur
 // solde : un client crediteur n est pas une creance, il est une dette.
 const ACTIF = [
-  { code: "AB", libelle: "Frais d etablissement", brut: ["201"], amort: ["2801"] },
+  { code: "AB", libelle: "Frais d’établissement", brut: ["201"], amort: ["2801"] },
   { code: "AF", libelle: "Concessions, brevets, licences, logiciels", brut: ["205", "203"], amort: ["2805", "2803"] },
   { code: "AH", libelle: "Fonds commercial", brut: ["206", "207"], amort: ["2807", "2907"] },
   { code: "AN", libelle: "Terrains", brut: ["211", "212"], amort: ["2811"] },
   { code: "AP", libelle: "Constructions", brut: ["213", "214"], amort: ["2813", "2814"] },
   { code: "AR", libelle: "Installations techniques et outillage", brut: ["215"], amort: ["2815"] },
   { code: "AT", libelle: "Autres immobilisations corporelles", brut: ["218"], amort: ["2818"] },
-  { code: "BH", libelle: "Autres immobilisations financieres", brut: ["26", "27"], amort: ["296", "297"] },
-  { code: "BL", libelle: "Matieres premieres et approvisionnements", brut: ["31", "32"], amort: ["391", "392"] },
+  { code: "BH", libelle: "Autres immobilisations financières", brut: ["26", "27"], amort: ["296", "297"] },
+  { code: "BL", libelle: "Matières premières et approvisionnements", brut: ["31", "32"], amort: ["391", "392"] },
   { code: "BT", libelle: "Marchandises", brut: ["37"], amort: ["397"] },
-  { code: "BV", libelle: "Avances et acomptes verses", brut: ["409"], amort: [] },
-  { code: "BX", libelle: "Clients et comptes rattaches", brut: ["411", "413", "416", "418"], amort: ["491"], tiers: true },
-  { code: "BZ", libelle: "Autres creances", brut: ["425", "43", "44", "45", "46"], amort: [], tiers: true },
-  { code: "CF", libelle: "Disponibilites", brut: ["51", "53", "58"], amort: [] },
-  { code: "CH", libelle: "Charges constatees d avance", brut: ["486"], amort: [] },
+  { code: "BV", libelle: "Avances et acomptes versés", brut: ["409"], amort: [] },
+  { code: "BX", libelle: "Clients et comptes rattachés", brut: ["411", "413", "416", "418"], amort: ["491"], tiers: true },
+  { code: "BZ", libelle: "Autres créances", brut: ["425", "43", "44", "45", "46"], amort: [], tiers: true },
+  { code: "CF", libelle: "Disponibilités", brut: ["51", "53", "58"], amort: [] },
+  { code: "CH", libelle: "Charges constatées d’avance", brut: ["486"], amort: [] },
 ];
 
 // 2051 — passif. Un seul montant par poste.
 const PASSIF = [
   { code: "DA", libelle: "Capital social ou individuel", racines: ["101", "108"] },
-  { code: "DB", libelle: "Primes d emission, de fusion, d apport", racines: ["104"] },
-  { code: "DD", libelle: "Reserve legale", racines: ["1061"] },
-  { code: "DG", libelle: "Autres reserves", racines: ["106"] },
-  { code: "DH", libelle: "Report a nouveau", racines: ["110", "119"] },
-  { code: "DI", libelle: "Resultat de l exercice", racines: ["120", "129"] },
-  { code: "DK", libelle: "Subventions d investissement", racines: ["13"] },
+  { code: "DB", libelle: "Primes d’émission, de fusion, d’apport", racines: ["104"] },
+  { code: "DD", libelle: "Réserve légale", racines: ["1061"] },
+  { code: "DG", libelle: "Autres réserves", racines: ["106"] },
+  { code: "DH", libelle: "Report à nouveau", racines: ["110", "119"] },
+  { code: "DI", libelle: "Résultat de l’exercice", racines: ["120", "129"] },
+  { code: "DK", libelle: "Subventions d’investissement", racines: ["13"] },
   { code: "DP", libelle: "Provisions pour risques et charges", racines: ["15"] },
-  { code: "DU", libelle: "Emprunts et dettes aupres des etablissements de credit", racines: ["16"] },
-  { code: "DV", libelle: "Emprunts et dettes financieres divers", racines: ["17", "455"], tiers: true },
-  { code: "DW", libelle: "Avances et acomptes recus", racines: ["419"] },
-  { code: "DX", libelle: "Fournisseurs et comptes rattaches", racines: ["401", "403", "404", "408"], tiers: true },
+  { code: "DU", libelle: "Emprunts et dettes auprès des établissements de crédit", racines: ["16"] },
+  { code: "DV", libelle: "Emprunts et dettes financières divers", racines: ["17", "455"], tiers: true },
+  { code: "DW", libelle: "Avances et acomptes reçus", racines: ["419"] },
+  { code: "DX", libelle: "Fournisseurs et comptes rattachés", racines: ["401", "403", "404", "408"], tiers: true },
   { code: "DY", libelle: "Dettes fiscales et sociales", racines: ["42", "43", "44"], tiers: true },
   { code: "EA", libelle: "Autres dettes", racines: ["46", "45"], tiers: true },
-  { code: "EB", libelle: "Produits constates d avance", racines: ["487"] },
+  { code: "EB", libelle: "Produits constatés d’avance", racines: ["487"] },
 ];
 
 // 2052 et 2053 — compte de resultat developpe.
@@ -54,27 +54,27 @@ const RESULTAT = [
   { code: "FC", libelle: "Ventes de marchandises", racines: ["707"], sens: "credit" },
   { code: "FD", libelle: "Production vendue - biens", racines: ["701", "702", "703"], sens: "credit" },
   { code: "FG", libelle: "Production vendue - services", racines: ["704", "705", "706", "708"], sens: "credit" },
-  { code: "FM", libelle: "Production stockee", racines: ["713"], sens: "credit" },
-  { code: "FN", libelle: "Production immobilisee", racines: ["72"], sens: "credit" },
-  { code: "FO", libelle: "Subventions d exploitation", racines: ["74"], sens: "credit" },
+  { code: "FM", libelle: "Production stockée", racines: ["713"], sens: "credit" },
+  { code: "FN", libelle: "Production immobilisée", racines: ["72"], sens: "credit" },
+  { code: "FO", libelle: "Subventions d’exploitation", racines: ["74"], sens: "credit" },
   { code: "FP", libelle: "Reprises sur provisions et transferts de charges", racines: ["781", "791"], sens: "credit" },
   { code: "FQ", libelle: "Autres produits", racines: ["75"], sens: "credit" },
   { code: "FS", libelle: "Achats de marchandises", racines: ["607"], sens: "debit" },
   { code: "FT", libelle: "Variation de stock de marchandises", racines: ["6037"], sens: "debit" },
-  { code: "FU", libelle: "Achats de matieres premieres", racines: ["601", "602"], sens: "debit" },
-  { code: "FV", libelle: "Variation de stock de matieres", racines: ["6031", "6032"], sens: "debit" },
+  { code: "FU", libelle: "Achats de matières premières", racines: ["601", "602"], sens: "debit" },
+  { code: "FV", libelle: "Variation de stock de matières", racines: ["6031", "6032"], sens: "debit" },
   { code: "FW", libelle: "Autres achats et charges externes", racines: ["604", "605", "606", "61", "62"], sens: "debit" },
-  { code: "FX", libelle: "Impots, taxes et versements assimiles", racines: ["63"], sens: "debit" },
+  { code: "FX", libelle: "Impôts, taxes et versements assimilés", racines: ["63"], sens: "debit" },
   { code: "FY", libelle: "Salaires et traitements", racines: ["641", "644", "648"], sens: "debit" },
   { code: "FZ", libelle: "Charges sociales", racines: ["645", "646", "647"], sens: "debit" },
   { code: "GA", libelle: "Dotations aux amortissements", racines: ["6811"], sens: "debit" },
-  { code: "GC", libelle: "Dotations aux depreciations et provisions", racines: ["6815", "6817", "6816"], sens: "debit" },
+  { code: "GC", libelle: "Dotations aux dépréciations et provisions", racines: ["6815", "6817", "6816"], sens: "debit" },
   { code: "GE", libelle: "Autres charges", racines: ["65"], sens: "debit" },
   { code: "GJ", libelle: "Produits financiers", racines: ["76"], sens: "credit" },
-  { code: "GR", libelle: "Charges financieres", racines: ["66"], sens: "debit" },
+  { code: "GR", libelle: "Charges financières", racines: ["66"], sens: "debit" },
   { code: "HA", libelle: "Produits exceptionnels", racines: ["77"], sens: "credit" },
   { code: "HE", libelle: "Charges exceptionnelles", racines: ["67"], sens: "debit" },
-  { code: "HK", libelle: "Impots sur les benefices", racines: ["695", "699"], sens: "debit" },
+  { code: "HK", libelle: "Impôts sur les bénéfices", racines: ["695", "699"], sens: "debit" },
 ];
 
 const supabase = createClient(
@@ -93,11 +93,16 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Un montant a la francaise, pour les controles affiches : « 1 200,00 ».
+function fr2(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -224,23 +229,23 @@ export async function GET(req: NextRequest) {
 
     const controles = [
       {
-        nom: "Total actif net egale total passif",
+        nom: "Total actif net égale total passif",
         ok: Math.abs(r2(totalNet - totalPassif)) < 0.01,
-        detail: "Actif " + totalNet.toFixed(2) + " · Passif " + totalPassif.toFixed(2),
+        detail: "Actif " + fr2(totalNet) + " · Passif " + fr2(totalPassif),
       },
       {
-        nom: "Le resultat se retrouve au bilan",
+        nom: "Le résultat se retrouve au bilan",
         ok: exerciceCloture
           ? true
           : Math.abs(r2(resultatCalcule - resultatAuBilan)) < 0.01,
         detail: exerciceCloture
-          ? "Exercice cloture — resultat de " + resultatAuBilan.toFixed(2) + " loge au bilan"
-          : "Calcule " + resultatCalcule.toFixed(2),
+          ? "Exercice clôturé — résultat de " + fr2(resultatAuBilan) + " logé au bilan"
+          : "Calculé " + fr2(resultatCalcule),
       },
       {
-        nom: "Tous les comptes sont ventiles",
+        nom: "Tous les comptes sont ventilés",
         ok: orphelins.length === 0,
-        detail: orphelins.length === 0 ? "Aucun compte orphelin" : orphelins.length + " compte(s) hors liasse",
+        detail: orphelins.length === 0 ? "Aucun compte orphelin" : orphelins.length + (orphelins.length > 1 ? " comptes hors liasse" : " compte hors liasse"),
       },
     ];
 
@@ -258,7 +263,7 @@ export async function GET(req: NextRequest) {
       controles: controles,
       pret_pour_edi: controles.every(function (c: any) { return c.ok; }),
       avertissement:
-        "Presentation du regime reel normal. A verifier par l expert-comptable avant tout depot.",
+        "Présentation du régime réel normal. À vérifier par l’expert-comptable avant tout dépôt.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
