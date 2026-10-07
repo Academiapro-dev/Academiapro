@@ -50,7 +50,7 @@ export default function PageLiasse2050() {
   function euros(n: any) {
     const v = Number(n) || 0;
     if (v === 0) return "";
-    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
+    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function Detail({ c }: any) {
@@ -77,11 +77,11 @@ export default function PageLiasse2050() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Liasse 2050 · reel normal</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Liasse 2050 · réel normal</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Le bilan developpe, en brut, amortissements et net
+          Le bilan développé, en brut, amortissements et net
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -97,7 +97,7 @@ export default function PageLiasse2050() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Ventilation en cours...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Ventilation en cours…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ ...CARTE, border: "2px solid " + (d.pret_pour_edi ? "rgba(76,175,80,0.5)" : "rgba(232,163,61,0.5)") }}>
@@ -108,7 +108,7 @@ export default function PageLiasse2050() {
                 {new Date(d.periode.fin).toLocaleDateString("fr-FR")}
               </p>
               <p style={{ color: d.pret_pour_edi ? "#4caf50" : "#e8a33d", fontSize: "17px", fontWeight: "bold", margin: "0 0 10px" }}>
-                {d.pret_pour_edi ? "Liasse coherente" : "La liasse ne tombe pas juste"}
+                {d.pret_pour_edi ? "Liasse cohérente" : "La liasse ne tombe pas juste"}
               </p>
               {d.controles.map(function (c: any, i: number) {
                 return (
@@ -121,8 +121,8 @@ export default function PageLiasse2050() {
 
             <div style={{ ...CARTE, background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
               <p style={{ color: "#e8a33d", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-                Cette presentation est celle du reel normal. Si votre dossier releve du reel
-                simplifie, c est la liasse 2033 qu il faut deposer.
+                Cette présentation est celle du réel normal. Si votre dossier relève du réel
+                simplifié, c’est la liasse 2033 qu’il faut déposer.
               </p>
             </div>
 
@@ -184,7 +184,7 @@ export default function PageLiasse2050() {
             </div>
 
             <h2 style={{ color: "#fff", fontSize: "19px", margin: "24px 0 12px" }}>
-              2052 · Compte de resultat
+              2052 · Compte de résultat
             </h2>
             <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
               {d.compte_resultat.lignes.map(function (c: any) {
@@ -211,7 +211,7 @@ export default function PageLiasse2050() {
               })}
               <div style={{ display: "grid", gridTemplateColumns: "0.5fr 2.9fr 1.2fr", padding: "13px 14px", borderTop: "1px solid rgba(200,169,110,0.35)", background: "rgba(200,169,110,0.12)", fontSize: "13.5px", color: "#c8a96e", fontWeight: "bold" }}>
                 <span></span>
-                <span>RESULTAT DE L EXERCICE</span>
+                <span>RÉSULTAT DE L’EXERCICE</span>
                 <span style={{ textAlign: "right", color: d.compte_resultat.resultat >= 0 ? "#4caf50" : "#e8836a" }}>
                   {euros(d.compte_resultat.resultat) || "0,00"}
                 </span>
@@ -221,7 +221,7 @@ export default function PageLiasse2050() {
             {d.orphelins.length > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)", marginTop: "18px" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", fontWeight: "bold", margin: "0 0 10px" }}>
-                  {d.orphelins.length} compte(s) ne rentrent dans aucune case
+                  {d.orphelins.length > 1 ? d.orphelins.length + " comptes ne rentrent dans aucune case" : "1 compte ne rentre dans aucune case"}
                 </p>
                 {d.orphelins.map(function (o: any, i: number) {
                   return (
