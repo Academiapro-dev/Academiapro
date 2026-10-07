@@ -36,6 +36,12 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Une date AAAA-MM-JJ, dite a la francaise : JJ/MM/AAAA.
+function dateFr(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ""));
+  return m ? m[3] + "/" + m[2] + "/" + m[1] : String(d || "");
+}
+
 // Bareme IS (hypothese PME : taux reduit 15 % jusqu'a 42 500, puis 25 %)
 function calculIS(base: number): { is_15: number; is_25: number; total: number } {
   if (base <= 0) return { is_15: 0, is_25: 0, total: 0 };
@@ -68,7 +74,7 @@ export async function GET(req: NextRequest) {
 
     if (erreurDossiers) {
       return NextResponse.json(
-        { error: "Lecture des dossiers: " + erreurDossiers.message },
+        { error: "Lecture des dossiers : " + erreurDossiers.message },
         { status: 500 }
       );
     }
@@ -98,7 +104,7 @@ export async function GET(req: NextRequest) {
       if (!codeDemande && !idDemande) {
         return NextResponse.json(
           {
-            error: "Precisez le dossier : ?societe=CODE",
+            error: "Précisez le dossier.",
             dossiers: liste.map(function (s: any) {
               return { code: s.code, raison_sociale: s.raison_sociale };
             }),
@@ -145,15 +151,15 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       return NextResponse.json(
-        { error: "Lecture ecritures: " + error.message },
+        { error: "Lecture des écritures : " + error.message },
         { status: 500 }
       );
     }
     if (!lignes || lignes.length === 0) {
       return NextResponse.json(
         {
-          error: "Aucune ecriture pour " + dossier.raison_sociale
-            + " entre le " + debut + " et le " + fin + ".",
+          error: "Aucune écriture pour " + dossier.raison_sociale
+            + " entre le " + dateFr(debut) + " et le " + dateFr(fin) + ".",
           dossier: dossier.code,
         },
         { status: 404 }
@@ -228,13 +234,13 @@ export async function GET(req: NextRequest) {
 
     let noteRegime = "";
     if (regime === "is") {
-      noteRegime = "Societe a l impot sur les societes. Taux reduit 15 % suppose (conditions PME a verifier).";
+      noteRegime = "Société à l'impôt sur les sociétés. Taux réduit de 15 % supposé (conditions PME à vérifier).";
     } else if (regime === "a_determiner") {
-      noteRegime = "REGIME FISCAL NON TRANCHE pour ce dossier : aucun impot n est calcule. Renseignez le regime sur la fiche du dossier.";
+      noteRegime = "RÉGIME FISCAL NON TRANCHÉ pour ce dossier : aucun impôt n'est calculé. Renseignez le régime sur la fiche du dossier.";
     } else if (regime === "transparent" || regime === "ir") {
-      noteRegime = "Societe non soumise a l IS : le resultat est impose entre les mains des associes. La liasse 2065/2033 ne s applique pas en l etat.";
+      noteRegime = "Société non soumise à l'IS : le résultat est imposé entre les mains des associés. La liasse 2065/2033 ne s'applique pas en l'état.";
     } else {
-      noteRegime = "Regime " + regime + " : aucun impot calcule.";
+      noteRegime = "Régime " + regime + " : aucun impôt calculé.";
     }
 
     return NextResponse.json({
@@ -250,7 +256,7 @@ export async function GET(req: NextRequest) {
       soumis_is: soumisIS,
       note_regime: noteRegime,
       avertissement:
-        "Document de travail. La liasse reelle (2065 + 2033) se teletransmet en EDI-TDFC.",
+        "Document de travail. La liasse réelle (2065 + 2033) se télétransmet en EDI-TDFC.",
       compte_resultat: {
         produits,
         charges,
