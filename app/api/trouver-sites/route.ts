@@ -256,7 +256,12 @@ const MAX_DOMAINES_OUVERTS = 4;
 
 // 🆕 07/10 — A PARTIR DE COMBIEN DE FICHES UN MEME SITE EST CELUI D UN
 // RESEAU (voir `traiter`).
-const SEUIL_RESEAU = 3;
+// 🆕 07/10 (soir) — 3 → 1. Deux organismes differents avaient recu le meme
+// site : l un des deux au moins etait faux. Un site deja porte par une autre
+// fiche de la base n est plus ecrit une seconde fois. (La seconde fiche
+// n aurait de toute facon pas pu recevoir la meme adresse : une adresse,
+// une fiche.)
+const SEUIL_RESEAU = 1;
 
 // LES PAGES OU CHERCHER LE SIREN QUAND L ACCUEIL NE LE PORTE PAS.
 // 🆕 01/10 — ET LA PAGE CONTACT : la ville y est presque toujours, meme
@@ -865,7 +870,20 @@ function identiteDe(t: string, l: any, domaine: string, metier?: string): string
     .filter(function (m) { return m.length >= 3; })
     // 🆕 07/10 — un nombre seul ne prouve rien (« 81 », « 2000 »).
     .filter(function (m) { return !/^[0-9]+$/.test(m); });
-  if (coeur.length > 0 && coeur.every(function (m) { return contientMot(t, m); })) return "cabinet";
+  // 🚨🆕 07/10 (soir) — DES MOTS COURANTS NE FONT PAS UNE IDENTITE. Mesure
+  // sur les organismes : « ASSOCIATION CONTACT PLUS » (Colmar) et « AS
+  // CONDUITE PARIS 2 » ont recu le meme site, acp-formation.fr. Pour le
+  // premier, les mots « contact » et « plus » etaient sur la page — comme
+  // sur n importe quelle page. Tous les mots distinctifs sur la page ne
+  // suffisent donc plus : il faut en plus que le NOM DU SITE porte l un
+  // d eux (quatre lettres au moins), ou qu ils soient ecrits a la suite
+  // (« contact plus »), s ils sont au moins deux.
+  if (coeur.length > 0 && coeur.every(function (m) { return contientMot(t, m); })) {
+    const nomSite = domaine.replace(/[^a-z0-9]/g, "");
+    const dansLeSite = coeur.some(function (m) { return m.length >= 4 && nomSite.indexOf(m) >= 0; });
+    const aLaSuite = coeur.length >= 2 && (" " + t + " ").indexOf(" " + coeur.join(" ") + " ") >= 0;
+    if (dansLeSite || aLaSuite) return "cabinet";
+  }
 
   if (raison.length >= 2 && (" " + t + " ").indexOf(" " + raison.join(" ") + " ") >= 0) return "nom complet du cabinet";
 
@@ -1252,8 +1270,8 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
       // enseigne immobiliere : le site trouve est celui du reseau, et il
       // passe la verification (le nom du reseau, la ville, le metier). Ecrit
       // sur chaque agence, il donnerait a des centaines de fiches la meme
-      // adresse generique du siege. Un site deja porte par trois fiches de
-      // la base n est donc plus ecrit.
+      // adresse generique du siege. Un site deja porte par une autre fiche
+      // de la base n est donc plus ecrit (SEUIL_RESEAU).
       if (r.site) {
         const { count: dejaPorte, error: errReseau } = await supabase.from(conf.table)
           .select("id", { count: "exact", head: true }).eq("site_web", r.site);
