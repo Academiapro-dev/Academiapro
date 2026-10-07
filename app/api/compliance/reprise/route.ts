@@ -42,6 +42,21 @@ function dateFec(v: any): string | null {
   return null;
 }
 
+// Un montant a la francaise, pour les messages : « 1 200,00 € ».
+function euros(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+// Une date a la francaise, pour les messages : « 01/09/2026 ».
+function dateFr(iso: string): string {
+  const t = String(iso || "");
+  return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(8, 10) + "/" + t.slice(5, 7) + "/" + t.slice(0, 4) : t;
+}
+
+function pluriel(n: number, un: string, plusieurs: string): string {
+  return n + " " + (n > 1 ? plusieurs : un);
+}
+
 function propre(v: any, max: number): string | null {
   if (v === null || v === undefined) return null;
   const t = String(v).replace(/[|\r\n\t]/g, " ").trim();
@@ -53,7 +68,7 @@ export async function POST(req: NextRequest) {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id || !b.contenu) {
       return NextResponse.json(
-        { ok: false, erreur: "Dossier et contenu sont necessaires." },
+        { ok: false, erreur: "Dossier et contenu sont nécessaires." },
         { status: 400 }
       );
     }
@@ -105,7 +120,7 @@ export async function POST(req: NextRequest) {
     if (b.mode === "balance") {
       const date = String(b.date || "").slice(0, 10);
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        return NextResponse.json({ ok: false, erreur: "Date d ouverture invalide." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Date d’ouverture invalide." }, { status: 400 });
       }
 
       const numero = "AN" + date.slice(0, 4) + "-REPRISE";
@@ -119,7 +134,7 @@ export async function POST(req: NextRequest) {
 
       if ((deja || []).length > 0) {
         return NextResponse.json(
-          { ok: false, erreur: "Une balance d ouverture a deja ete reprise pour " + date.slice(0, 4) + "." },
+          { ok: false, erreur: "Une balance d’ouverture a déjà été reprise pour " + date.slice(0, 4) + "." },
           { status: 409 }
         );
       }
@@ -158,7 +173,7 @@ export async function POST(req: NextRequest) {
           compte_lib: propre(c[1], 200) || "Compte repris",
           piece_ref: "REPRISE",
           piece_date: date,
-          ecriture_lib: "Balance d ouverture reprise",
+          ecriture_lib: "Balance d'ouverture reprise",
           debit: d,
           credit: cr,
           devise: "EUR",
@@ -179,9 +194,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             ok: false,
-            erreur: "La balance ne tombe pas juste : debit " + debit.toFixed(2)
-              + " contre credit " + credit.toFixed(2) + ", ecart de " + ecart.toFixed(2)
-              + ". Rien n a ete repris.",
+            erreur: "La balance ne tombe pas juste : débit " + euros(debit)
+              + " contre crédit " + euros(credit) + ", écart de " + euros(ecart)
+              + ". Rien n’a été repris.",
           },
           { status: 409 }
         );
@@ -208,20 +223,25 @@ export async function POST(req: NextRequest) {
         debit: debit,
         comptes_crees: nouveaux.length,
         rejets: rejets.slice(0, 30),
-        message: lignes.length + " compte(s) repris au " + date + " pour "
-          + debit.toFixed(2) + " EUR equilibres."
-          + (nouveaux.length > 0 ? " " + nouveaux.length + " compte(s) ajoutes au plan." : ""),
+        message: pluriel(lignes.length, "compte repris", "comptes repris") + " au " + dateFr(date) + " pour "
+          + euros(debit) + ", balance équilibrée."
+          + (nouveaux.length > 0 ? " " + pluriel(nouveaux.length, "compte ajouté", "comptes ajoutés") + " au plan." : ""),
       });
     }
 
     // ---- MODE FEC ----
-    const entete = brutes[0].split("|").map(function (x) {
+    // 🆕 08/10 — LE SEPARATEUR SE LIT DANS L EN-TETE : la barre verticale ou
+    // la TABULATION. Les deux sont admises par l administration pour le
+    // fichier des ecritures, et beaucoup de logiciels sortent des
+    // tabulations : ces fichiers etaient refuses (« en-tete a 1 colonnes »).
+    const separateur = brutes[0].indexOf("|") < 0 && brutes[0].indexOf("\t") >= 0 ? "\t" : "|";
+    const entete = brutes[0].split(separateur).map(function (x) {
       return x.replace(/^"|"$/g, "").trim().toLowerCase();
     });
 
     if (entete.length < 13) {
       return NextResponse.json(
-        { ok: false, erreur: "Ce fichier ne ressemble pas a un FEC : en-tete a " + entete.length + " colonnes." },
+        { ok: false, erreur: "Ce fichier ne ressemble pas à un fichier des écritures (FEC) : son en-tête compte " + pluriel(entete.length, "colonne", "colonnes") + ", il en faut au moins 13." },
         { status: 400 }
       );
     }
@@ -245,7 +265,7 @@ export async function POST(req: NextRequest) {
 
     if (iNum < 0 || iDate < 0 || iCompte < 0 || iDebit < 0 || iCredit < 0) {
       return NextResponse.json(
-        { ok: false, erreur: "En-tete FEC incomplet : colonnes obligatoires absentes." },
+        { ok: false, erreur: "En-tête du fichier incomplet : des colonnes obligatoires sont absentes." },
         { status: 400 }
       );
     }
@@ -277,21 +297,21 @@ export async function POST(req: NextRequest) {
     let ignorees = 0;
 
     for (let i = 1; i < brutes.length; i = i + 1) {
-      const c = brutes[i].split("|").map(function (x) { return x.replace(/^"|"$/g, "").trim(); });
+      const c = brutes[i].split(separateur).map(function (x) { return x.replace(/^"|"$/g, "").trim(); });
 
       const date = dateFec(c[iDate]);
       const numero = propre(c[iNum], 40);
       const compte = String(c[iCompte] || "").replace(/\s/g, "").slice(0, 12);
 
       if (!date || !numero || !compte) {
-        rejets.push({ ligne: i + 1, valeur: brutes[i].slice(0, 70), motif: "ligne incomplete" });
+        rejets.push({ ligne: i + 1, valeur: brutes[i].slice(0, 70), motif: "ligne incomplète" });
         continue;
       }
 
       if (deja[numero]) { ignorees = ignorees + 1; continue; }
 
       if (anneeVerrouillee && date.slice(0, 4) === anneeVerrouillee) {
-        rejets.push({ ligne: i + 1, valeur: numero, motif: "exercice verrouille" });
+        rejets.push({ ligne: i + 1, valeur: numero, motif: "exercice verrouillé" });
         continue;
       }
 
@@ -314,7 +334,7 @@ export async function POST(req: NextRequest) {
         compte_lib: propre(c[iCompteLib], 200) || "Compte repris",
         piece_ref: iPiece >= 0 ? propre(c[iPiece], 60) : null,
         piece_date: iPieceDate >= 0 ? dateFec(c[iPieceDate]) : date,
-        ecriture_lib: iLib >= 0 ? propre(c[iLib], 200) : "Ecriture reprise",
+        ecriture_lib: iLib >= 0 ? propre(c[iLib], 200) : "Écriture reprise",
         debit: d,
         credit: cr,
         lettrage: iLettrage >= 0 ? propre(c[iLettrage], 20) : null,
@@ -329,7 +349,7 @@ export async function POST(req: NextRequest) {
         {
           ok: false,
           erreur: ignorees > 0
-            ? "Toutes les ecritures de ce fichier sont deja presentes."
+            ? "Toutes les écritures de ce fichier sont déjà présentes."
             : "Aucune ligne exploitable.",
           ignorees: ignorees,
           rejets: rejets.slice(0, 30),
@@ -343,9 +363,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Le fichier ne tombe pas juste : debit " + debit.toFixed(2)
-            + " contre credit " + credit.toFixed(2) + ", ecart de " + ecart.toFixed(2)
-            + ". Rien n a ete repris.",
+          erreur: "Le fichier ne tombe pas juste : débit " + euros(debit)
+            + " contre crédit " + euros(credit) + ", écart de " + euros(ecart)
+            + ". Rien n’a été repris.",
           debit: debit, credit: credit, ecart: ecart,
         },
         { status: 409 }
@@ -365,7 +385,7 @@ export async function POST(req: NextRequest) {
       const { error } = await supabase.from("compta_ecritures").insert(lignes.slice(i, i + 500));
       if (error) {
         return NextResponse.json(
-          { ok: false, erreur: "Interrompu a la ligne " + i + " : " + error.message },
+          { ok: false, erreur: "Interrompu à la ligne " + i + " : " + error.message },
           { status: 500 }
         );
       }
@@ -380,9 +400,9 @@ export async function POST(req: NextRequest) {
       debit: debit,
       comptes_crees: nouveaux.length,
       rejets: rejets.slice(0, 30),
-      message: lignes.length + " ligne(s) reprises pour " + debit.toFixed(2) + " EUR"
-        + (ignorees > 0 ? ", " + ignorees + " deja presentes" : "")
-        + (nouveaux.length > 0 ? ", " + nouveaux.length + " compte(s) ajoutes au plan" : "") + ".",
+      message: pluriel(lignes.length, "ligne reprise", "lignes reprises") + " pour " + euros(debit)
+        + (ignorees > 0 ? ", " + pluriel(ignorees, "déjà présente", "déjà présentes") : "")
+        + (nouveaux.length > 0 ? ", " + pluriel(nouveaux.length, "compte ajouté", "comptes ajoutés") + " au plan" : "") + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
