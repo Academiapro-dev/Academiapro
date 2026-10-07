@@ -253,23 +253,26 @@ export default function PageTableauDeBord() {
         ) : (
           <>
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", margin: "24px 0" }}>
-              <Compteur valeur={d.total} texte="Dossier(s)" />
-              <Compteur valeur={d.desequilibres} texte="Déséquilibre(s)" couleur="#e8836a" />
+              <Compteur valeur={d.total} texte={d.total > 1 ? "Dossiers" : "Dossier"} />
+              <Compteur valeur={d.desequilibres} texte={d.desequilibres > 1 ? "Déséquilibres" : "Déséquilibre"} couleur="#e8836a" />
               <Compteur valeur={d.tva_a_liquider} texte="TVA à liquider" couleur="#e8a33d" />
               <Compteur valeur={d.banque_a_rapprocher} texte="Banque à rapprocher" couleur="#e8a33d" />
-              <Compteur valeur={d.dormants} texte="Dossier(s) dormant(s)" couleur="#c8a96e" />
+              <Compteur valeur={d.dormants} texte={d.dormants > 1 ? "Dossiers dormants" : "Dossier dormant"} couleur="#c8a96e" />
             </div>
 
             {d.alertes === 0 ? (
               <div style={{ ...CARTE, border: "1px solid rgba(76,175,80,0.45)" }}>
                 <p style={{ color: "#4caf50", fontSize: "15.5px", margin: 0, lineHeight: "1.8" }}>
-                  Rien ne réclame votre attention. Les {d.total} dossier(s) sont équilibrés, la
+                  Rien ne réclame votre attention.{" "}
+                  {d.total > 1 ? "Les " + d.total + " dossiers sont équilibrés" : "Le dossier est équilibré"}, la
                   banque est rapprochée et la TVA du mois est traitée.
                 </p>
               </div>
             ) : (
               <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", margin: "0 0 16px", lineHeight: "1.75" }}>
-                {d.alertes} dossier(s) demandent une intervention, du plus urgent au moins urgent.
+                {d.alertes > 1
+                  ? d.alertes + " dossiers demandent une intervention, du plus urgent au moins urgent."
+                  : "Un dossier demande une intervention."}
               </p>
             )}
 
@@ -308,7 +311,7 @@ export default function PageTableauDeBord() {
                       </p>
                       <h3 style={{ color: "#fff", fontSize: "17px", margin: "0 0 4px" }}>{s.raison_sociale}</h3>
                       <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
-                        {s.lignes} ligne(s) d'écriture
+                        {s.lignes} {s.lignes > 1 ? "lignes" : "ligne"} d'écriture
                         {s.provisions > 0 ? " · " + euros(s.provisions) + " provisionnés" : ""}
                         {s.tva_due > 0 ? " · TVA du mois " + euros(s.tva_due) : ""}
                       </p>
