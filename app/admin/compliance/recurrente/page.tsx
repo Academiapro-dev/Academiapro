@@ -211,7 +211,7 @@ export default function Recurrente() {
                     <div style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", marginTop: "5px" }}>
                       {(freq[a.frequence] && freq[a.frequence].nom) || a.frequence}
                       {" · le " + a.jour_du_mois + " du mois"}
-                      {a.nb_emises > 0 ? " · " + a.nb_emises + " facture(s) émise(s)" : ""}
+                      {a.nb_emises > 0 ? " · " + a.nb_emises + (a.nb_emises > 1 ? " factures émises" : " facture émise") : ""}
                       {a.envoi_auto ? " · envoi automatique" : " · reste en brouillon"}
                     </div>
                     <div style={{ color: a.due ? ORANGE : "rgba(255,255,255,0.4)", fontSize: "12.5px", marginTop: "4px" }}>
