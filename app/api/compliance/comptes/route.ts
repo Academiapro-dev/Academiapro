@@ -13,7 +13,7 @@ const CLASSES: any = {
   2: "Immobilisations",
   3: "Stocks",
   4: "Tiers",
-  5: "Tresorerie",
+  5: "Trésorerie",
   6: "Charges",
   7: "Produits",
 };
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b) {
-      return NextResponse.json({ ok: false, erreur: "Requete illisible" }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Requête illisible." }, { status: 400 });
     }
 
     const societeId = b.societe_id ? String(b.societe_id) : null;
@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
     const numero = String(b.numero || "").replace(/\D/g, "").slice(0, 12);
     if (numero.length < 3) {
       return NextResponse.json(
-        { ok: false, erreur: "Un numero de compte comporte au moins trois chiffres." },
+        { ok: false, erreur: "Un numéro de compte comporte au moins trois chiffres." },
         { status: 400 }
       );
     }
@@ -164,7 +164,7 @@ export async function POST(req: NextRequest) {
     const libelle = propre(b.libelle, 200);
     if (!libelle || libelle.length < 2) {
       return NextResponse.json(
-        { ok: false, erreur: "Le libelle du compte est obligatoire." },
+        { ok: false, erreur: "Le libellé du compte est obligatoire." },
         { status: 400 }
       );
     }
@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
     const classe = parseInt(numero.charAt(0), 10);
     if (!CLASSES[classe]) {
       return NextResponse.json(
-        { ok: false, erreur: "Le premier chiffre doit designer une classe de 1 a 7." },
+        { ok: false, erreur: "Le premier chiffre doit désigner une classe de 1 à 7." },
         { status: 400 }
       );
     }
@@ -208,7 +208,7 @@ export async function POST(req: NextRequest) {
 
     if (eLecture) {
       return NextResponse.json(
-        { ok: false, erreur: "Le plan comptable n a pas pu etre consulte : " + eLecture.message },
+        { ok: false, erreur: "Le plan comptable n’a pas pu être consulté : " + eLecture.message },
         { status: 500 }
       );
     }
@@ -239,7 +239,7 @@ export async function POST(req: NextRequest) {
       numero: numero,
       remplace: !!deja,
       portee: societeId ? "dossier" : "commun",
-      message: (deja ? "Compte " + numero + " modifie" : "Compte " + numero + " cree")
+      message: (deja ? "Compte " + numero + " modifié" : "Compte " + numero + " créé")
         + (societeId ? " pour ce dossier." : " dans le plan commun."),
     });
   } catch (e: any) {
@@ -251,7 +251,7 @@ export async function DELETE(req: NextRequest) {
   try {
     const id = new URL(req.url).searchParams.get("id");
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Compte non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Compte non précisé." }, { status: 400 });
     }
 
     const { data: compte } = await supabase
@@ -282,8 +282,8 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Ce compte porte " + count + " ecriture(s) : il ne peut pas etre supprime."
-            + " Rendez-le inactif si vous ne voulez plus l utiliser.",
+          erreur: "Ce compte porte " + count + (Number(count) > 1 ? " écritures" : " écriture") + " : il ne peut pas être supprimé."
+            + " Rendez-le inactif si vous ne voulez plus l’utiliser.",
         },
         { status: 409 }
       );
