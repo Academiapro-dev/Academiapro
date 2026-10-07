@@ -63,7 +63,7 @@ export default function PageReprise() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "9px 17px", borderRadius: "20px", cursor: "pointer", fontSize: "13.5px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   return (
@@ -74,11 +74,11 @@ export default function PageReprise() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Reprendre un dossier</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Recuperer l historique d un client venant d un autre logiciel
+          Récupérer l’historique d’un client venant d’un autre logiciel
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -98,13 +98,13 @@ export default function PageReprise() {
                 onClick={() => { setMode("fec"); setResultat(null); setErreur(""); }}
                 style={{ ...BOUTON, background: mode === "fec" ? "#c8a96e" : "none", color: mode === "fec" ? "#050508" : "#c8a96e", border: mode === "fec" ? "none" : BOUTON.border, fontWeight: "bold" }}
               >
-                Fichier des ecritures (FEC)
+                Fichier des écritures (FEC)
               </button>
               <button
                 onClick={() => { setMode("balance"); setResultat(null); setErreur(""); }}
                 style={{ ...BOUTON, background: mode === "balance" ? "#c8a96e" : "none", color: mode === "balance" ? "#050508" : "#c8a96e", border: mode === "balance" ? "none" : BOUTON.border, fontWeight: "bold" }}
               >
-                Balance d ouverture
+                Balance d’ouverture
               </button>
             </div>
 
@@ -112,20 +112,20 @@ export default function PageReprise() {
               {mode === "fec" ? (
                 <>
                   <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 8px", lineHeight: "1.8" }}>
-                    Collez le fichier des ecritures comptables tel qu il sort du logiciel
-                    precedent : colonnes separees par des barres verticales, avec sa ligne
-                    d en-tete. L ordre des colonnes est lu depuis l en-tete, rien n est suppose.
+                    Collez le fichier des écritures comptables tel qu’il sort du logiciel
+                    précédent : colonnes séparées par des barres verticales, avec sa ligne
+                    d’en-tête. L’ordre des colonnes est lu depuis l’en-tête, rien n’est supposé.
                   </p>
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "0 0 14px", lineHeight: "1.7" }}>
-                    Les ecritures deja presentes sont ignorees, les comptes inconnus sont ajoutes
-                    au plan, et rien n est ecrit sur un exercice verrouille.
+                    Les écritures déjà présentes sont ignorées, les comptes inconnus sont ajoutés
+                    au plan, et rien n’est écrit sur un exercice verrouillé.
                   </p>
                 </>
               ) : (
                 <>
                   <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 8px", lineHeight: "1.8" }}>
-                    Collez la balance a la date de reprise : compte, libelle, debit, credit.
-                    Elle deviendra une ecriture d a-nouveaux.
+                    Collez la balance à la date de reprise : compte, libellé, débit, crédit.
+                    Elle deviendra une écriture d’à-nouveaux.
                   </p>
                   <p style={{ color: "rgba(255,255,255,0.75)", fontSize: "13px", margin: "0 0 14px", fontFamily: "monospace", lineHeight: "1.7" }}>
                     401000 ; Fournisseurs ; 0 ; 4200,00
@@ -150,7 +150,7 @@ export default function PageReprise() {
                 disabled={occupe || contenu.trim().length < 20}
                 style={{ background: occupe || contenu.trim().length < 20 ? "rgba(200,169,110,0.3)" : "#c8a96e", color: "#050508", padding: "14px 28px", borderRadius: "8px", border: "none", cursor: "pointer", fontWeight: "bold", fontSize: "15px", fontFamily: "Georgia,serif", width: "100%" }}
               >
-                {occupe ? "Reprise en cours..." : "Reprendre"}
+                {occupe ? "Reprise en cours…" : "Reprendre"}
               </button>
             </div>
           </>
@@ -165,7 +165,7 @@ export default function PageReprise() {
                 disabled={occupe}
                 style={{ ...BOUTON, marginTop: "12px" }}
               >
-                Reprendre quand meme, le desequilibre sera visible en balance
+                Reprendre quand même, le déséquilibre sera visible en balance
               </button>
             )}
           </div>
@@ -177,16 +177,16 @@ export default function PageReprise() {
               {resultat.message}
             </p>
             <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-              {resultat.lignes} ligne(s) ecrites · {euros(resultat.debit)} au debit
-              {resultat.ignorees ? " · " + resultat.ignorees + " deja presentes" : ""}
-              {resultat.comptes_crees ? " · " + resultat.comptes_crees + " compte(s) ajoutes au plan" : ""}
+              {resultat.lignes} {resultat.lignes > 1 ? "lignes écrites" : "ligne écrite"} · {euros(resultat.debit)} au débit
+              {resultat.ignorees ? " · " + resultat.ignorees + " déjà présentes" : ""}
+              {resultat.comptes_crees ? " · " + resultat.comptes_crees + (resultat.comptes_crees > 1 ? " comptes ajoutés au plan" : " compte ajouté au plan") : ""}
             </p>
             <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "14px" }}>
               <a href={"/admin/compliance/balance?societe_id=" + dossier} style={{ ...BOUTON, textDecoration: "none" }}>
-                Verifier la balance →
+                Vérifier la balance →
               </a>
               <a href={"/admin/compliance/revision?societe_id=" + dossier} style={{ ...BOUTON, textDecoration: "none" }}>
-                Reviser le dossier →
+                Réviser le dossier →
               </a>
             </div>
           </div>
@@ -195,7 +195,7 @@ export default function PageReprise() {
         {rejets.length > 0 && (
           <div style={CARTE}>
             <h2 style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 10px" }}>
-              {rejets.length} ligne(s) ecartee(s)
+              {rejets.length} {rejets.length > 1 ? "lignes écartées" : "ligne écartée"}
             </h2>
             {rejets.map(function (r: any, i: number) {
               return (
@@ -212,9 +212,9 @@ export default function PageReprise() {
 
         <div style={{ ...CARTE, background: "rgba(200,169,110,0.05)", marginTop: "20px" }}>
           <p style={{ color: "rgba(255,255,255,0.65)", fontSize: "13.5px", margin: 0, lineHeight: "1.8" }}>
-            Tout expert-comptable peut exiger le fichier des ecritures du confrere qu il remplace :
-            c est un document normalise que tout logiciel doit savoir produire. C est ce qui rend
-            la reprise d un client possible sans ressaisie.
+            Tout expert-comptable peut exiger le fichier des écritures du confrère qu’il remplace :
+            c’est un document normalisé que tout logiciel doit savoir produire. C’est ce qui rend
+            la reprise d’un client possible sans ressaisie.
           </p>
         </div>
       </div>
