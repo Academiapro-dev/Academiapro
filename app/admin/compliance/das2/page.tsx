@@ -52,7 +52,7 @@ export default function PageDas2() {
   const BOUTON: any = { background: "none", border: "1px solid rgba(200,169,110,0.45)", color: "#c8a96e", padding: "8px 16px", borderRadius: "20px", cursor: "pointer", fontSize: "13px", fontFamily: "Georgia,serif" };
 
   function euros(n: any) {
-    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2 }) + " EUR";
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
   }
 
   function decaler(pas: number) {
@@ -68,11 +68,11 @@ export default function PageDas2() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>DAS2 · honoraires verses</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>DAS2 · honoraires versés</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
-          Ce qui a ete verse a des tiers, par annee civile
+          Ce qui a été versé à des tiers, par année civile
         </p>
 
         <div style={{ ...CARTE, marginTop: "24px" }}>
@@ -88,13 +88,13 @@ export default function PageDas2() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Analyse des versements...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Analyse des versements…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ display: "flex", gap: "12px", alignItems: "center", marginBottom: "18px", flexWrap: "wrap" }}>
               <button onClick={() => decaler(-1)} style={BOUTON}>← {d.annee - 1}</button>
               <span style={{ color: "#c8a96e", fontSize: "18px", fontWeight: "bold" }}>
-                Annee {d.annee}
+                Année {d.annee}
               </span>
               <button onClick={() => decaler(1)} style={BOUTON}>{d.annee + 1} →</button>
             </div>
@@ -108,7 +108,7 @@ export default function PageDas2() {
                 {euros(d.total_a_declarer)}
               </p>
               <p style={{ color: "rgba(255,255,255,0.6)", fontSize: "14px", margin: 0, lineHeight: "1.7" }}>
-                {d.nb_a_declarer} beneficiaire(s) a declarer
+                {d.nb_a_declarer > 1 ? d.nb_a_declarer + " bénéficiaires à déclarer" : d.nb_a_declarer + " bénéficiaire à déclarer"}
                 {d.nb_sous_seuil > 0 ? " · " + d.nb_sous_seuil + " sous le seuil de " + euros(d.seuil) : ""}
               </p>
             </div>
@@ -116,9 +116,10 @@ export default function PageDas2() {
             {d.nb_identification_incomplete > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.8" }}>
-                  {d.nb_identification_incomplete} beneficiaire(s) a declarer ne sont pas
-                  identifies precisement. Completez leur compte auxiliaire avant de deposer :
-                  c est le premier motif de rejet.
+                  {d.nb_identification_incomplete > 1
+                    ? d.nb_identification_incomplete + " bénéficiaires à déclarer ne sont pas identifiés précisément. Complétez leur compte auxiliaire avant de déposer : "
+                    : "Un bénéficiaire à déclarer n’est pas identifié précisément. Complétez son compte auxiliaire avant de déposer : "}
+                  c’est le premier motif de rejet.
                 </p>
               </div>
             )}
@@ -126,7 +127,7 @@ export default function PageDas2() {
             {d.beneficiaires.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucun honoraire verse sur {d.annee}. Aucune DAS2 n est due.
+                  Aucun honoraire versé sur {d.annee}. Aucune DAS2 n’est due.
                 </p>
               </div>
             ) : (
@@ -141,10 +142,10 @@ export default function PageDas2() {
                         </h3>
                         <p style={{ color: b.a_declarer ? (b.identification_incomplete ? "#e8836a" : "#4caf50") : "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
                           {b.a_declarer
-                            ? (b.identification_incomplete ? "A declarer · identite a completer" : "A declarer")
+                            ? (b.identification_incomplete ? "À déclarer · identité à compléter" : "À déclarer")
                             : "Sous le seuil"}
                           {b.identifiant ? " · " + b.identifiant : ""}
-                          {" · " + b.lignes.length + " versement(s)"}
+                          {" · " + b.lignes.length + (b.lignes.length > 1 ? " versements" : " versement")}
                         </p>
                       </div>
                       <span style={{ color: b.a_declarer ? "#c8a96e" : "rgba(255,255,255,0.4)", fontSize: "17px", fontWeight: "bold" }}>
@@ -153,7 +154,7 @@ export default function PageDas2() {
                     </div>
 
                     <button onClick={() => setOuvert({ ...ouvert, [i]: !estOuvert })} style={{ ...BOUTON, marginTop: "12px" }}>
-                      {estOuvert ? "Masquer le detail" : "Voir les versements"}
+                      {estOuvert ? "Masquer le détail" : "Voir les versements"}
                     </button>
 
                     {estOuvert && (
