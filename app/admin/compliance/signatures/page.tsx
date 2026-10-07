@@ -143,7 +143,7 @@ export default function RegistreSignatures() {
                   {d.total}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Document(s) signé(s)
+                  {d.total > 1 ? "Documents signés" : "Document signé"}
                 </p>
               </div>
 
@@ -152,7 +152,7 @@ export default function RegistreSignatures() {
                   {d.alterees}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Sceau(x) altéré(s)
+                  {d.alterees > 1 ? "Sceaux altérés" : "Sceau altéré"}
                 </p>
               </div>
 
@@ -164,7 +164,7 @@ export default function RegistreSignatures() {
                   {d.chaine_rompue}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Chaîne(s) rompue(s)
+                  {d.chaine_rompue > 1 ? "Chaînes rompues" : "Chaîne rompue"}
                 </p>
               </div>
 
@@ -173,7 +173,7 @@ export default function RegistreSignatures() {
                   {d.verifiees_par_code}
                 </p>
                 <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>
-                  Vérifiée(s) par code
+                  {d.verifiees_par_code > 1 ? "Vérifiées par code" : "Vérifiée par code"}
                 </p>
               </div>
             </div>
@@ -181,9 +181,9 @@ export default function RegistreSignatures() {
             {d.alterees > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.6)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {d.alterees} signature(s) portent un sceau qui ne correspond plus à leur
-                  contenu. Cela signifie que la ligne a été modifiée en base après la
-                  signature. Ces signatures ne doivent pas être opposées à un tiers.
+                  {d.alterees > 1
+                    ? d.alterees + " signatures portent un sceau qui ne correspond plus à leur contenu. Cela signifie que la ligne a été modifiée en base après la signature. Ces signatures ne doivent pas être opposées à un tiers."
+                    : "Une signature porte un sceau qui ne correspond plus à son contenu. Cela signifie que la ligne a été modifiée en base après la signature. Cette signature ne doit pas être opposée à un tiers."}
                 </p>
               </div>
             )}
@@ -191,7 +191,7 @@ export default function RegistreSignatures() {
             {d.chaine_rompue > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.6)" }}>
                 <p style={{ color: "#e8836a", fontSize: "15px", margin: 0, lineHeight: "1.75" }}>
-                  {d.chaine_rompue} signature(s) présentent une rupture de chaîne. Chaque
+                  {d.chaine_rompue > 1 ? d.chaine_rompue + " signatures présentent" : "Une signature présente"} une rupture de chaîne. Chaque
                   preuve porte l&apos;empreinte de la précédente : une rupture indique
                   qu&apos;une signature a été supprimée du registre, ou insérée hors ordre.
                 </p>
@@ -349,7 +349,7 @@ export default function RegistreSignatures() {
                           {s.code_verifie_le
                             ? "Envoyé le " + new Date(s.code_envoye_le).toLocaleString("fr-FR")
                               + ", vérifié le " + new Date(s.code_verifie_le).toLocaleString("fr-FR")
-                              + (s.tentatives ? " après " + s.tentatives + " tentative(s)" : "")
+                              + (s.tentatives ? " après " + s.tentatives + (s.tentatives > 1 ? " tentatives" : " tentative") : "")
                             : "Non vérifié par code"}
                         </p>
 
