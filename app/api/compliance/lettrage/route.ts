@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : lettrer comme delettrer touche des soldes de tiers.
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
     if (b.action === "delettrer") {
       const lettre = String(b.lettre || "").trim().toUpperCase();
       if (!lettre) {
-        return NextResponse.json({ ok: false, erreur: "Lettre non precisee." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Lettre non précisée." }, { status: 400 });
       }
 
       const { error } = await supabase
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, message: "Lettrage " + lettre + " annule." });
+      return NextResponse.json({ ok: true, message: "Lettrage " + lettre + " annulé." });
     }
 
     const ids = Array.isArray(b.ids) ? b.ids : [];
@@ -224,7 +224,7 @@ export async function POST(req: NextRequest) {
     const dejaLettree = retenues.find(function (l: any) { return !!l.lettrage; });
     if (dejaLettree) {
       return NextResponse.json(
-        { ok: false, erreur: "Une des lignes porte deja la lettre " + dejaLettree.lettrage + "." },
+        { ok: false, erreur: "Une des lignes porte déjà la lettre " + dejaLettree.lettrage + "." },
         { status: 409 }
       );
     }
@@ -240,8 +240,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Ces lignes ne s annulent pas : il reste " + somme.toFixed(2)
-            + " EUR. Un lettrage suppose une somme nulle.",
+          erreur: "Ces lignes ne s’annulent pas : il reste "
+            + (Number(somme) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            + " €. Un lettrage suppose une somme nulle.",
           ecart: somme,
         },
         { status: 400 }
@@ -273,7 +274,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       lettre: lettre,
       lignes: ids.length,
-      message: ids.length + " lignes lettrees sous " + lettre + ".",
+      message: ids.length + " lignes lettrées sous la lettre " + lettre + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
