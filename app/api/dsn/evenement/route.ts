@@ -192,7 +192,9 @@ const NORME = "P26V01";
 // ⚠️ LES AUTRES MOTIFS — licenciement, demission, retraite — ONT UN PREAVIS :
 // effectue ou non, paye ou non, avec ses deux dates. Cela se SAISIT, cela ne
 // se devine pas.
-const MOTIFS_SANS_PREAVIS = ["031", "032", "035", "043"];
+// 🆕 07/10 — 081, fin de contrat d apprentissage (valide par dsn-val le 07/10
+// avec le preavis « 90 ») : pas de preavis non plus.
+const MOTIFS_SANS_PREAVIS = ["031", "032", "035", "043", "081"];
 
 // ═══════════════════════════════════════════════════════════════════════
 // 🆕🚨 05/10 — CE QUE LE MOTIF DE RUPTURE REND OBLIGATOIRE (cahier technique
