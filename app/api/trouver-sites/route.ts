@@ -967,6 +967,21 @@ function secondePreuve(t: string, l: any, domaine: string, metier: string): stri
   }
   const sigle = sigleDe(l.raison_sociale);
   if (sigle && sigle.length >= 3 && nomDomaine.indexOf(sigle) >= 0 && contientMot(t, sigle)) return "sigle";
+  // 🆕 07/10 — LE PRENOM ET LE NOM DU DIRIGEANT, ECRITS ENSEMBLE. Mesure du
+  // 07/10 sur les avocats : « WATRIN DIDIER » sur watrin-avocat.fr est tres
+  // probablement le bon, mais « FONTAINE » sur fontaine-avocat.fr, sans la
+  // ville, peut etre n importe quel Maitre Fontaine. Le nom seul ne suffit
+  // plus ; « Didier Watrin » (ou « Watrin Didier ») sur la page, oui.
+  const pn = mots(l.dirigeant_prenom).join(" ");
+  const nn = mots(l.dirigeant_nom).join(" ");
+  // ⚠️ SEULEMENT POUR LES METIERS DONT LA PREUVE EST NETTE (avocat,
+  // expert-comptable). « Formation », « boutique », « recrutement » se lisent
+  // sur le site personnel de n importe quel homonyme : pour ces metiers, le
+  // prenom et le nom ne suffisent pas sans le lieu.
+  if (!METIERS[metier] && pn.length >= 3 && nn.length >= 3) {
+    const tt = " " + t + " ";
+    if (tt.indexOf(" " + pn + " " + nn + " ") >= 0 || tt.indexOf(" " + nn + " " + pn + " ") >= 0) return "prenom et nom";
+  }
   return null;
 }
 
