@@ -837,7 +837,9 @@ function lieuDe(brut: string, t: string, l: any): string | null {
   const ville = plat(l.ville);
   const cp = String(l.code_postal || "").replace(/\D/g, "");
   if (ville.length >= 3 && (" " + t + " ").indexOf(" " + ville + " ") >= 0) return "ville";
-  if (cp.length === 5 && brut.indexOf(cp) >= 0) return "code postal";
+  // 🆕 08/10 — le code postal est un nombre entier : « 54000 » dans
+  // « 0354000112 » (un telephone) n est pas un code postal.
+  if (cp.length === 5 && new RegExp("(^|[^0-9])" + cp + "([^0-9]|$)").test(brut)) return "code postal";
   if (cp.length === 5) {
     const dep = cp.slice(0, 2);
     const motif = new RegExp("(^|[^0-9])" + dep + "[0-9]{3}([^0-9]|$)");
@@ -937,7 +939,24 @@ function verifier(html: string, l: any, metier: string, domaine: string): string
   if (!identite) return null;
 
   const lieu = lieuDe(brut, t, l);
-  if (lieu) return identite + " + " + lieu;
+  // 🚨🆕 08/10 — LE NOM DE FAMILLE SEUL, AVEC UN LIEU QUI N EST PAS LA VILLE.
+  // Mesure du 07/10 au soir, sites ouverts un a un : parmi les sites
+  // retenus sur « nom + code postal » ou « nom + departement » dont le nom
+  // ne porte pas celui de la societe, UN SUR DEUX etait un homonyme —
+  // « FGB » (Melun) → bureau-avocat.com, un cabinet du Maroc ; Maitre
+  // Olivier BAUER (Nancy) → camillebauer-avocats.fr (Paris) ; LINDE FRANCE
+  // → fayolle-conseil.fr, un conseiller en patrimoine ; COFIVA (Aube) →
+  // cabinet-roux.com (pres de Nantes).
+  // ⚠️ AVEC LA VILLE EXACTE, RIEN NE CHANGE : controle sur 30 sites tires
+  // au hasard, les 30 etaient bons.
+  // Dans ce seul cas (nom seul, lieu = code postal ou departement), il faut
+  // une preuve de plus : voir `preuveDeLaPersonne`.
+  if (lieu && identite === "nom" && lieu !== "ville") {
+    const plus = preuveDeLaPersonne(t, l, metier, domaine, lieu);
+    if (plus) return identite + " + " + lieu + " + " + plus;
+  } else if (lieu) {
+    return identite + " + " + lieu;
+  }
 
   // 🆕 01/10 — SANS LIEU, DEUX IDENTITES INDEPENDANTES SUFFISENT : le nom du
   // dirigeant ET (le nom distinctif du cabinet, son nom complet ou son
@@ -960,6 +979,42 @@ function verifier(html: string, l: any, metier: string, domaine: string): string
     const seconde = secondePreuve(t, l, domaine, metier);
     if (seconde) return "nom + " + seconde;
   }
+  return null;
+}
+
+// 🆕 08/10 — CE QUI DISTINGUE UNE PERSONNE DE SES HOMONYMES (voir `verifier`).
+// L une de ces deux preuves, lues sur la page :
+//   · tous les autres mots du nom de la societe (ceux qui ne sont ni le nom
+//     du dirigeant, ni un mot du metier, ni une forme juridique) : « CHABERT
+//     PATRICK » demande « patrick », « MANUEL GROS, HELOISE HICTER &
+//     ASSOCIES » demande « manuel », « heloise » et « hicter » ;
+//   · ou le prenom et le nom du dirigeant, ecrits ensemble ;
+//   · ou, pour une societe qui ne porte que le nom de son dirigeant : ce
+//     nom dans le nom du site ET le code postal exact sur la page.
+// MESURE (07/10, 60 sites ouverts un a un, 32 faux et 28 bons) : la regle
+// ecarte les 32 faux ; elle perd 4 bons (BAUBET, MANDIN, DIAKOK, ARTHAUD),
+// dont la page ne nomme personne.
+function preuveDeLaPersonne(t: string, l: any, metier: string, domaine: string, lieu: string): string | null {
+  const parts = decoupe(l.raison_sociale);
+  const generiques = generiquesDe(metier);
+  const nomFamille = mots(l.dirigeant_nom);
+  const autres = mots(parts.nom)
+    .filter(function (m) { return FORMES.indexOf(m) < 0 && generiques.indexOf(m) < 0 && PETITS.indexOf(m) < 0; })
+    .filter(function (m) { return m.length >= 3 && !/^[0-9]+$/.test(m) && nomFamille.indexOf(m) < 0; });
+  if (autres.length > 0 && autres.every(function (m) { return contientMot(t, m); })) return "societe sur la page";
+  const pn = mots(l.dirigeant_prenom).join(" ");
+  const nn = nomFamille.join(" ");
+  if (pn.length >= 3 && nn.length >= 3) {
+    const tt = " " + t + " ";
+    if (tt.indexOf(" " + pn + " " + nn + " ") >= 0 || tt.indexOf(" " + nn + " " + pn + " ") >= 0) return "prenom et nom";
+  }
+  // La societe ne porte QUE le nom de son dirigeant (« FORNES EXPERTISE ET
+  // CONSEIL », « GERAY AVOCATS »), le nom du site porte ce nom, et la page
+  // ecrit le CODE POSTAL EXACT de la fiche : c est le site du cabinet.
+  // ⚠️ Avec le seul departement, non : « CABINET S. LESAGE » (Mons-en-
+  // Baroeul) retenait cabinet-lesage.fr, un autre expert-comptable du Nord.
+  if (autres.length === 0 && lieu === "code postal" && nn.length >= 4
+    && domaine.replace(/[^a-z0-9]/g, "").indexOf(nomFamille.join("")) >= 0) return "nom du site";
   return null;
 }
 
@@ -1041,10 +1096,153 @@ function domaineDe(v: any): string | null {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════════
+// 🆕 08/10 — LE REGISTRE OFFICIEL DES ENTREPRISES.
+// Demande de Jacques (07/10) : « passer par l equivalent de societe.com en
+// fonction du SIREN, du nom et prenom du gerant ou du nom de la societe,
+// pour recouper les bonnes informations ».
+// L API publique « recherche d entreprises » (api.gouv.fr) est gratuite et
+// sans cle. Elle ne donne NI adresse de courriel, NI telephone, NI site :
+// elle donne ce qui AIDE A TROUVER LE SITE ET A LE RECONNAITRE —
+//   · le nom commercial et les enseignes (souvent le nom du site) ;
+//   · le dirigeant (nom et prenom), la commune et le code postal du siege ;
+//   · le SIREN, que les mentions legales du bon site portent (la preuve la
+//     plus sure) ;
+//   · l etat de la societe : une societe FERMEE n est plus cherchee.
+// ⛔ RIEN N EST ECRIT EN BASE : ce que le registre apporte complete la
+// fiche LE TEMPS DE LA RECHERCHE, sans jamais remplacer ce qu elle porte
+// deja (un champ deja rempli n est pas touche).
+// ⛔ SANS SIREN SUR LA FICHE, la societe du registre n est retenue que si
+// son nom est EXACTEMENT celui de la fiche, dans le MEME code postal, et
+// qu elle est LA SEULE dans ce cas. Un homonyme donnerait le SIREN d un
+// autre, donc le site d un autre.
+// ⚠️ Cadence lue le 07/10 : 7 demandes par seconde et par adresse. Les
+// lignes d un paquet partent ensemble : chaque demande est donc decalee
+// de 200 ms selon son rang. Une reponse 429 (trop de demandes), une erreur
+// ou un delai depasse : on continue SANS le registre, comme avant.
+// ⚠️ ?registre=non : la recherche se fait sans le registre (pour comparer).
+const REGISTRE_URL = "https://recherche-entreprises.api.gouv.fr/search";
+const DELAI_REGISTRE_MS = 4000;
+let registreActif = true;
+
+function nomRegistre(v: any): string {
+  return mots(decoupe(v).nom).filter(function (m) { return FORMES.indexOf(m) < 0; }).join(" ");
+}
+
+async function registre(l: any, rang: number): Promise<any> {
+  if (!registreActif) return null;
+  const siren = String(l.siren || "").replace(/\D/g, "");
+  const cp = String(l.code_postal || "").replace(/\D/g, "");
+  const nomFiche = nomRegistre(l.raison_sociale);
+  let url = "";
+  if (siren.length === 9) url = REGISTRE_URL + "?q=" + siren + "&per_page=1";
+  else if (nomFiche.length >= 3 && cp.length === 5) {
+    url = REGISTRE_URL + "?q=" + encodeURIComponent(decoupe(l.raison_sociale).nom.slice(0, 120))
+      + "&code_postal=" + cp + "&per_page=10";
+  } else return null;
+
+  if (rang > 0) await new Promise(function (ok) { setTimeout(ok, rang * 200); });
+  const stop = new AbortController();
+  const minuteur = setTimeout(function () { stop.abort(); }, DELAI_REGISTRE_MS);
+  let liste: any[] = [];
+  try {
+    const r = await fetch(url, {
+      cache: "no-store",
+      signal: stop.signal,
+      headers: { "User-Agent": "AcademIA-Pro-enrichissement/1.0 (contact@academiapro.fr)", "Accept": "application/json" },
+    });
+    if (!r.ok) return null;
+    const j: any = await r.json();
+    liste = Array.isArray(j && j.results) ? j.results : [];
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(minuteur);
+  }
+
+  let e: any = null;
+  if (siren.length === 9) {
+    e = liste.find(function (x: any) { return String(x.siren || "") === siren; }) || null;
+  } else {
+    const memes = liste.filter(function (x: any) {
+      const s = x.siege || {};
+      if (String(s.code_postal || "") !== cp) return false;
+      return nomRegistre(x.nom_raison_sociale) === nomFiche || nomRegistre(x.nom_complet) === nomFiche;
+    });
+    if (memes.length === 1) e = memes[0];
+  }
+  if (!e) return null;
+
+  const s = e.siege || {};
+  const enseignes: string[] = [];
+  const ajouter = function (v: any) {
+    const t = String(v || "").replace(/[()]/g, " ").replace(/\s+/g, " ").trim();
+    if (t.length < 3 || t.length > 80) return;
+    const p = plat(t);
+    if (!p || p === plat(decoupe(l.raison_sociale).nom)) return;
+    if (enseignes.some(function (x) { return plat(x) === p; })) return;
+    enseignes.push(t);
+  };
+  ajouter(s.nom_commercial);
+  for (const x of (Array.isArray(s.liste_enseignes) ? s.liste_enseignes : [])) ajouter(x);
+  ajouter(e.sigle);
+
+  // Le premier dirigeant qui est une personne (il porte un nom et un prenom).
+  const personne = (Array.isArray(e.dirigeants) ? e.dirigeants : []).find(function (d: any) {
+    return d && d.nom && d.prenoms;
+  }) || null;
+
+  return {
+    siren: String(e.siren || ""),
+    fermee: String(e.etat_administratif || "") === "C",
+    enseignes: enseignes.slice(0, 3),
+    dirigeant_nom: personne ? String(personne.nom) : "",
+    dirigeant_prenom: personne ? String(personne.prenoms).split(/[\s,]+/)[0] : "",
+    ville: String(s.libelle_commune || ""),
+    code_postal: String(s.code_postal || ""),
+  };
+}
+
+// LA FICHE, COMPLETEE PAR LE REGISTRE POUR LA DUREE DE LA RECHERCHE.
+// ⛔ Un champ deja rempli sur la fiche n est jamais remplace. Les enseignes
+// s ajoutent entre parentheses a la suite du nom : c est la forme que
+// `decoupe` lit deja (« DANIEL ARZOINE (VOYAGEOSCOPE) »). Une enseigne
+// n est jamais crue sur parole : le site qu elle fait deviner passe la meme
+// verification que les autres.
+function completer(l: any, reg: any): any {
+  if (!reg) return l;
+  const c: any = Object.assign({}, l);
+  const vide = function (v: any) { return String(v == null ? "" : v).trim() === ""; };
+  if (String(c.siren || "").replace(/\D/g, "").length !== 9 && reg.siren.length === 9) c.siren = reg.siren;
+  if (vide(c.dirigeant_nom) && reg.dirigeant_nom) {
+    c.dirigeant_nom = reg.dirigeant_nom;
+    if (vide(c.dirigeant_prenom) && reg.dirigeant_prenom) c.dirigeant_prenom = reg.dirigeant_prenom;
+  }
+  if (vide(c.ville) && reg.ville) c.ville = reg.ville;
+  if (vide(c.code_postal) && reg.code_postal) c.code_postal = reg.code_postal;
+  const dejaLa = decoupe(c.raison_sociale);
+  const connues = [plat(dejaLa.nom)].concat(dejaLa.enseignes.map(function (x) { return plat(x); }));
+  let nom = String(c.raison_sociale || "");
+  for (const e of reg.enseignes) {
+    if (connues.indexOf(plat(e)) >= 0) continue;
+    connues.push(plat(e));
+    nom += " (" + e + ")";
+  }
+  c.raison_sociale = nom;
+  return c;
+}
+
 // CHERCHER LE SITE D UNE LIGNE.
 // 🆕 05/10 — `limite` : l heure a laquelle on s arrete pour cette ligne.
 // Elle est verifiee avant chaque domaine et avant chaque page annexe.
-async function chercher(l: any, metier: string, limite: number): Promise<any> {
+async function chercher(ligne: any, metier: string, limite: number, rang?: number): Promise<any> {
+  // 🆕 08/10 — LE REGISTRE D ABORD (voir `registre`). Une societe fermee
+  // n est pas cherchee ; sinon la fiche est completee pour cette recherche.
+  const reg = await registre(ligne, rang || 0);
+  if (reg && reg.fermee) {
+    return { site: null, raison: "societe fermee au registre", testes: 0, existants: 0, fermee: true, registre: reg };
+  }
+  const l = completer(ligne, reg);
   const liste = candidats(l, metier);
   // 🚨 LE SITE SUGGERE PASSE EN PREMIER, MAIS IL EST VERIFIE COMME LES AUTRES.
   // Dropcontact a donne un site a certains cabinets sans trouver d adresse :
@@ -1065,7 +1263,7 @@ async function chercher(l: any, metier: string, limite: number): Promise<any> {
     if (i >= 0) liste.splice(i, 1);
     liste.unshift(ecrits[k]);
   }
-  if (liste.length === 0) return { site: null, raison: "aucun nom exploitable", testes: 0, existants: 0 };
+  if (liste.length === 0) return { site: null, raison: "aucun nom exploitable", testes: 0, existants: 0, registre: reg };
 
   // Toutes les questions DNS en meme temps : elles coutent quelques
   // millisecondes, et la plupart des domaines devines n existent pas.
@@ -1144,6 +1342,7 @@ async function chercher(l: any, metier: string, limite: number): Promise<any> {
         existants: existants.length,
         domaines_existants: existants.slice(0, 8),
         journal: journal,
+        registre: reg,
       };
     }
   }
@@ -1159,6 +1358,7 @@ async function chercher(l: any, metier: string, limite: number): Promise<any> {
     domaines_existants: existants.slice(0, 8),
     journal: journal,
     trop_long: tropLong,
+    registre: reg,
   };
 }
 
@@ -1202,6 +1402,11 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
   let tropLongues = 0;
   let erreurs = 0;
   let reseaux = 0;
+  // 🆕 08/10 — le registre : societes fermees (non cherchees), fiches que
+  // le registre a completees, sites trouves sur une fiche completee.
+  let fermees = 0;
+  let avecRegistre = 0;
+  let trouvesAvecRegistre = 0;
   let refus = 0;
   let premierRefus = "";
   let premiereErreur = "";
@@ -1238,9 +1443,9 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
       }
     }
 
-    const resultats = await Promise.all(paquet.map(function (l: any) {
+    const resultats = await Promise.all(paquet.map(function (l: any, rang: number) {
       return avecLimite(
-        function () { return chercher(l, conf.metier, Date.now() + DUREE_LIGNE_MS); },
+        function () { return chercher(l, conf.metier, Date.now() + DUREE_LIGNE_MS, rang); },
         LIMITE_LIGNE_MS,
         function () {
           console.log("trouver-sites : ligne trop longue, abandonnee", conf.table, l.id);
@@ -1260,6 +1465,7 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
       const l = paquet[k];
       const r = resultats[k];
       traites++;
+      if (r.registre && !r.fermee) avecRegistre++;
 
       // 🆕 05/10 — L ECRITURE D ABORD, ET VERIFIEE : un site n est compte
       // « trouve » que si la base l a enregistre. `site_cherche_le` est deja
@@ -1301,6 +1507,7 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
 
       if (r.site && ecrit) {
         trouves++;
+        if (r.registre) trouvesAvecRegistre++;
         if (r.preuve === "siren") parSiren++; else parNom++;
         if (exemples.length < 12) {
           exemples.push({ cabinet: l.raison_sociale, ville: l.ville, site: r.site, preuve: r.preuve });
@@ -1309,6 +1516,8 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
         // trouve, mais non enregistre : compte dans `ecritures_refusees`.
       } else if (r.reseau) {
         reseaux++;
+      } else if (r.fermee) {
+        fermees++;
       } else if (r.en_erreur) {
         erreurs++;
       } else if (r.trop_long) {
@@ -1327,6 +1536,7 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
           site_retenu: r.site || null,
           domaines_existants: r.domaines_existants,
           refus: r.journal,
+          registre: r.registre || null,
         });
       }
     }
@@ -1354,6 +1564,9 @@ async function traiter(nom: string, combien: number, depart: number, essai: bool
     aucun_domaine_existant: sansDomaine,
     domaines_existants_mais_non_verifies: nonVerifies,
     sites_de_reseau_ecartes: reseaux,
+    societes_fermees_au_registre: fermees,
+    fiches_completees_par_le_registre: avecRegistre,
+    sites_trouves_sur_fiche_completee: trouvesAvecRegistre,
     lignes_trop_longues: tropLongues,
     erreurs: erreurs,
     ecritures_refusees: refus,
@@ -1400,6 +1613,8 @@ export async function GET(req: NextRequest) {
   // 🚨 ?essai=1 : on cherche, on rend le resultat, et on N ECRIT RIEN.
   // C est le mode de la premiere mesure, sur un echantillon (?lot=30).
   const essai = p.get("essai") === "1";
+  // 🆕 08/10 — ?registre=non : sans le registre officiel (pour comparer).
+  registreActif = p.get("registre") !== "non";
   const debut = Math.max(0, Number(p.get("debut") || 0) || 0);
   const demande = Number(p.get("lot") || 0);
   const combien = demande > 0 && demande <= 500 ? demande : LOT;
@@ -1414,7 +1629,9 @@ export async function GET(req: NextRequest) {
     const cumul: any = {
       table: TABLES[nom].table, lignes_examinees: 0, sites_trouves: 0,
       dont_par_siren: 0, dont_par_nom_et_ville: 0, aucun_domaine_existant: 0,
-      domaines_existants_mais_non_verifies: 0, sites_de_reseau_ecartes: 0, lignes_trop_longues: 0,
+      domaines_existants_mais_non_verifies: 0, sites_de_reseau_ecartes: 0,
+      societes_fermees_au_registre: 0, fiches_completees_par_le_registre: 0,
+      sites_trouves_sur_fiche_completee: 0, lignes_trop_longues: 0,
       erreurs: 0, ecritures_refusees: 0, exemples: [],
     };
     let vu = false;
@@ -1430,6 +1647,9 @@ export async function GET(req: NextRequest) {
       cumul.aucun_domaine_existant += r.aucun_domaine_existant;
       cumul.domaines_existants_mais_non_verifies += r.domaines_existants_mais_non_verifies;
       cumul.sites_de_reseau_ecartes += r.sites_de_reseau_ecartes || 0;
+      cumul.societes_fermees_au_registre += r.societes_fermees_au_registre || 0;
+      cumul.fiches_completees_par_le_registre += r.fiches_completees_par_le_registre || 0;
+      cumul.sites_trouves_sur_fiche_completee += r.sites_trouves_sur_fiche_completee || 0;
       cumul.lignes_trop_longues += r.lignes_trop_longues || 0;
       cumul.erreurs += r.erreurs || 0;
       cumul.ecritures_refusees += r.ecritures_refusees || 0;
@@ -1460,6 +1680,7 @@ export async function GET(req: NextRequest) {
   const enPanne = arretDuPassage.indexOf("marquage impossible") === 0;
   return NextResponse.json({
     mode: essai ? "essai, rien n est ecrit" : "recherche des sites",
+    registre: registreActif ? "interroge" : "non interroge (?registre=non)",
     resultats: resultats,
     arret: arretDuPassage || null,
     duree_s: Math.round((Date.now() - depart) / 1000),
