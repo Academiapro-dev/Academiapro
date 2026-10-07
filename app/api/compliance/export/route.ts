@@ -69,7 +69,7 @@ export async function GET(req: NextRequest) {
     const quoi = (req.nextUrl.searchParams.get("quoi") || "balance").trim();
 
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE DE LECTURE : un export emporte le dossier entier.
@@ -121,7 +121,7 @@ export async function GET(req: NextRequest) {
       });
 
       return fabriquer(
-        ["Compte", "Libelle", "Classe", "Type", "Lettrable", "Origine"],
+        ["Compte", "Libellé", "Classe", "Type", "Lettrable", "Origine"],
         lignes,
         "plan-comptable-" + suffixe
       );
@@ -146,13 +146,13 @@ export async function GET(req: NextRequest) {
           jour(l.ecriture_date), l.journal_code, l.ecriture_num,
           l.compte_num, l.compte_lib, l.piece_ref || "",
           l.ecriture_lib, nombre(l.debit), nombre(l.credit),
-          l.lettrage || "", l.verrouille ? "verrouillee" : "",
+          l.lettrage || "", l.verrouille ? "verrouillée" : "",
         ];
       });
 
       return fabriquer(
-        ["Date", "Journal", "Ecriture", "Compte", "Libelle du compte", "Piece",
-          "Libelle", "Debit", "Credit", "Lettrage", "Etat"],
+        ["Date", "Journal", "Écriture", "Compte", "Libellé du compte", "Pièce",
+          "Libellé", "Débit", "Crédit", "Lettrage", "État"],
         lignes,
         "journal-" + suffixe
       );
@@ -180,8 +180,8 @@ export async function GET(req: NextRequest) {
       }
 
       return fabriquer(
-        ["Compte", "Libelle du compte", "Date", "Journal", "Ecriture",
-          "Libelle", "Debit", "Credit", "Solde progressif", "Lettrage"],
+        ["Compte", "Libellé du compte", "Date", "Journal", "Écriture",
+          "Libellé", "Débit", "Crédit", "Solde progressif", "Lettrage"],
         lignes,
         "grand-livre-" + suffixe
       );
@@ -229,8 +229,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     return fabriquer(
-      ["Compte", "Libelle", "Mouvements", "Total debit", "Total credit",
-        "Solde debiteur", "Solde crediteur"],
+      ["Compte", "Libellé", "Mouvements", "Total débit", "Total crédit",
+        "Solde débiteur", "Solde créditeur"],
       lignes,
       "balance-" + suffixe
     );
