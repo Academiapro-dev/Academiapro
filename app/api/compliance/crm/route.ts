@@ -434,7 +434,7 @@ export async function POST(req: NextRequest) {
 
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.action) {
-      return NextResponse.json({ ok: false, erreur: "Action non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Action non précisée." }, { status: 400 });
     }
 
     const autorises = await dossiersAutorises();
@@ -482,20 +482,20 @@ export async function POST(req: NextRequest) {
         if (error) {
           return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
         }
-        return NextResponse.json({ ok: true, message: "Contact enregistre." });
+        return NextResponse.json({ ok: true, message: "Contact enregistré." });
       }
 
       const { error } = await supabase.from("compta_contacts").insert(champs);
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, message: "Contact ajoute." });
+      return NextResponse.json({ ok: true, message: "Contact ajouté." });
     }
 
     // ---------- SUPPRIMER UN CONTACT ----------
     if (b.action === "supprimer_contact") {
       if (!b.id) {
-        return NextResponse.json({ ok: false, erreur: "Contact non precise." }, { status: 400 });
+        return NextResponse.json({ ok: false, erreur: "Contact non précisé." }, { status: 400 });
       }
       const { data: c } = await supabase
         .from("compta_contacts")
@@ -508,7 +508,7 @@ export async function POST(req: NextRequest) {
       }
 
       await supabase.from("compta_contacts").delete().eq("id", b.id);
-      return NextResponse.json({ ok: true, message: "Contact supprime." });
+      return NextResponse.json({ ok: true, message: "Contact supprimé." });
     }
 
     // ---------- PREPARER UNE RELANCE ----------
@@ -601,7 +601,7 @@ export async function POST(req: NextRequest) {
 
       const sms = (prenom ? prenom + ", " : "")
         + (motif === "facture_emise"
-          ? "rappel de reglement" + (reference ? " (facture " + reference + ")" : "")
+          ? "rappel de règlement" + (reference ? " (facture " + reference + ")" : "")
             + (montant ? " de " + euros(montant) : "") + ". Merci."
           : m.objet.toLowerCase() + (reference ? " (" + reference + ")" : "")
             + ". Merci de nous le transmettre.")
@@ -650,13 +650,13 @@ export async function POST(req: NextRequest) {
       if (canal === "sms") {
         const numero = contact && contact.telephone ? contact.telephone : "";
         if (!numero) {
-          return NextResponse.json({ ok: false, erreur: "Aucun numero pour ce contact." }, { status: 400 });
+          return NextResponse.json({ ok: false, erreur: "Aucun numéro pour ce contact." }, { status: 400 });
         }
         // ⚠️ LE CONSENTEMENT SE VERIFIE COTE SERVEUR, pas seulement a l ecran.
         if (!contact.sms_accepte_le) {
           return NextResponse.json({
             ok: false,
-            erreur: "Ce contact n a pas donne son accord pour recevoir des SMS.",
+            erreur: "Ce contact n'a pas donné son accord pour recevoir des SMS.",
           }, { status: 400 });
         }
         resultat = await envoyerSms(numero, corps);
@@ -702,7 +702,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         ok: true,
-        message: canal === "sms" ? "SMS envoye." : "Relance envoyee.",
+        message: canal === "sms" ? "SMS envoyé." : "Relance envoyée.",
       });
     }
 
