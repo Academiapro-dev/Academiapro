@@ -33,6 +33,12 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Une date AAAA-MM-JJ, dite a la francaise : JJ/MM/AAAA.
+function dateFr(d: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ""));
+  return m ? m[3] + "/" + m[2] + "/" + m[1] : String(d || "");
+}
+
 export async function GET(req: NextRequest) {
   try {
     // 🚨 LA LISTE DES DOSSIERS SE BORNE A L ORGANISME — CORRIGE LE 31/08.
@@ -73,7 +79,7 @@ export async function GET(req: NextRequest) {
     const autorises = await dossiersAutorises();
     if (autorises.length === 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Aucun dossier ne vous est confie." },
+        { ok: false, erreur: "Aucun dossier ne vous est confié." },
         { status: 403 }
       );
     }
@@ -102,7 +108,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Precisez le dossier : ?societe=CODE",
+          erreur: "Précisez le dossier.",
           dossiers: liste.map(function (s: any) {
             return { code: s.code, raison_sociale: s.raison_sociale };
           }),
@@ -123,8 +129,8 @@ export async function GET(req: NextRequest) {
         regime: regime,
         declaration: null,
         note: regime === "franchise"
-          ? "Ce dossier est en franchise en base : aucune TVA n est facturee ni deduite, et aucune declaration n est due."
-          : "Ce dossier n est pas assujetti a la TVA : aucune declaration n est due.",
+          ? "Ce dossier est en franchise en base : aucune TVA n'est facturée ni déduite, et aucune déclaration n'est due."
+          : "Ce dossier n'est pas assujetti à la TVA : aucune déclaration n'est due.",
       });
     }
 
@@ -165,7 +171,7 @@ export async function GET(req: NextRequest) {
         debut = annee + "-01-01";
         fin = annee + "-12-31";
       }
-      libellePeriode = "exercice du " + debut + " au " + fin;
+      libellePeriode = "exercice du " + dateFr(debut) + " au " + dateFr(fin);
     }
 
     const { data: lignes, error } = await supabase
@@ -273,8 +279,8 @@ export async function GET(req: NextRequest) {
       },
       detail_comptes: detail,
       avertissement:
-        "Document de travail calcule depuis les ecritures. La declaration reelle se depose "
-        + "sur impots.gouv.fr ou par voie EDI. Verifiez la ventilation par taux avant tout depot.",
+        "Document de travail calculé depuis les écritures. La déclaration réelle se dépose "
+        + "sur impots.gouv.fr ou par voie EDI. Vérifiez la ventilation par taux avant tout dépôt.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
