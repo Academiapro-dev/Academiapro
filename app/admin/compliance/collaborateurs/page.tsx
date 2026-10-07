@@ -293,9 +293,9 @@ export default function PageCollaborateurs() {
                   <div style={{ flex: "1 1 240px" }}>
                     <p style={{ color: "#c8a96e", fontSize: "12.5px", margin: "0 0 3px" }}>
                       {c.role_nom}
-                      {c.tous_dossiers ? " · tous les dossiers" : " · " + c.nb_dossiers + " dossier(s)"}
+                      {c.tous_dossiers ? " · tous les dossiers" : " · " + c.nb_dossiers + (c.nb_dossiers > 1 ? " dossiers" : " dossier")}
                       {c.role === "associe" ? " · carte blanche d'office"
-                        : (c.paie_carte_blanche || []).length > 0 ? " · carte blanche sur " + c.paie_carte_blanche.length + " dossier(s)" : ""}
+                        : (c.paie_carte_blanche || []).length > 0 ? " · carte blanche sur " + c.paie_carte_blanche.length + (c.paie_carte_blanche.length > 1 ? " dossiers" : " dossier") : ""}
                       {!c.actif ? " · DÉSACTIVÉ" : ""}
                     </p>
                     <h3 style={{ color: "#fff", fontSize: "16px", margin: "0 0 3px" }}>{c.nom || c.email}</h3>
