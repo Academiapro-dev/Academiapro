@@ -13,7 +13,7 @@ const ADMINS = ["contact@academiapro.fr"];
 
 const TYPES: any = {
   creance_client: {
-    nom: "Depreciation de creance client",
+    nom: "Dépréciation de créance client",
     provision: "491000", dotation: "681700", reprise: "781700",
   },
   risque: {
@@ -40,6 +40,11 @@ const supabase = createClient(
 
 function r2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+// Un montant a la francaise, pour les messages : « 1 200,00 € ».
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
 function propre(v: any, max: number): string | null {
@@ -71,7 +76,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -120,7 +125,7 @@ export async function POST(req: NextRequest) {
   try {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.societe_id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE : une reprise de provision augmente le resultat imposable.
@@ -149,7 +154,7 @@ export async function POST(req: NextRequest) {
       if (isNaN(montant) || montant <= 0) montant = restante;
       if (montant > restante + 0.005) {
         return NextResponse.json(
-          { ok: false, erreur: "La reprise depasse la provision restante (" + restante.toFixed(2) + " EUR)." },
+          { ok: false, erreur: "La reprise dépasse la provision restante (" + eurosFr(restante) + ")." },
           { status: 400 }
         );
       }
@@ -192,7 +197,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({
         ok: true,
         ecriture_num: numero,
-        message: "Reprise de " + montant.toFixed(2) + " EUR passee sous " + numero + ".",
+        message: "Reprise de " + eurosFr(montant) + " passée sous le numéro " + numero + ".",
       });
     }
 
@@ -203,7 +208,7 @@ export async function POST(req: NextRequest) {
     const base = Number(String(b.montant_base || "").replace(",", "."));
     if (isNaN(base) || base <= 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Le montant de base doit etre positif." },
+        { ok: false, erreur: "Le montant de base doit être positif." },
         { status: 400 }
       );
     }
@@ -264,7 +269,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       ecriture_num: numero,
       montant: montant,
-      message: "Provision de " + montant.toFixed(2) + " EUR constituee, ecriture " + numero + ".",
+      message: "Provision de " + eurosFr(montant) + " constituée, écriture " + numero + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
