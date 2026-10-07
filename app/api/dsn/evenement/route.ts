@@ -246,6 +246,21 @@ const HORS_SIGNALEMENT = ["REDUCTION_HS", "CONTRIBUTION_PATRONALE_RC",
   "FORMATION_PRO_MOINS11", "FORMATION_PRO_11PLUS", "CPF_CDD",
   "TAXE_APPRENTISSAGE", "TAXE_APPRENTISSAGE_AM", "DIALOGUE_SOCIAL"];
 
+// 🆕 07/10 — L ADRESSE POSTALE EN DSN (S21.G00.30.008/CSL-11) : lettres, chiffres,
+// espace, apostrophe, trait d union et point seulement ; ces signes jamais en
+// debut ni en fin, jamais deux a la suite ; 50 caracteres. La meme fonction
+// que dans la DSN du mois. La fiche garde ce qui a ete tape.
+function adresseDsn(v: any): string {
+  let a = q(v).replace(/[\u2019\u2018`]/g, "'").replace(/[\u2013\u2014]/g, "-");
+  a = a.replace(/[^A-Za-z0-9\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u00FF '.\-]/g, " ");
+  a = a.replace(/\s+/g, " ");
+  a = a.replace(/ ?([-'.]) ?(?=[-'.])/g, " ");
+  a = a.replace(/ ([-']) /g, " ").replace(/ ([-'])/g, " ").replace(/([-']) /g, " ");
+  a = a.replace(/ \./g, ".").replace(/\s+/g, " ");
+  a = a.replace(/^[ '.\-]+/, "").replace(/[ '.\-]+$/, "");
+  return a.slice(0, 50).replace(/[ '.\-]+$/, "");
+}
+
 function q(v: any): string {
   if (v === null || v === undefined) return "";
   return String(v).trim();
@@ -713,7 +728,7 @@ export async function POST(req: NextRequest) {
     ecrire("S10.G00.01.001", siret.slice(0, 9));
     ecrire("S10.G00.01.002", siret.slice(9));
     ecrire("S10.G00.01.003", societe.raison_sociale);
-    ecrire("S10.G00.01.004", societe.adresse);
+    ecrire("S10.G00.01.004", adresseDsn(societe.adresse));
     ecrire("S10.G00.01.005", q(societe.code_postal));
     ecrire("S10.G00.01.006", societe.ville);
 
@@ -816,7 +831,7 @@ export async function POST(req: NextRequest) {
     // APEN et l adresse (06.003 a 06.006) y sont INTERDITS — dsn-val, CST-04.
     if (!commeArret) {
       ecrire("S21.G00.06.003", codeApe);       // APEN, obligatoire
-      ecrire("S21.G00.06.004", societe.adresse);
+      ecrire("S21.G00.06.004", adresseDsn(societe.adresse));
       ecrire("S21.G00.06.005", q(societe.code_postal));
       ecrire("S21.G00.06.006", societe.ville);
     }
@@ -825,7 +840,7 @@ export async function POST(req: NextRequest) {
     // 🆕⛔ LE CODE APET (11.002) EST INTERDIT DANS UN ARRET — l adresse de
     // l etablissement, elle, y reste permise.
     if (!commeArret) ecrire("S21.G00.11.002", codeApe);   // APET, obligatoire
-    ecrire("S21.G00.11.003", societe.adresse);
+    ecrire("S21.G00.11.003", adresseDsn(societe.adresse));
     ecrire("S21.G00.11.004", q(societe.code_postal));
     ecrire("S21.G00.11.005", societe.ville);
 
@@ -875,7 +890,7 @@ export async function POST(req: NextRequest) {
       if (deptNaissance && deptNaissance !== "99") {
         ecrire("S21.G00.30.007", sal.lieu_naissance);
       }
-      ecrire("S21.G00.30.008", sal.adresse);
+      ecrire("S21.G00.30.008", adresseDsn(sal.adresse));
       ecrire("S21.G00.30.009", q(sal.code_postal));
       ecrire("S21.G00.30.010", sal.ville);
       ecrire("S21.G00.30.013", q(sal.codification_ue) || "01");
@@ -1049,7 +1064,7 @@ export async function POST(req: NextRequest) {
         // 🆕 06/10 — au forfait : les jours du mois (forfait annuel / 12).
         const quotite = forfaitJoursFin > 0
           ? forfaitJoursFin / 12
-          : dureeMensuelleRef * Math.min(hebdo, 35) / 35;
+          : dureeMensuelleRef * hebdo / 35;
         ecrire("S21.G00.40.013", montantDsn(Math.round(quotite * 100) / 100));
       }
       ecrire("S21.G00.40.014", tempsPlein ? "10" : "20");
@@ -1727,7 +1742,7 @@ export async function POST(req: NextRequest) {
           const hebdoCt = ct.duree_hebdo ? Number(ct.duree_hebdo) : 35;
           const dureeContrat = Number(param.duree_mensuelle_contrat) > 0
             ? Number(param.duree_mensuelle_contrat)
-            : dureeMensuelleRef * Math.min(hebdoCt, 35) / 35;
+            : dureeMensuelleRef * hebdoCt / 35;
           let heuresLigne = 0;
           for (const l of (Array.isArray((detail as any).lignes_brut) ? (detail as any).lignes_brut : [])) {
             const lib = q(l && l.libelle).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
@@ -1959,7 +1974,7 @@ export async function POST(req: NextRequest) {
       } else {
         ecrire("S21.G00.85.001", siretEu);
         ecrire("S21.G00.85.002", apeDsn(ct.eu_code_ape));
-        ecrire("S21.G00.85.003", ct.eu_adresse);
+        ecrire("S21.G00.85.003", adresseDsn(ct.eu_adresse));
         ecrire("S21.G00.85.004", cpLieu);
         ecrire("S21.G00.85.005", ct.eu_ville);
         ecrire("S21.G00.85.010", q(ct.eu_nature_juridique) || "01");
@@ -1973,7 +1988,7 @@ export async function POST(req: NextRequest) {
       }
       ecrire("S21.G00.85.001", siret);
       ecrire("S21.G00.85.002", codeApe);
-      ecrire("S21.G00.85.003", societe.adresse);
+      ecrire("S21.G00.85.003", adresseDsn(societe.adresse));
       ecrire("S21.G00.85.004", q(societe.code_postal));
       ecrire("S21.G00.85.005", societe.ville);
       ecrire("S21.G00.85.010", "01");
