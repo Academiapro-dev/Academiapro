@@ -234,7 +234,8 @@ const RUPT_PROCEDURE = ["011", "012", "014", "015", "020", "026", "086",
 // Les motifs que le signalement declare « sans preavis » quand rien n est
 // saisi : fin de CDD, fin de mission, fin d essai du salarie, ruptures
 // conventionnelles.
-const RUPT_SANS_PREAVIS = ["031", "032", "035", "043", "110"];
+// 🆕 07/10 — 081, fin de contrat d apprentissage : pas de preavis non plus.
+const RUPT_SANS_PREAVIS = ["031", "032", "035", "043", "081", "110"];
 const PREAVIS_TYPES = ["01", "02", "03", "10", "50", "51", "60", "61", "90"];
 const PREAVIS_NON_FAITS = ["02", "03", "10", "50", "51", "61"];
 
