@@ -59,7 +59,7 @@ export default function PageBalance() {
   function euros(n: any) {
     const v = Number(n) || 0;
     if (v === 0) return "";
-    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2 });
+    return v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
   function onglet(cle: string, texte: string) {
@@ -181,8 +181,9 @@ export default function PageBalance() {
             {d.totaux.desequilibrees > 0 && (
               <div style={{ ...CARTE, border: "1px solid rgba(232,131,106,0.5)" }}>
                 <p style={{ color: "#e8836a", fontSize: "14.5px", margin: 0, lineHeight: "1.75" }}>
-                  {d.totaux.desequilibrees} piece(s) desequilibree(s) : leur debit ne correspond pas
-                  a leur credit. Corrigez-les avant toute cloture.
+                  {d.totaux.desequilibrees > 1
+                    ? d.totaux.desequilibrees + " pièces déséquilibrées : leur débit ne correspond pas à leur crédit. Corrigez-les avant toute clôture."
+                    : "1 pièce déséquilibrée : son débit ne correspond pas à son crédit. Corrigez-la avant toute clôture."}
                 </p>
               </div>
             )}
@@ -190,7 +191,7 @@ export default function PageBalance() {
             {d.ecritures.length === 0 ? (
               <div style={CARTE}>
                 <p style={{ color: "rgba(255,255,255,0.6)", margin: 0, fontSize: "15px" }}>
-                  Aucune ecriture sur cette periode.
+                  Aucune écriture sur cette période.
                 </p>
               </div>
             ) : (
@@ -248,7 +249,7 @@ export default function PageBalance() {
                 Débit {euros(d.totaux.debit)} · Crédit {euros(d.totaux.credit)}
                 {!d.totaux.equilibre ? " · écart de " + euros(d.totaux.ecart) : ""}
                 <br />
-                {d.totaux.nb_comptes} compte(s) sur {d.totaux.nb_lignes} ligne(s), exercice du{" "}
+                {d.totaux.nb_comptes} {d.totaux.nb_comptes > 1 ? "comptes" : "compte"} sur {d.totaux.nb_lignes} {d.totaux.nb_lignes > 1 ? "lignes" : "ligne"}, exercice du{" "}
                 {new Date(d.periode.debut).toLocaleDateString("fr-FR")} au{" "}
                 {new Date(d.periode.fin).toLocaleDateString("fr-FR")}
               </p>
@@ -275,7 +276,7 @@ export default function PageBalance() {
 
             <div style={{ border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", overflow: "hidden" }}>
               <div style={{ display: "grid", gridTemplateColumns: "0.9fr 2.2fr 0.9fr 0.9fr 1fr", background: "rgba(200,169,110,0.12)", padding: "12px 14px", fontSize: "12px", color: "#c8a96e", fontWeight: "bold" }}>
-                <span>Compte</span><span>Libelle</span>
+                <span>Compte</span><span>Libellé</span>
                 <span style={{ textAlign: "right" }}>Débit</span>
                 <span style={{ textAlign: "right" }}>Crédit</span>
                 <span style={{ textAlign: "right" }}>Solde</span>
