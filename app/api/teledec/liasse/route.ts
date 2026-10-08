@@ -258,6 +258,16 @@ function sectionBalance(comptes: any[]): string {
   }).join("\n");
 }
 
+// 🆕 08/10 — pour les messages affiches a l ecran : un montant et une date
+// a la francaise. Ce qui part chez le partenaire ne change pas.
+function eurosFrLiasse(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+function dateFrLiasse(iso: string): string {
+  const t = String(iso || "");
+  return /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(8, 10) + "/" + t.slice(5, 7) + "/" + t.slice(0, 4) : t;
+}
+
 export async function POST(req: NextRequest) {
   try {
     const session = sessionCourante();
@@ -271,7 +281,7 @@ export async function POST(req: NextRequest) {
 
     if (!societeId) {
       return NextResponse.json(
-        { ok: false, erreur: "Dossier non precise." }, { status: 400 });
+        { ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     // LE BARRAGE. Une liasse porte le resultat d une entreprise : seul le
@@ -279,7 +289,7 @@ export async function POST(req: NextRequest) {
     const autorises = await dossiersAutorises();
     if (autorises.indexOf(societeId) < 0) {
       return NextResponse.json(
-        { ok: false, erreur: "Ce dossier ne vous est pas confie." },
+        { ok: false, erreur: "Ce dossier ne vous est pas confié." },
         { status: 403 });
     }
 
@@ -326,7 +336,7 @@ export async function POST(req: NextRequest) {
 
     if (eLignes) {
       return NextResponse.json(
-        { ok: false, erreur: "Lecture des ecritures : " + eLignes.message },
+        { ok: false, erreur: "Lecture des écritures : " + eLignes.message },
         { status: 500 });
     }
 
@@ -335,8 +345,8 @@ export async function POST(req: NextRequest) {
     if (mouvements.length === 0) {
       return NextResponse.json({
         ok: false,
-        erreur: "Aucune ecriture sur l exercice du "
-          + debut + " au " + fin + ". Une liasse ne se cree pas sur un"
+        erreur: "Aucune écriture sur l’exercice du "
+          + dateFrLiasse(debut) + " au " + dateFrLiasse(fin) + ". Une liasse ne se crée pas sur un"
           + " dossier vide.",
       }, { status: 400 });
     }
@@ -377,10 +387,10 @@ export async function POST(req: NextRequest) {
     if (Math.abs(ecart) > 0.01) {
       return NextResponse.json({
         ok: false,
-        erreur: "La balance n est pas equilibree : debit "
-          + totalDebit.toFixed(2) + " contre credit "
-          + totalCredit.toFixed(2) + ", ecart de " + ecart.toFixed(2)
-          + ". Corrigez l ecart avant d etablir la liasse.",
+        erreur: "La balance n’est pas équilibrée : débit "
+          + eurosFrLiasse(totalDebit) + " contre crédit "
+          + eurosFrLiasse(totalCredit) + ", écart de " + eurosFrLiasse(ecart)
+          + ". Corrigez l’écart avant d’établir la liasse.",
         ecart: ecart,
       }, { status: 400 });
     }
@@ -449,8 +459,8 @@ export async function POST(req: NextRequest) {
         statut: r.status,
         reponse: reponse.slice(0, 1200),
         rappel: r.status === 403
-          ? "403 : l adresse du partenaire n est pas autorisee."
-          : "Erreur 104 = le mot de passe n est pas au format bcrypt.",
+          ? "403 : l’adresse du partenaire n’est pas autorisée."
+          : "Erreur 104 = le mot de passe n’est pas au format bcrypt.",
       }, { status: 500 });
     }
 
@@ -477,7 +487,7 @@ export async function POST(req: NextRequest) {
         debit: totalDebit,
         credit: totalCredit,
       },
-      message: "Liasse etablie pour " + propre(dossier.raison_sociale) + ".",
+      message: "Liasse établie pour " + String(dossier.raison_sociale || "").trim() + ".",
     });
   } catch (e: any) {
     return NextResponse.json(
