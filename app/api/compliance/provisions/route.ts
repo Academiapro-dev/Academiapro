@@ -53,6 +53,23 @@ function propre(v: any, max: number): string | null {
   return t ? t.slice(0, max) : null;
 }
 
+// 🆕 08/10 — LE NOM D UN COMPTE SE LIT AU PLAN, comme le fait la saisie : le
+// plan propre au dossier d abord, le plan commun ensuite. Les ecritures que le
+// logiciel passe lui-meme portaient des noms ecrits en dur, sans accents
+// (« TVA collectee », « Remunerations du personnel ») : le meme compte
+// portait alors deux noms selon que l ecriture etait saisie ou automatique.
+// Le nom donne en second ne sert que si le compte manque au plan.
+async function nomsDuPlan(societeId: string): Promise<any> {
+  const { data: communs } = await supabase
+    .from("compta_comptes").select("numero, libelle").is("societe_id", null).limit(3000);
+  const { data: propres } = await supabase
+    .from("compta_comptes").select("numero, libelle").eq("societe_id", societeId).limit(3000);
+  const plan: any = {};
+  for (const c of communs || []) plan[c.numero] = c.libelle;
+  for (const c of propres || []) plan[c.numero] = c.libelle;
+  return plan;
+}
+
 async function numeroSuivant(societeId: string, annee: string): Promise<string> {
   const prefixe = "OD" + annee + "-";
   const { data } = await supabase
@@ -163,21 +180,25 @@ export async function POST(req: NextRequest) {
       const date = String(b.date || new Date().toISOString().slice(0, 10)).slice(0, 10);
       const numero = await numeroSuivant(b.societe_id, date.slice(0, 4));
 
+      const planReprise = await nomsDuPlan(String(b.societe_id));
       const commun = {
         societe_id: b.societe_id,
         journal_code: "OD",
         journal_lib: "Operations diverses",
         ecriture_num: numero,
         ecriture_date: date,
-        ecriture_lib: "Reprise de provision - " + (prov.tiers || prov.reference || prov.type),
+        // 🆕 08/10 — la reference de la provision reprise, a defaut le numero.
+        piece_ref: propre(prov.reference, 60) || numero,
+        piece_date: date,
+        ecriture_lib: "Reprise de provision - " + (prov.tiers || prov.reference || (TYPES[prov.type] || {}).nom || prov.type),
         devise: "EUR",
         valid_date: new Date().toISOString().slice(0, 10),
         saisi_par: email,
       };
 
       const lignes = [
-        { ...commun, compte_num: prov.compte_provision, compte_lib: "Provision", debit: r2(montant), credit: 0 },
-        { ...commun, compte_num: config.reprise, compte_lib: "Reprise sur provision", debit: 0, credit: r2(montant) },
+        { ...commun, compte_num: prov.compte_provision, compte_lib: planReprise[prov.compte_provision] || "Provision", debit: r2(montant), credit: 0 },
+        { ...commun, compte_num: config.reprise, compte_lib: planReprise[config.reprise] || "Reprise sur provision", debit: 0, credit: r2(montant) },
       ];
 
       const { error } = await supabase.from("compta_ecritures").insert(lignes);
@@ -223,12 +244,16 @@ export async function POST(req: NextRequest) {
     const date = String(b.date_constitution || new Date().toISOString().slice(0, 10)).slice(0, 10);
     const numero = await numeroSuivant(b.societe_id, date.slice(0, 4));
 
+    const plan = await nomsDuPlan(String(b.societe_id));
     const commun = {
       societe_id: b.societe_id,
       journal_code: "OD",
       journal_lib: "Operations diverses",
       ecriture_num: numero,
       ecriture_date: date,
+      // 🆕 08/10 — la reference saisie (la facture douteuse), a defaut le numero.
+      piece_ref: propre(b.reference, 60) || numero,
+      piece_date: date,
       ecriture_lib: "Dotation - " + (propre(b.tiers, 80) || config.nom),
       devise: "EUR",
       valid_date: new Date().toISOString().slice(0, 10),
@@ -236,8 +261,8 @@ export async function POST(req: NextRequest) {
     };
 
     const lignes = [
-      { ...commun, compte_num: config.dotation, compte_lib: "Dotation aux provisions", debit: montant, credit: 0 },
-      { ...commun, compte_num: config.provision, compte_lib: "Provision", debit: 0, credit: montant },
+      { ...commun, compte_num: config.dotation, compte_lib: plan[config.dotation] || "Dotation aux provisions", debit: montant, credit: 0 },
+      { ...commun, compte_num: config.provision, compte_lib: plan[config.provision] || "Provision", debit: 0, credit: montant },
     ];
 
     const { error: erreurEcriture } = await supabase.from("compta_ecritures").insert(lignes);
