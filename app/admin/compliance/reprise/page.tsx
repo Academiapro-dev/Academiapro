@@ -113,7 +113,7 @@ export default function PageReprise() {
                 <>
                   <p style={{ color: "rgba(255,255,255,0.7)", fontSize: "14px", margin: "0 0 8px", lineHeight: "1.8" }}>
                     Collez le fichier des écritures comptables tel qu’il sort du logiciel
-                    précédent : colonnes séparées par des barres verticales, avec sa ligne
+                    précédent : colonnes séparées par des barres verticales ou des tabulations, avec sa ligne
                     d’en-tête. L’ordre des colonnes est lu depuis l’en-tête, rien n’est supposé.
                   </p>
                   <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px", margin: "0 0 14px", lineHeight: "1.7" }}>
