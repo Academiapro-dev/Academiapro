@@ -27,6 +27,11 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Un montant a la francaise, pour les messages : « 1 200,00 € ».
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
 function mots(t: string): string[] {
   return String(t || "")
     .toLowerCase()
@@ -72,7 +77,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = (req.nextUrl.searchParams.get("societe_id") || "").trim();
     if (!id) {
-      return NextResponse.json({ ok: false, erreur: "Dossier non precise." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Dossier non précisé." }, { status: 400 });
     }
 
     const refus = await lecture(id);
@@ -120,7 +125,7 @@ export async function POST(req: NextRequest) {
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.releve_id || !b.compte) {
       return NextResponse.json(
-        { ok: false, erreur: "Ligne de releve et compte de contrepartie sont necessaires." },
+        { ok: false, erreur: "Ligne de relevé et compte de contrepartie sont nécessaires." },
         { status: 400 }
       );
     }
@@ -132,7 +137,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!ligne) {
-      return NextResponse.json({ ok: false, erreur: "Ligne de releve introuvable." }, { status: 404 });
+      return NextResponse.json({ ok: false, erreur: "Ligne de relevé introuvable." }, { status: 404 });
     }
 
     // LE BARRAGE : le dossier vient de la ligne, jamais du navigateur.
@@ -143,7 +148,7 @@ export async function POST(req: NextRequest) {
 
     if (ligne.ecriture_num) {
       return NextResponse.json(
-        { ok: false, erreur: "Cette ligne est deja rapprochee a " + ligne.ecriture_num + "." },
+        { ok: false, erreur: "Cette ligne est déjà rapprochée à " + ligne.ecriture_num + "." },
         { status: 409 }
       );
     }
@@ -221,13 +226,30 @@ export async function POST(req: NextRequest) {
     const taux = Number(fiche.taux_tva) || 0;
     const lignes: any[] = [];
 
+    // 🆕 08/10 — LE NOM DE LA BANQUE ET CELUI DE LA TVA DEDUCTIBLE SE LISENT
+    // AU PLAN (le plan du dossier d abord, le plan commun ensuite), comme le
+    // nom du compte de contrepartie. Ils etaient ecrits en dur, la TVA sans
+    // accents (« TVA deductible sur autres biens et services »).
+    async function nomAuPlan(numero: string, defaut: string): Promise<string> {
+      const { data: p } = await supabase.from("compta_comptes").select("libelle")
+        .eq("numero", numero).eq("societe_id", ligne.societe_id).maybeSingle();
+      if (p && p.libelle) return String(p.libelle);
+      const { data: c } = await supabase.from("compta_comptes").select("libelle")
+        .eq("numero", numero).is("societe_id", null).maybeSingle();
+      return c && c.libelle ? String(c.libelle) : defaut;
+    }
+    const nomBanque = await nomAuPlan(String(ligne.compte_num), "Banque");
+    const nomTva = taux > 0 && !entree
+      ? await nomAuPlan("445660", "TVA déductible sur autres biens et services")
+      : "";
+
     if (taux > 0 && !entree) {
       const ht = r2(absolu / (1 + taux / 100));
       const tva = r2(absolu - ht);
 
       lignes.push({ ...commun, compte_num: compte, compte_lib: fiche.libelle, debit: ht, credit: 0 });
-      lignes.push({ ...commun, compte_num: "445660", compte_lib: "TVA deductible sur autres biens et services", debit: tva, credit: 0 });
-      lignes.push({ ...commun, compte_num: ligne.compte_num, compte_lib: "Banque", debit: 0, credit: absolu });
+      lignes.push({ ...commun, compte_num: "445660", compte_lib: nomTva, debit: tva, credit: 0 });
+      lignes.push({ ...commun, compte_num: ligne.compte_num, compte_lib: nomBanque, debit: 0, credit: absolu });
     } else {
       lignes.push({
         ...commun,
@@ -239,7 +261,7 @@ export async function POST(req: NextRequest) {
       lignes.push({
         ...commun,
         compte_num: ligne.compte_num,
-        compte_lib: "Banque",
+        compte_lib: nomBanque,
         debit: entree ? absolu : 0,
         credit: entree ? 0 : absolu,
       });
@@ -250,7 +272,7 @@ export async function POST(req: NextRequest) {
 
     if (Math.abs(r2(debit - credit)) > 0.005) {
       return NextResponse.json(
-        { ok: false, erreur: "L ecriture generee ne tombe pas juste. Rien n a ete enregistre." },
+        { ok: false, erreur: "L’écriture générée ne tombe pas juste. Rien n’a été enregistré." },
         { status: 500 }
       );
     }
@@ -272,7 +294,7 @@ export async function POST(req: NextRequest) {
       lignes: lignes.length,
       montant: absolu,
       tva: taux > 0 && !entree ? r2(absolu - r2(absolu / (1 + taux / 100))) : 0,
-      message: "Ecriture " + numero + " creee et rapprochee, " + absolu.toFixed(2) + " EUR.",
+      message: "Écriture " + numero + " créée et rapprochée, " + eurosFr(absolu) + ".",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
