@@ -68,7 +68,11 @@ const TABLES: any = {
 // ⚠️ SEULES LES BASES QUE controler-sites SAIT CONTROLER FIGURENT ICI : une
 // fiche « a_controler » d une autre base attendrait pour toujours. Toute
 // base ajoutee ici doit l etre aussi dans `TABLES` de controler-sites.
-const BASES_CONTROLEES: string[] = ["prospects_cabinets"];
+// 🆕 09/10 — TOUTES LES BASES : controler-sites les connait desormais toutes.
+const BASES_CONTROLEES: string[] = [
+  "prospects_cabinets", "prospects_avocats", "prospects_organismes", "prospects_immobilier",
+  "prospects_gros", "prospects_qualiopi", "prospects_interim", "prospects_ecommerce",
+];
 const EN_ATTENTE_DE_CONTROLE = "a_controler";
 
 // 🆕 01/10 (soir) — PLUSIEURS SITES A LA FOIS. Les sites etaient lus un par
