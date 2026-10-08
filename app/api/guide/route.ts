@@ -64,7 +64,7 @@ const GUIDES: any = {
   },
 
   "comptable.chiffres": {
-    titre: "Le tableau de bord",
+    titre: "Les chiffres",
     texte: "Ce qui entre, ce qui sort, ce qui reste. Ces montants sont "
       + "calculés depuis les écritures saisies : ils valent ce que vaut la "
       + "saisie.",
