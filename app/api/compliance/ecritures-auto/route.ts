@@ -36,6 +36,23 @@ function eurosFr(n: number): string {
   return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
 
+// 🆕 08/10 — LE NOM D UN COMPTE SE LIT AU PLAN, comme le fait la saisie : le
+// plan propre au dossier d abord, le plan commun ensuite. Les ecritures que le
+// logiciel passe lui-meme portaient des noms ecrits en dur, sans accents
+// (« TVA collectee », « Remunerations du personnel ») : le meme compte
+// portait alors deux noms selon que l ecriture etait saisie ou automatique.
+// Le nom donne en second ne sert que si le compte manque au plan.
+async function nomsDuPlan(societeId: string): Promise<any> {
+  const { data: communs } = await supabase
+    .from("compta_comptes").select("numero, libelle").is("societe_id", null).limit(3000);
+  const { data: propres } = await supabase
+    .from("compta_comptes").select("numero, libelle").eq("societe_id", societeId).limit(3000);
+  const plan: any = {};
+  for (const c of communs || []) plan[c.numero] = c.libelle;
+  for (const c of propres || []) plan[c.numero] = c.libelle;
+  return plan;
+}
+
 function base(req: NextRequest): string {
   return process.env.NEXT_PUBLIC_SITE_URL || "https://academiapro.fr";
 }
@@ -106,6 +123,11 @@ export async function POST(req: NextRequest) {
       const fin = annee + "-12-31";
       const lignes: any[] = [];
       let total = 0;
+      const planDotation = await nomsDuPlan(String(b.societe_id));
+      // 🆕 08/10 — UNE ECRITURE PASSEE PAR LE LOGICIEL PORTE SA REFERENCE.
+      // Sans elle, le tableau de bord et la revision reclamaient une piece
+      // pour la dotation que le logiciel venait lui-meme de calculer.
+      const pieceDotation = "DOTATION-" + annee;
 
       for (const x of biens) {
         lignes.push({
@@ -114,6 +136,8 @@ export async function POST(req: NextRequest) {
           journal_lib: "Operations diverses",
           ecriture_num: numero,
           ecriture_date: fin,
+          piece_ref: pieceDotation,
+          piece_date: fin,
           compte_num: x.compte_amort,
           compte_lib: "Amortissements - " + String(x.designation).slice(0, 80),
           ecriture_lib: "Dotation " + annee + " - " + String(x.designation).slice(0, 80),
@@ -132,8 +156,10 @@ export async function POST(req: NextRequest) {
         journal_lib: "Operations diverses",
         ecriture_num: numero,
         ecriture_date: fin,
+        piece_ref: pieceDotation,
+        piece_date: fin,
         compte_num: "681100",
-        compte_lib: "Dotations aux amortissements",
+        compte_lib: planDotation["681100"] || "Dotations aux amortissements",
         ecriture_lib: "Dotation aux amortissements " + annee,
         debit: total,
         credit: 0,
@@ -189,12 +215,16 @@ export async function POST(req: NextRequest) {
       }
 
       const lignes: any[] = [];
+      const plan = await nomsDuPlan(String(b.societe_id));
       const commun = {
         societe_id: b.societe_id,
         journal_code: "OD",
         journal_lib: "Operations diverses",
         ecriture_num: numero,
         ecriture_date: fin,
+        // 🆕 08/10 — la reference de la declaration : « CA3-2026-09 ».
+        piece_ref: String(data.formulaire || "TVA") + "-" + fin.slice(0, 7),
+        piece_date: fin,
         ecriture_lib: "Liquidation de TVA - " + data.periode.libelle,
         devise: "EUR",
         valid_date: aujourdhui,
@@ -202,25 +232,25 @@ export async function POST(req: NextRequest) {
       };
 
       if (t.collectee > 0) {
-        lignes.push({ ...commun, compte_num: "445710", compte_lib: "TVA collectee", debit: t.collectee, credit: 0 });
+        lignes.push({ ...commun, compte_num: "445710", compte_lib: plan["445710"] || "TVA collectée", debit: t.collectee, credit: 0 });
       }
       if (t.intracommunautaire_due > 0) {
-        lignes.push({ ...commun, compte_num: "445200", compte_lib: "TVA due intracommunautaire", debit: t.intracommunautaire_due, credit: 0 });
+        lignes.push({ ...commun, compte_num: "445200", compte_lib: plan["445200"] || "TVA due intracommunautaire", debit: t.intracommunautaire_due, credit: 0 });
       }
       if (t.deductible_biens_services > 0) {
-        lignes.push({ ...commun, compte_num: "445660", compte_lib: "TVA deductible sur biens et services", debit: 0, credit: t.deductible_biens_services });
+        lignes.push({ ...commun, compte_num: "445660", compte_lib: plan["445660"] || "TVA déductible sur autres biens et services", debit: 0, credit: t.deductible_biens_services });
       }
       if (t.deductible_immobilisations > 0) {
-        lignes.push({ ...commun, compte_num: "445620", compte_lib: "TVA deductible sur immobilisations", debit: 0, credit: t.deductible_immobilisations });
+        lignes.push({ ...commun, compte_num: "445620", compte_lib: plan["445620"] || "TVA déductible sur immobilisations", debit: 0, credit: t.deductible_immobilisations });
       }
       if (t.credit_anterieur_reporte > 0) {
-        lignes.push({ ...commun, compte_num: "445670", compte_lib: "Credit de TVA a reporter", debit: 0, credit: t.credit_anterieur_reporte });
+        lignes.push({ ...commun, compte_num: "445670", compte_lib: plan["445670"] || "Crédit de TVA à reporter", debit: 0, credit: t.credit_anterieur_reporte });
       }
 
       if (t.a_decaisser > 0) {
-        lignes.push({ ...commun, compte_num: "445510", compte_lib: "TVA a decaisser", debit: 0, credit: t.a_decaisser });
+        lignes.push({ ...commun, compte_num: "445510", compte_lib: plan["445510"] || "TVA à décaisser", debit: 0, credit: t.a_decaisser });
       } else if (t.credit_a_reporter > 0) {
-        lignes.push({ ...commun, compte_num: "445670", compte_lib: "Credit de TVA a reporter", debit: t.credit_a_reporter, credit: 0 });
+        lignes.push({ ...commun, compte_num: "445670", compte_lib: plan["445670"] || "Crédit de TVA à reporter", debit: t.credit_a_reporter, credit: 0 });
       }
 
       if (lignes.length < 2) {
