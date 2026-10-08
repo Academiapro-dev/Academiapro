@@ -406,7 +406,7 @@ export default function Facturation() {
           <div style={{ display: "flex", gap: "9px", flexWrap: "wrap", marginTop: "24px" }}>
             {!fige && (
               <button onClick={() => agir({ action: "emettre", id: doc.id }, "emettre")} disabled={occupe !== ""} style={PLEIN}>
-                {occupe === "emettre" ? "Émission…" : "Émettre le " + type.nom.toLowerCase()}
+                {occupe === "emettre" ? "Émission…" : (doc.type === "facture" ? "Émettre la facture" : doc.type === "avoir" ? "Émettre l'avoir" : "Émettre le devis")}
               </button>
             )}
 
@@ -779,7 +779,7 @@ export default function Facturation() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.78)", display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", zIndex: 50 }}>
           <div style={{ background: "#12121f", border: "1px solid rgba(200,169,110,0.4)", borderRadius: "12px", padding: "22px", maxWidth: "560px", width: "100%", maxHeight: "88vh", overflowY: "auto" }}>
             <div style={{ color: OR, fontSize: "12px", letterSpacing: "2px", marginBottom: "6px" }}>
-              NOUVEAU {creation.type === "devis" ? "DEVIS" : "FACTURE"}
+              {creation.type === "devis" ? "NOUVEAU DEVIS" : "NOUVELLE FACTURE"}
             </div>
             <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "12.5px", lineHeight: "1.7", margin: "0 0 18px" }}>
               Le document naît en brouillon, sans numéro. Vous ajoutez les lignes, puis vous
