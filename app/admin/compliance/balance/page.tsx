@@ -119,7 +119,7 @@ export default function PageBalance() {
         {erreur && <p style={{ color: "#e8836a", fontSize: "15px" }}>{erreur}</p>}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : d.vue === "grand_livre" ? (
           <>
             <div style={{ ...CARTE, border: "2px solid rgba(200,169,110,0.45)" }}>
@@ -263,7 +263,7 @@ export default function PageBalance() {
                     <div key={c.classe} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.06)", fontSize: "14px" }}>
                       <span style={{ color: "rgba(255,255,255,0.75)" }}>
                         {c.classe} · {c.nom}
-                        <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px" }}> · {c.comptes} compte(s)</span>
+                        <span style={{ color: "rgba(255,255,255,0.35)", fontSize: "12.5px" }}> · {c.comptes} {c.comptes > 1 ? "comptes" : "compte"}</span>
                       </span>
                       <span style={{ color: "#c8a96e" }}>
                         {c.solde.toLocaleString("fr-FR", { minimumFractionDigits: 2 })}
