@@ -105,8 +105,46 @@ export async function GET(req: NextRequest) {
 
     const parBeneficiaire: any = {};
 
+    // 🆕 08/10 — UNE CONTREPASSATION ANNULE SON ECRITURE D ORIGINE, Y COMPRIS
+    // DANS LA DAS2. Le beneficiaire se lit sur le compte auxiliaire, a defaut
+    // sur le libelle de l ecriture. Or une contrepassation porte son propre
+    // libelle (« Contrepassation de AC2026-0003 - … ») : quand l ecriture
+    // d origine n avait pas de tiers, les deux tombaient sous deux noms
+    // differents, et l honoraire annule restait « a declarer ». Trouve le
+    // 08/10 en preparant l essai de la DAS2 (Test Dupont SARL).
+    // La contrepassation est donc rangee sous le beneficiaire de la ligne
+    // qu elle annule : meme ecriture (« CONTREPASSATION <numero> » dans la
+    // piece), meme compte, meme montant. Si l origine n est pas dans
+    // l annee lue, rien ne change.
+    const PREFIXE_CP = "CONTREPASSATION ";
+    const origineDe = function (l: any): string {
+      const p = String(l.piece_ref || "");
+      return p.indexOf(PREFIXE_CP) === 0 ? p.slice(PREFIXE_CP.length).trim() : "";
+    };
+    const montantAbsolu = function (l: any): string {
+      return Math.abs(r2((Number(l.debit) || 0) - (Number(l.credit) || 0))).toFixed(2);
+    };
+    const origineParLigne: any = {};
+    const origineParEcriture: any = {};
     for (const l of retenues) {
-      const nom = beneficiaire(l);
+      if (origineDe(l)) continue;
+      const o = { nom: beneficiaire(l), identifiant: l.comp_aux_num || null };
+      origineParLigne[l.ecriture_num + "|" + l.compte_num + "|" + montantAbsolu(l)] = o;
+      if (!origineParEcriture[l.ecriture_num]) origineParEcriture[l.ecriture_num] = o;
+    }
+
+    for (const l of retenues) {
+      let nom = beneficiaire(l);
+      let identifiantLigne = l.comp_aux_num || null;
+      const origine = origineDe(l);
+      if (origine && !l.comp_aux_lib && !l.comp_aux_num) {
+        const o = origineParLigne[origine + "|" + l.compte_num + "|" + montantAbsolu(l)]
+          || origineParEcriture[origine];
+        if (o) {
+          nom = o.nom;
+          identifiantLigne = o.identifiant;
+        }
+      }
       const cle = nom.toLowerCase();
       const n = String(l.compte_num);
       const nature = (NATURES.find(function (x) { return n.startsWith(x.racine); }) || NATURES[0]);
@@ -114,7 +152,7 @@ export async function GET(req: NextRequest) {
       if (!parBeneficiaire[cle]) {
         parBeneficiaire[cle] = {
           beneficiaire: nom,
-          identifiant: l.comp_aux_num || null,
+          identifiant: identifiantLigne,
           montant: 0,
           natures: {},
           lignes: [],
@@ -137,7 +175,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // 🆕 08/10 — un beneficiaire dont tout a ete contrepasse (total nul)
+    // n en est plus un : il ne figure pas dans la liste.
     const tous = Object.keys(parBeneficiaire)
+      .filter(function (k) { return parBeneficiaire[k].montant !== 0; })
       .map(function (k) {
         const p = parBeneficiaire[k];
         return {
