@@ -75,6 +75,10 @@ const OUTILS = [
     // 🆕 09/09 : deux portes de gestion interne du cabinet.
     { nom: "Lettres de mission", href: "/admin/compliance/lettres-mission" },
     { nom: "Temps passés", href: "/admin/compliance/temps" },
+    // 🆕 08/10 : trois ecrans qui n avaient aucune porte dans les menus.
+    { nom: "Devis et factures", href: "/admin/compliance/facturation" },
+    { nom: "Facturation récurrente", href: "/admin/compliance/recurrente" },
+    { nom: "Prévisionnel de trésorerie", href: "/admin/compliance/tresorerie" },
     { nom: "Conformité internationale", href: "/admin/compliance" },
   ]},
 ];
