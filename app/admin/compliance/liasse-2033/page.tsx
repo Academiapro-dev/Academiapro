@@ -228,7 +228,7 @@ export default function PageLiasse2033() {
               lignes={d.formulaire_2033_b.lignes}
               total={d.formulaire_2033_b.resultat}
               totalN1={d.formulaire_2033_b.resultat_precedent}
-              libelleTotal="RESULTAT DE L EXERCICE"
+              libelleTotal="RÉSULTAT DE L’EXERCICE"
             />
 
             <div style={{ ...CARTE, background: "rgba(232,163,61,0.06)", border: "1px solid rgba(232,163,61,0.35)" }}>
