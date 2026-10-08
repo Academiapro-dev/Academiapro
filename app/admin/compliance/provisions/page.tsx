@@ -165,7 +165,7 @@ export default function PageProvisions() {
 
             {calcule > 0 && (
               <p style={{ color: "#c8a96e", fontSize: "15px", margin: "0 0 12px" }}>
-                Provision calculee : <strong>{euros(calcule)}</strong>
+                Provision calculée : <strong>{euros(calcule)}</strong>
               </p>
             )}
 
