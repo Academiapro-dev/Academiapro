@@ -80,6 +80,11 @@ const LECTURE: any = {
   interim: "prospects_interim",
   ecommerce: "prospects_ecommerce",
 };
+// 🆕 08/10 (soir) — LE CONTROLE DES SITES AVANT L ENVOI (controler-sites).
+// ⚠️ LES MEMES BASES QUE `TABLES` DE controler-sites.
+const CONTROLE: any = {
+  cabinets: "prospects_cabinets",
+};
 
 const HEURE = 3600 * 1000;
 // Deux observations plus rapprochees que cela ne se comparent pas (un appel
@@ -198,6 +203,28 @@ async function observerLecture(): Promise<any> {
   return { reste: reste, derniere: le, par_base: parBase, erreurs: erreurs };
 }
 
+// 🆕 08/10 (soir) — CE QU IL RESTE A CONTROLER : les fiches que
+// controler-sites n a pas encore jugees (statut « a_controler »).
+async function observerControle(): Promise<any> {
+  const parBase: any = {};
+  let reste = 0;
+  let le: string | null = null;
+  const erreurs: string[] = [];
+  for (const nom of Object.keys(CONTROLE)) {
+    const table = CONTROLE[nom];
+    const { count, error } = await supabase.from(table)
+      .select("id", { count: "exact", head: true })
+      .eq("statut", "a_controler");
+    if (error) { erreurs.push(nom + " : " + String(error.message || error).slice(0, 160)); continue; }
+    const d = await derniere(table, "site_controle_le");
+    if (d.erreur) erreurs.push(nom + " : " + d.erreur);
+    parBase[nom] = { reste: count || 0, derniere: d.le };
+    reste += count || 0;
+    le = plusRecente(le, d.le);
+  }
+  return { reste: reste, derniere: le, par_base: parBase, erreurs: erreurs };
+}
+
 // LES ADRESSES ECRITES DEPUIS `depuis` QUI N ONT PAS LA FORME D UNE ADRESSE.
 async function adressesMalFormees(depuis: string): Promise<{ base: string; email: string }[]> {
   const sortie: { base: string; email: string }[] = [];
@@ -240,6 +267,7 @@ function tableauHtml(o: any): string {
   };
   une("Recherche des sites", o.recherche, "chercher");
   une("Lecture des sites", o.lecture, "lire");
+  une("Contrôle des sites", o.controle, "contrôler");
   return "<table style=\"border-collapse:collapse;font-size:14px\">" + lignes.join("") + "</table>";
 }
 
@@ -278,6 +306,7 @@ export async function GET(req: NextRequest) {
     le: maintenant.toISOString(),
     recherche: await observerRecherche(),
     lecture: await observerLecture(),
+    controle: await observerControle(),
   };
 
   // L ESSAI : un courriel, et rien d autre.
@@ -305,6 +334,7 @@ export async function GET(req: NextRequest) {
   const arrets: string[] = [];
   if (aLArret(observation.recherche, avant && avant.recherche, avantLe, maintenantMs)) arrets.push("recherche");
   if (aLArret(observation.lecture, avant && avant.lecture, avantLe, maintenantMs)) arrets.push("lecture");
+  if (aLArret(observation.controle, avant && avant.controle, avantLe, maintenantMs)) arrets.push("controle");
 
   if (voir) {
     return NextResponse.json({
@@ -320,7 +350,7 @@ export async function GET(req: NextRequest) {
 
   let alerte: any = etat.alerte || null;
   if (!tropProche) {
-    const noms: any = { recherche: "la recherche des sites", lecture: "la lecture des sites" };
+    const noms: any = { recherche: "la recherche des sites", lecture: "la lecture des sites", controle: "le contrôle des sites" };
     if (arrets.length > 0) {
       const dernierCourriel = alerte && alerte.dernier_courriel ? new Date(String(alerte.dernier_courriel)).getTime() : 0;
       if (!alerte || maintenantMs - dernierCourriel >= RAPPEL_MS) {
