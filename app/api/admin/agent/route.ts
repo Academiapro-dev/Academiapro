@@ -104,25 +104,60 @@ Tu aides les organismes de formation a obtenir et maintenir la certification Qua
       messages.push({ role: "user", content: message + (contexte ? " [Contexte : " + contexte + "]" : "") });
     }
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": process.env.ANTHROPIC_API_KEY || "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: modele,
-        max_tokens: 8000,
-        system: [{ type: "text", text: systemPrompt,
-          cache_control: { type: "ephemeral" } }],
-        messages,
-      }),
-    });
+    // 🆕 09/10 (01h35) — L ERREUR DU SERVICE SE LIT, ET LE CONSEILLER REPOND
+    // QUAND MEME. Premier essai avec Opus 5.5 : l ecran a affiche « Erreur. »
+    // sans rien dire de plus (le message du service etait jete). Desormais :
+    //   · si le service refuse le modele choisi, la question est reposee au
+    //     modele d avant (Sonnet 4.6), et la reponse dit pourquoi ;
+    //   · si tout echoue, l ecran affiche le message du service ;
+    //   · la reponse est le premier bloc de TEXTE (pas forcement le premier
+    //     bloc tout court).
+    const MODELE_DE_SECOURS = "claude-sonnet-4-6";
+    const demander = async function (nomModele: string): Promise<any> {
+      const r = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY || "",
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          model: nomModele,
+          max_tokens: 8000,
+          system: [{ type: "text", text: systemPrompt,
+            cache_control: { type: "ephemeral" } }],
+          messages,
+        }),
+      });
+      let d: any = null;
+      try { d = await r.json(); } catch { d = null; }
+      return { http: r.status, data: d || {} };
+    };
+    const texteDe = function (d: any): string {
+      const blocs: any[] = Array.isArray(d && d.content) ? d.content : [];
+      const bloc = blocs.find(function (b: any) { return b && b.type === "text" && b.text; });
+      return bloc ? String(bloc.text) : "";
+    };
+    const erreurDe = function (essai: any): string {
+      const e = essai.data && essai.data.error;
+      const dit = e ? String((e.type || "") + " : " + (e.message || "")) : "réponse sans texte";
+      return "http " + essai.http + " — " + dit.slice(0, 300);
+    };
 
-    const data = await response.json();
+    let essai = await demander(modele);
+    let refusDuModele = "";
+    if (!texteDe(essai.data) && modele !== MODELE_DE_SECOURS) {
+      refusDuModele = erreurDe(essai);
+      essai = await demander(MODELE_DE_SECOURS);
+    }
+    const data = essai.data;
     mesurer("admin-agent", data);
-    const reply = data.content?.[0]?.text || "Erreur.";
+    const texte = texteDe(data);
+    const reply = texte
+      ? texte + (refusDuModele
+        ? "\n\n— (Réponse donnée par " + MODELE_DE_SECOURS + " : le modèle " + modele + " n'a pas répondu. " + refusDuModele + ")"
+        : "")
+      : "Erreur du service : " + erreurDe(essai) + (refusDuModele ? " — et avant, avec " + modele + " : " + refusDuModele : "");
 
     // Upload fichiers dans Supabase Storage
     if (fichiersList.length > 0) {
