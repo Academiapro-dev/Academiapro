@@ -85,7 +85,13 @@ export async function GET(req: NextRequest) {
       if (!comptes[num]) comptes[num] = { numero: num, libelle: l.compte_lib, debit: 0, credit: 0, ouvertes: 0 };
       comptes[num].debit = r2(comptes[num].debit + (Number(l.debit) || 0));
       comptes[num].credit = r2(comptes[num].credit + (Number(l.credit) || 0));
-      if (plan[num] && plan[num].lettrable && !l.lettrage) comptes[num].ouvertes += 1;
+      // 🆕 08/10 — « LETTRAGE EN RETARD » NE REGARDE QUE LES CLIENTS ET LES
+      // FOURNISSEURS (comptes 40 et 41). Le plan commun marque aussi comme
+      // lettrables la banque, la TVA, le personnel et la securite sociale :
+      // sur un dossier tenu normalement, la revision reclamait alors le
+      // lettrage de la banque (qui se rapproche, elle ne se lettre pas) et de
+      // la TVA, a chaque ouverture. L ecran de lettrage, lui, ne change pas.
+      if (plan[num] && plan[num].lettrable && !l.lettrage && /^4[01]/.test(num)) comptes[num].ouvertes += 1;
 
       debitTotal = r2(debitTotal + (Number(l.debit) || 0));
       creditTotal = r2(creditTotal + (Number(l.credit) || 0));
