@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
     if (!droit) {
       // On ne dit pas pourquoi : un message precis permettrait d essayer
       // des jetons un a un.
-      return NextResponse.json({ ok: false, erreur: "Lien invalide ou expire." }, { status: 403 });
+      return NextResponse.json({ ok: false, erreur: "Lien invalide ou expiré." }, { status: 403 });
     }
 
     // On note le passage, sans bloquer si l ecriture echoue.
@@ -107,7 +107,12 @@ export async function GET(req: NextRequest) {
       if (!e.ecriture_num) continue;
       if (deposees.indexOf(e.ecriture_num) >= 0) continue;
 
-      const montant = Math.max(Number(e.debit) || 0, Number(e.credit) || 0);
+      // 🆕 08/10 — LE MONTANT D UNE ECRITURE EST SON TOTAL, COMPTE UNE FOIS.
+      // On additionnait le plus grand des deux montants de CHAQUE ligne :
+      // une facture de 1 000 € hors taxes, 200 € de TVA et 1 200 € toutes
+      // taxes s affichait 2 400 €. Le total d une ecriture, c est la somme de
+      // ses debits (egale a celle de ses credits).
+      const montant = Number(e.debit) || 0;
 
       if (!parNumero[e.ecriture_num]) {
         parNumero[e.ecriture_num] = {
@@ -117,7 +122,7 @@ export async function GET(req: NextRequest) {
           montant: 0,
         };
       }
-      parNumero[e.ecriture_num].montant = parNumero[e.ecriture_num].montant + montant;
+      parNumero[e.ecriture_num].montant = r2(parNumero[e.ecriture_num].montant + montant);
     }
 
     const attendues = Object.keys(parNumero)
@@ -150,7 +155,7 @@ export async function POST(req: NextRequest) {
 
     const droit = await acces(jeton);
     if (!droit) {
-      return NextResponse.json({ ok: false, erreur: "Lien invalide ou expire." }, { status: 403 });
+      return NextResponse.json({ ok: false, erreur: "Lien invalide ou expiré." }, { status: 403 });
     }
 
     const fd = await req.formData();
@@ -158,7 +163,7 @@ export async function POST(req: NextRequest) {
     const ecritureNum = String(fd.get("ecriture_num") || "").trim();
 
     if (!fichier || fichier.size < 100) {
-      return NextResponse.json({ ok: false, erreur: "Aucun fichier recu." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Aucun fichier reçu." }, { status: 400 });
     }
 
     if (fichier.size > 15 * 1024 * 1024) {
