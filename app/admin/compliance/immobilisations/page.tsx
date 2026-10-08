@@ -195,7 +195,7 @@ export default function PageImmobilisations() {
         )}
 
         {chargement ? (
-          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture...</p></div>
+          <div style={CARTE}><p style={{ color: "rgba(255,255,255,0.6)", margin: 0 }}>Lecture…</p></div>
         ) : !d ? null : (
           <>
             <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "16px" }}>
