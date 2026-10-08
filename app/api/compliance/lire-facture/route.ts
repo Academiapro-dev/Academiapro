@@ -76,6 +76,20 @@ function nombre(v: string): number {
   return isNaN(n) ? 0 : n;
 }
 
+// Un montant a la francaise, pour les messages : « 1 200,00 € ».
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+// 🆕 08/10 — LE CONTENU D UN BLOC DU XML (de sa balise ouvrante a sa balise
+// fermante). Le nom doit etre suivi d un espace, d un « > » ou d un « / » :
+// « ExchangedDocument » ne doit pas attraper « ExchangedDocumentContext ».
+function blocXml(xml: string, nom: string): string {
+  const m = xml.match(new RegExp(
+    "<((?:[a-zA-Z0-9]+:)?" + nom + ")(?:\\s[^>]*)?>([\\s\\S]*?)</\\1>", "i"));
+  return m ? String(m[2]) : "";
+}
+
 // AAAAMMJJ (format 102 de Factur-X) ou AAAA-MM-JJ deja normalise.
 function dateFacturX(v: string): string {
   const t = String(v || "").trim();
@@ -107,7 +121,16 @@ function xmlAttache(octets: Buffer): { xml: string; diagnostic: string } {
     if (fin > 0) {
       const bloc = morceau.slice(0, fin + 200);
       if (estXmlFacture(bloc)) {
-        return { xml: bloc, diagnostic: "xml en clair" };
+        // 🆕 08/10 — LES ACCENTS D UN XML STOCKE EN CLAIR. Le fichier est lu
+        // octet par octet (un octet = un caractere) pour pouvoir le balayer ;
+        // or un XML de facture est presque toujours en UTF-8, ou une lettre
+        // accentuee tient sur DEUX octets : « Rhône » ressortait « RhÃ´ne ».
+        // On relit donc le bloc en UTF-8, sauf s il annonce un autre codage.
+        const codage = (bloc.match(/<\?xml[^>]*encoding=["']([^"']+)["']/i) || [])[1] || "UTF-8";
+        const texte = /^utf-?8$/i.test(codage)
+          ? Buffer.from(bloc, "latin1").toString("utf8")
+          : bloc;
+        return { xml: texte, diagnostic: "xml en clair" };
       }
     }
   }
@@ -169,13 +192,28 @@ function lireFacturX(xml: string): any {
 
   const taux = nombre(baliseXml(xml, "RateApplicablePercent"));
 
-  // Le vendeur : premier bloc Name du document.
+  // 🆕 08/10 — LE VENDEUR ET LE NUMERO DE LA FACTURE SE LISENT A LEUR PLACE.
+  // Jusqu ici on prenait le PREMIER « Name » et le PREMIER « ID » du fichier.
+  // Or, dans une facture electronique au format courant :
+  //   - le premier « ID » est l identifiant de la NORME (« urn:cen.eu:… »,
+  //     « urn:factur-x.eu:… »), pas le numero de la facture ;
+  //   - le premier « Name » est le nom du PREMIER ARTICLE des que la facture
+  //     detaille ses lignes, pas le nom du fournisseur.
+  // Le fournisseur est dans le bloc du vendeur (SellerTradeParty ; pour le
+  // format UBL, AccountingSupplierParty), le numero dans l en-tete du
+  // document (ExchangedDocument). A defaut de ces blocs, on garde l ancienne
+  // lecture : rien n est perdu pour un fichier qui se lisait deja bien.
   const noms = balisesXml(xml, "Name");
-  const fournisseur = noms.length > 0 ? noms[0] : "";
+  const vendeur = blocXml(xml, "SellerTradeParty") || blocXml(xml, "AccountingSupplierParty");
+  const fournisseur = (vendeur ? baliseXml(vendeur, "Name") : "")
+    || (noms.length > 0 ? noms[0] : "");
+
+  const enTete = blocXml(xml, "ExchangedDocument");
+  const reference = (enTete ? baliseXml(enTete, "ID") : "") || baliseXml(xml, "ID");
 
   return {
     fournisseur: fournisseur,
-    reference: baliseXml(xml, "ID"),
+    reference: reference,
     date: dateFacturX(baliseXml(xml, "DateTimeString") || baliseXml(xml, "IssueDate")),
     montant_ht: r2(baseHt > 0 ? baseHt : ht),
     montant_tva: r2(tva),
@@ -194,7 +232,7 @@ export async function POST(req: NextRequest) {
 
     const b = await req.json().catch(function () { return null; });
     if (!b || !b.piece_id) {
-      return NextResponse.json({ ok: false, erreur: "Piece non precisee." }, { status: 400 });
+      return NextResponse.json({ ok: false, erreur: "Pièce non précisée." }, { status: 400 });
     }
 
     const { data: piece } = await supabase
@@ -204,7 +242,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle();
 
     if (!piece) {
-      return NextResponse.json({ ok: false, erreur: "Piece introuvable." }, { status: 404 });
+      return NextResponse.json({ ok: false, erreur: "Pièce introuvable." }, { status: 404 });
     }
 
     // LE BARRAGE : le dossier vient de la piece, jamais du navigateur.
@@ -323,7 +361,7 @@ export async function POST(req: NextRequest) {
         lu = JSON.parse(texte);
       } catch (e) {
         return NextResponse.json(
-          { ok: false, erreur: "Reponse illisible du lecteur.", brut: texte.slice(0, 300) },
+          { ok: false, erreur: "Réponse illisible du lecteur.", brut: texte.slice(0, 300) },
           { status: 500 }
         );
       }
@@ -373,7 +411,7 @@ export async function POST(req: NextRequest) {
 
       if (meilleur && meilleur.note >= 0.5) {
         compte = meilleur.compte;
-        origine = "ce fournisseur a deja ete impute sur ce compte";
+        origine = "ce fournisseur a déjà été imputé sur ce compte";
       }
     }
 
@@ -410,15 +448,15 @@ export async function POST(req: NextRequest) {
       ecart: ecart,
       proposition: { compte: compte, origine: origine },
       message: structuree
-        ? "Facture electronique lue dans le fichier structure : "
-          + (lu.fournisseur || "fournisseur inconnu") + ", " + ttc.toFixed(2)
-          + " EUR TTC. Montants certains, aucune interpretation."
+        ? "Facture électronique lue dans le fichier structuré : "
+          + (lu.fournisseur || "fournisseur inconnu") + ", " + eurosFr(ttc)
+          + " TTC. Montants certains, aucune interprétation."
         : coherent
           ? "Facture lue : " + (lu.fournisseur || "fournisseur inconnu") + ", "
-            + ttc.toFixed(2) + " EUR TTC."
+            + eurosFr(ttc) + " TTC."
           : "Facture lue mais les montants ne tombent pas juste : "
-            + ht.toFixed(2) + " HT plus " + tva.toFixed(2) + " de TVA ne font pas "
-            + ttc.toFixed(2) + ". Verifiez avant de saisir.",
+            + eurosFr(ht) + " HT plus " + eurosFr(tva) + " de TVA ne font pas "
+            + eurosFr(ttc) + ". Vérifiez avant de saisir.",
     });
   } catch (e: any) {
     return NextResponse.json({ ok: false, erreur: String(e) }, { status: 500 });
