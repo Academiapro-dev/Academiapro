@@ -262,6 +262,12 @@ export async function POST(req: NextRequest) {
     const iDebit = col("debit");
     const iCredit = col("credit");
     const iLettrage = col("ecriturelet");
+    // 🆕 08/10 — LE TIERS (code et nom du compte auxiliaire). Ces deux
+    // colonnes du FEC etaient ignorees : un dossier repris perdait ses
+    // fournisseurs et ses clients, et sa DAS2 sortait sans beneficiaire.
+    // Absentes ou vides, rien ne change.
+    const iAuxNum = col("compauxnum");
+    const iAuxLib = col("compauxlib");
 
     if (iNum < 0 || iDate < 0 || iCompte < 0 || iDebit < 0 || iCredit < 0) {
       return NextResponse.json(
@@ -332,6 +338,8 @@ export async function POST(req: NextRequest) {
         ecriture_date: date,
         compte_num: compte,
         compte_lib: propre(c[iCompteLib], 200) || "Compte repris",
+        comp_aux_num: iAuxNum >= 0 ? propre(c[iAuxNum], 40) : null,
+        comp_aux_lib: iAuxLib >= 0 ? propre(c[iAuxLib], 120) : null,
         piece_ref: iPiece >= 0 ? propre(c[iPiece], 60) : null,
         piece_date: iPieceDate >= 0 ? dateFec(c[iPieceDate]) : date,
         ecriture_lib: iLib >= 0 ? propre(c[iLib], 200) : "Écriture reprise",
