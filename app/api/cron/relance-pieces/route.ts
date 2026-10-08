@@ -71,6 +71,16 @@ function r2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// Un montant a la francaise : « 1 200,00 € ».
+function eurosFr(n: number): string {
+  return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+}
+
+// « 3 écritures », « 1 écriture » : le texte s accorde avec le nombre.
+function accord(n: number, un: string, plusieurs: string): string {
+  return n + " " + (n > 1 ? plusieurs : un);
+}
+
 function jour(d: any): string {
   if (!d) return "";
   return new Date(d).toLocaleDateString("fr-FR");
@@ -234,7 +244,11 @@ export async function GET(req: NextRequest) {
           continue;
         }
 
-        const montant = Math.max(Number(e.debit) || 0, Number(e.credit) || 0);
+        // 🆕 08/10 — LE MONTANT D UNE ECRITURE EST SON TOTAL, COMPTE UNE FOIS
+        // (la somme de ses debits). On additionnait le plus grand montant de
+        // chaque ligne : une facture de 1 200 € toutes taxes etait reclamee
+        // pour 2 400 €.
+        const montant = Number(e.debit) || 0;
 
         if (!parNumero[e.ecriture_num]) {
           parNumero[e.ecriture_num] = {
@@ -245,7 +259,7 @@ export async function GET(req: NextRequest) {
             montant: 0,
           };
         }
-        parNumero[e.ecriture_num].montant = parNumero[e.ecriture_num].montant + montant;
+        parNumero[e.ecriture_num].montant = r2(parNumero[e.ecriture_num].montant + montant);
       }
 
       const manquantes = Object.keys(parNumero)
@@ -330,13 +344,13 @@ export async function GET(req: NextRequest) {
           + "<td style=\"padding:7px 10px;border-bottom:1px solid #eee\">" + m.numero + "</td>"
           + "<td style=\"padding:7px 10px;border-bottom:1px solid #eee\">" + (m.libelle || "") + "</td>"
           + "<td style=\"padding:7px 10px;border-bottom:1px solid #eee;text-align:right\">"
-          + m.montant.toFixed(2) + " €</td>"
+          + eurosFr(m.montant) + "</td>"
           + "</tr>";
       }).join("");
 
       const reste = manquantes.length > 40
-        ? "<p style=\"color:#666;font-size:13px\">… et " + (manquantes.length - 40)
-          + " autre(s) écriture(s) dans votre espace.</p>"
+        ? "<p style=\"color:#666;font-size:13px\">… et "
+          + accord(manquantes.length - 40, "autre écriture", "autres écritures") + " dans votre espace.</p>"
         : "";
 
       const html =
@@ -344,8 +358,8 @@ export async function GET(req: NextRequest) {
         + "<p style=\"letter-spacing:3px;color:#1a3a6b;text-align:center;font-size:12px\">MR. COMPTABLE</p>"
         + "<h1 style=\"font-size:21px;text-align:center;margin:6px 0 24px\">Justificatifs manquants</h1>"
         + "<p>" + (prenom ? "Bonjour " + prenom : "Bonjour") + ",</p>"
-        + "<p>Votre comptabilité comporte <b>" + manquantes.length + " écriture(s)</b> sans "
-        + "justificatif, pour un total de <b>" + total.toFixed(2) + " €</b>.</p>"
+        + "<p>Votre comptabilité comporte <b>" + accord(manquantes.length, "écriture", "écritures") + "</b> sans "
+        + "justificatif, pour un total de <b>" + eurosFr(total) + "</b>.</p>"
         + "<p>Ces pièces sont exigées en cas de contrôle, et elles conditionnent la "
         + "déduction de la taxe sur la valeur ajoutée. Merci de les déposer dès que "
         + "possible.</p>"
@@ -377,7 +391,7 @@ export async function GET(req: NextRequest) {
             body: JSON.stringify({
               from: "Mr. Comptable <contact@mrcomptable.fr>",
               to: [destinataire],
-              subject: manquantes.length + " justificatif(s) manquant(s) — " + (s.raison_sociale || ""),
+              subject: accord(manquantes.length, "justificatif manquant", "justificatifs manquants") + " — " + (s.raison_sociale || ""),
               html: html,
             }),
           });
@@ -406,9 +420,9 @@ export async function GET(req: NextRequest) {
         contact_id: principal ? principal.id : null,
         motif: "piece_manquante",
         canal: "email",
-        objet: manquantes.length + " justificatif(s) manquant(s)",
+        objet: accord(manquantes.length, "justificatif manquant", "justificatifs manquants"),
         corps: html,
-        reference: manquantes.length + " écriture(s)",
+        reference: accord(manquantes.length, "écriture", "écritures"),
         montant: total,
         statut: envoye ? "envoyee" : "echec",
         motif_echec: envoye ? null : "envoi refuse par Resend",
