@@ -53,7 +53,10 @@ const ACTIF: Poste[] = [
   { libelle: "Immobilisations corporelles", prefixes: ["21", "22", "23", "281", "282"], sens: "debit" },
   { libelle: "Immobilisations financières", prefixes: ["26", "27", "29"], sens: "debit" },
   { libelle: "Stocks et en-cours", prefixes: ["3"], sens: "debit" },
-  { libelle: "Clients et comptes rattachés", prefixes: ["41"], sens: "debit" },
+  // 🆕 08/10 — « 491 » : la depreciation d une creance douteuse vient en moins
+  // des clients. Elle n etait rattachee a aucun poste : l actif depassait le
+  // passif du montant de la depreciation (« actif et passif ne sont pas egaux »).
+  { libelle: "Clients et comptes rattachés", prefixes: ["41", "491"], sens: "debit" },
   { libelle: "Autres créances", prefixes: ["409", "42", "43", "44", "45", "46", "47"], sens: "debit" },
   { libelle: "Valeurs mobilières de placement", prefixes: ["50"], sens: "debit" },
   { libelle: "Disponibilités", prefixes: ["51", "53", "54", "58", "59"], sens: "debit" },
