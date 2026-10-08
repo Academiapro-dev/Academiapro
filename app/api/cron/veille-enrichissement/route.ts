@@ -82,8 +82,16 @@ const LECTURE: any = {
 };
 // 🆕 08/10 (soir) — LE CONTROLE DES SITES AVANT L ENVOI (controler-sites).
 // ⚠️ LES MEMES BASES QUE `TABLES` DE controler-sites.
+// 🆕 09/10 — toutes les bases.
 const CONTROLE: any = {
   cabinets: "prospects_cabinets",
+  avocats: "prospects_avocats",
+  organismes: "prospects_organismes",
+  immobilier: "prospects_immobilier",
+  gros: "prospects_gros",
+  qualiopi: "prospects_qualiopi",
+  interim: "prospects_interim",
+  ecommerce: "prospects_ecommerce",
 };
 
 const HEURE = 3600 * 1000;
