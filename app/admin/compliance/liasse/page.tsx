@@ -146,7 +146,7 @@ export default function PageLiasse() {
     <div style={CADRE}>
       <div style={{ maxWidth: "1000px", margin: "0 auto" }}>
 
-        <a href="/admin/comptable/tableau-de-bord"
+        <a href="/admin/compliance/tableau-de-bord"
           style={{ color: OR, fontSize: "14px", textDecoration: "none" }}>
           ← Retour à vos dossiers
         </a>
@@ -286,7 +286,7 @@ export default function PageLiasse() {
               Cette liasse reste accessible tant qu'elle n'est pas
               télétransmise. Une fois envoyée, sa réponse et son accusé de
               réception apparaîtront dans{" "}
-              <a href="/admin/comptable/teledec" style={{ color: OR }}>
+              <a href="/admin/compliance/teledec" style={{ color: OR }}>
                 les télétransmissions
               </a>.
             </p>
