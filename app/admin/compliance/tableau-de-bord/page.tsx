@@ -161,7 +161,7 @@ export default function PageTableauDeBord() {
   // repeter en raccourci faisait doublon a l ecran — deux boutons cote a
   // cote menant au meme endroit.
   const RACCOURCIS = [
-    { nom: "Tableau de bord", href: "/admin/compliance/chiffres" },
+    { nom: "Les chiffres", href: "/admin/compliance/chiffres" },
     { nom: "Déposer une facture", href: "/admin/compliance/pieces" },
     { nom: "Saisir une écriture", href: "/admin/compliance/saisie" },
     // 🆕 28/09 — la paie du mois, sans taper d adresse.
