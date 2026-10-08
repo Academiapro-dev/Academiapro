@@ -253,6 +253,10 @@ export async function POST(req: NextRequest) {
         journal_lib: "Operations diverses",
         ecriture_num: "OD" + fin.slice(0, 4) + "-CLOTURE",
         ecriture_date: fin,
+        // 🆕 08/10 — l ecriture de cloture porte sa reference, comme toute
+        // ecriture passee par le logiciel.
+        piece_ref: "CLOTURE-" + fin.slice(0, 4),
+        piece_date: fin,
         compte_num: c.numero,
         compte_lib: c.libelle,
         ecriture_lib: "Solde de clôture " + fin.slice(0, 4),
@@ -275,6 +279,8 @@ export async function POST(req: NextRequest) {
         journal_lib: "Operations diverses",
         ecriture_num: "OD" + fin.slice(0, 4) + "-CLOTURE",
         ecriture_date: fin,
+        piece_ref: "CLOTURE-" + fin.slice(0, 4),
+        piece_date: fin,
         compte_num: compteResultat,
         compte_lib: libelleResultat,
         ecriture_lib: "Résultat de l'exercice " + fin.slice(0, 4),
