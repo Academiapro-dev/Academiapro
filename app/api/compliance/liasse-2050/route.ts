@@ -217,6 +217,15 @@ export async function GET(req: NextRequest) {
     const gestionSoldee = Math.abs(produits) < 0.005 && Math.abs(charges) < 0.005;
     const exerciceCloture = gestionSoldee && Math.abs(resultatAuBilan) > 0.005;
 
+    // 🆕 08/10 — AVANT LA CLOTURE, les comptes 120 et 129 sont vides : le
+    // resultat ne figure pas encore au bilan, et l actif depasse le passif
+    // EXACTEMENT du resultat. Ce n est pas une anomalie. Sans cette regle, la
+    // liasse d un dossier au reel normal affichait « ne tombe pas juste »
+    // pendant tout l exercice, jusqu a sa cloture. Meme regle que la 2033.
+    const exerciceOuvert = !gestionSoldee && Math.abs(resultatAuBilan) < 0.005;
+    const ecartBilan = r2(totalNet - totalPassif);
+    const ecartResiduel = exerciceOuvert ? r2(ecartBilan - resultatCalcule) : ecartBilan;
+
     const orphelins = Object.keys(comptes)
       .filter(function (n) {
         if (pris[n]) return false;
@@ -229,18 +238,31 @@ export async function GET(req: NextRequest) {
 
     const controles = [
       {
-        nom: "Total actif net égale total passif",
-        ok: Math.abs(r2(totalNet - totalPassif)) < 0.01,
-        detail: "Actif " + fr2(totalNet) + " · Passif " + fr2(totalPassif),
+        nom: exerciceOuvert
+          ? "Actif net égale passif plus résultat"
+          : "Total actif net égale total passif",
+        ok: Math.abs(ecartResiduel) < 0.01,
+        detail: exerciceOuvert
+          ? "Actif " + fr2(totalNet) + " · Passif " + fr2(totalPassif)
+            + " · Résultat " + fr2(resultatCalcule)
+            + (Math.abs(ecartResiduel) < 0.01
+              ? " — l’écart correspond exactement au résultat de l’exercice"
+              : " — il reste " + fr2(ecartResiduel) + " d’écart inexpliqué")
+          : "Actif " + fr2(totalNet) + " · Passif " + fr2(totalPassif),
       },
       {
-        nom: "Le résultat se retrouve au bilan",
-        ok: exerciceCloture
+        nom: exerciceOuvert
+          ? "Le résultat sera porté au bilan à la clôture"
+          : "Le résultat se retrouve au bilan",
+        ok: exerciceCloture || exerciceOuvert
           ? true
           : Math.abs(r2(resultatCalcule - resultatAuBilan)) < 0.01,
         detail: exerciceCloture
           ? "Exercice clôturé — résultat de " + fr2(resultatAuBilan) + " logé au bilan"
-          : "Calculé " + fr2(resultatCalcule),
+          : exerciceOuvert
+            ? "Exercice ouvert : résultat calculé " + fr2(resultatCalcule)
+              + ", pas encore affecté aux comptes 120 ou 129"
+            : "Calculé " + fr2(resultatCalcule),
       },
       {
         nom: "Tous les comptes sont ventilés",
@@ -256,6 +278,7 @@ export async function GET(req: NextRequest) {
       dossier: { code: dossier.code, raison_sociale: dossier.raison_sociale, siren: dossier.siren },
       periode: { debut: debut, fin: fin },
       exercice_cloture: exerciceCloture,
+      exercice_ouvert: exerciceOuvert,
       bilan_actif: { lignes: actif, total_brut: totalBrut, total_amortissements: totalAmort, total_net: totalNet },
       bilan_passif: { lignes: passif, total: totalPassif },
       compte_resultat: { lignes: resultat, produits: produits, charges: charges, resultat: resultatCalcule },
