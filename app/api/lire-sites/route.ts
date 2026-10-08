@@ -59,6 +59,18 @@ const TABLES: any = {
   ecommerce: "prospects_ecommerce",
 };
 
+// 🆕 08/10 (soir) — LE CONTROLE AVANT L ENVOI. Une adresse tiree d un site
+// que l outil a DEVINE (site_trouve_par commence par « devine ») ne part
+// plus directement en campagne : la fiche recoit « a_controler », et c est
+// la route controler-sites qui la rend « enrichi » (prouvee) ou
+// « a_verifier » (non prouvee). Mesure le 08/10 : 8 sites faux sur 148
+// controles a la main, dont un courriel deja parti.
+// ⚠️ SEULES LES BASES QUE controler-sites SAIT CONTROLER FIGURENT ICI : une
+// fiche « a_controler » d une autre base attendrait pour toujours. Toute
+// base ajoutee ici doit l etre aussi dans `TABLES` de controler-sites.
+const BASES_CONTROLEES: string[] = ["prospects_cabinets"];
+const EN_ATTENTE_DE_CONTROLE = "a_controler";
+
 // 🆕 01/10 (soir) — PLUSIEURS SITES A LA FOIS. Les sites etaient lus un par
 // un : environ 120 par heure. Chaque site attend surtout le reseau ; on en
 // lit huit en meme temps (huit sites differents : aucun n est sollicite
@@ -1015,7 +1027,11 @@ async function traiter(nom: string, combien: number, depart: number): Promise<an
     let issue = "";
     if (r.adresse) {
       maj.email = r.adresse;
-      maj.statut = "enrichi";
+      // 🆕 08/10 (soir) — un site devine par l outil se controle avant
+      // l envoi (voir BASES_CONTROLEES). Un site venu d ailleurs (fichier,
+      // Dropcontact) garde le chemin d avant.
+      const devine = String(l.site_trouve_par || "").indexOf("devine") === 0;
+      maj.statut = devine && BASES_CONTROLEES.indexOf(table) >= 0 ? EN_ATTENTE_DE_CONTROLE : "enrichi";
       issue = "trouve";
     } else if (r.trop_long) {
       issue = "trop_long";
