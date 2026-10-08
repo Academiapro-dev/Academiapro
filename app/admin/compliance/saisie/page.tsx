@@ -311,6 +311,33 @@ export default function PageSaisie() {
                       style={CHAMP}
                     />
 
+                    {/* 🆕 08/10 — LE TIERS. Deux cases facultatives, montrees
+                        seulement sur un compte de fournisseur, de client ou
+                        d honoraires : c est ce que lit la DAS2 pour nommer
+                        un beneficiaire. Vides, rien ne change. */}
+                    {/^(401|411|622|6231|6516)/.test(String(l.compte || "")) && (
+                      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+                        <div style={{ flex: "1 1 140px" }}>
+                          <span style={LIBELLE}>Tiers : code (facultatif)</span>
+                          <input
+                            value={l.aux_num || ""}
+                            onChange={(e) => poser(i, "aux_num", e.target.value)}
+                            placeholder="FMARTIN"
+                            style={CHAMP}
+                          />
+                        </div>
+                        <div style={{ flex: "2 1 220px" }}>
+                          <span style={LIBELLE}>Tiers : nom (facultatif)</span>
+                          <input
+                            value={l.aux_lib || ""}
+                            onChange={(e) => poser(i, "aux_lib", e.target.value)}
+                            placeholder="Cabinet Martin"
+                            style={CHAMP}
+                          />
+                        </div>
+                      </div>
+                    )}
+
                     <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                       <div style={{ flex: "1 1 140px" }}>
                         <span style={LIBELLE}>Débit</span>
