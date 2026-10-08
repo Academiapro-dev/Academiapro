@@ -97,6 +97,11 @@ export default function EspaceClient() {
     marginBottom: "14px",
   };
 
+  // Un montant a la francaise : « 1 200,00 € ».
+  function euros(n: any) {
+    return (Number(n) || 0).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  }
+
   function jour(d: any) {
     if (!d) return "";
     return new Date(d).toLocaleDateString("fr-FR");
@@ -191,7 +196,7 @@ export default function EspaceClient() {
               {attendues.length} justificatif{attendues.length > 1 ? "s" : ""} attendu{attendues.length > 1 ? "s" : ""}
             </h2>
             <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "13px", margin: "0 0 16px" }}>
-              {donnees.total_attendu.toFixed(2)} € au total. Touchez une ligne pour y
+              {euros(donnees.total_attendu)} au total. Touchez une ligne pour y
               rattacher votre envoi.
             </p>
 
@@ -218,7 +223,7 @@ export default function EspaceClient() {
                     </div>
                   </div>
                   <div style={{ color: OR, fontSize: "14px", whiteSpace: "nowrap" }}>
-                    {m.montant.toFixed(2)} €
+                    {euros(m.montant)}
                   </div>
                 </div>
               );
