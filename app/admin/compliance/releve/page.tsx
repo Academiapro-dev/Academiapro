@@ -297,7 +297,7 @@ export default function PageReleve() {
                         <p style={{ color: "#fff", fontSize: "15px", margin: "0 0 3px" }}>
                           {b.institution_nom || "Banque"}
                           <span style={{ color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>
-                            {b.comptes && b.comptes.length ? " · " + b.comptes.length + " compte(s)" : ""}
+                            {b.comptes && b.comptes.length ? " · " + b.comptes.length + (b.comptes.length > 1 ? " comptes" : " compte") : ""}
                           </span>
                         </p>
                         <p style={{ color: b.erreur ? "#e8836a" : "rgba(255,255,255,0.45)", fontSize: "13px", margin: 0 }}>
@@ -383,7 +383,7 @@ export default function PageReleve() {
             {rejets.length > 0 && (
               <div style={CARTE}>
                 <h2 style={{ color: "#e8a33d", fontSize: "16px", margin: "0 0 10px" }}>
-                  {rejets.length} ligne(s) écartée(s)
+                  {rejets.length} {rejets.length > 1 ? "lignes écartées" : "ligne écartée"}
                 </h2>
                 {rejets.map(function (r: any, i: number) {
                   return (
@@ -403,7 +403,7 @@ export default function PageReleve() {
                 <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", marginBottom: "16px" }}>
                   <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
                     <p style={{ color: "#c8a96e", fontSize: "23px", fontWeight: "bold", margin: "0 0 4px" }}>{d.total}</p>
-                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Ligne(s)</p>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{d.total > 1 ? "Lignes" : "Ligne"}</p>
                   </div>
                   <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
                     <p style={{ color: d.a_traiter > 0 ? "#e8a33d" : "rgba(255,255,255,0.4)", fontSize: "23px", fontWeight: "bold", margin: "0 0 4px" }}>
@@ -413,7 +413,7 @@ export default function PageReleve() {
                   </div>
                   <div style={{ ...CARTE, flex: "1 1 140px", marginBottom: 0 }}>
                     <p style={{ color: "#4caf50", fontSize: "23px", fontWeight: "bold", margin: "0 0 4px" }}>{d.rapprochees}</p>
-                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>Rapprochée(s)</p>
+                    <p style={{ color: "rgba(255,255,255,0.55)", fontSize: "13px", margin: 0 }}>{d.rapprochees > 1 ? "Rapprochées" : "Rapprochée"}</p>
                   </div>
                 </div>
 
