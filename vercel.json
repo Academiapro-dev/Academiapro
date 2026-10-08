@@ -97,6 +97,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/controler-sites",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/veille-enrichissement",
       "schedule": "37 * * * *"
     }
