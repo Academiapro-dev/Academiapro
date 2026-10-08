@@ -16,7 +16,12 @@ const BILAN_ACTIF = [
   { code: "014", libelle: "Autres immobilisations incorporelles", racines: ["201", "203", "205", "208"], sens: "debit" },
   { code: "028", libelle: "Immobilisations corporelles", racines: ["21"], sens: "debit" },
   { code: "040", libelle: "Immobilisations financières", racines: ["26", "27"], sens: "debit" },
-  { code: "044", libelle: "Amortissements et dépréciations", racines: ["28", "29"], sens: "credit" },
+  // 🆕 08/10 — LES DEPRECIATIONS DE L ACTIF CIRCULANT (39 stocks, 49 comptes
+  // de tiers, 59 valeurs mobilieres) viennent en moins de l actif, comme les
+  // amortissements. Elles n etaient rangees nulle part : une creance douteuse
+  // depreciee (compte 491) sortait « hors liasse », et la liasse « ne tombait
+  // pas juste » du montant de la depreciation.
+  { code: "044", libelle: "Amortissements et dépréciations", racines: ["28", "29", "39", "49", "59"], sens: "credit" },
   { code: "050", libelle: "Stocks de matières premières", racines: ["31", "32"], sens: "debit" },
   { code: "060", libelle: "Stocks de marchandises", racines: ["37"], sens: "debit" },
   { code: "068", libelle: "Créances clients et comptes rattachés", racines: ["411", "413", "416", "418"], sens: "debit" },
@@ -230,6 +235,13 @@ export async function GET(req: NextRequest) {
     // figure pas encore au bilan. Ce n est pas une anomalie.
     const exerciceOuvert = n.gestion_ouverte && Math.abs(n.resultat_bilan) < 0.005;
 
+    // 🆕 08/10 — APRES LA CLOTURE, c est l inverse : les comptes de gestion
+    // sont soldes et le resultat vit au bilan (120 ou 129). Le compte de
+    // resultat recalcule vaut alors zero : le comparer au bilan mettait le
+    // controle en echec sur un exercice pourtant sain. Meme regle que la
+    // liasse 2050.
+    const exerciceCloture = !n.gestion_ouverte && Math.abs(n.resultat_bilan) > 0.005;
+
     // LA RELATION FONDAMENTALE : ACTIF = PASSIF + RESULTAT. L ecart entre
     // actif et passif doit donc EGALER le resultat, et non s y ajouter.
     const ecartBilan = r2(n.total_actif - n.total_passif);
@@ -255,14 +267,16 @@ export async function GET(req: NextRequest) {
         nom: exerciceOuvert
           ? "Le résultat sera porté au bilan à la clôture"
           : "Le résultat du compte de résultat se retrouve au bilan",
-        ok: exerciceOuvert
+        ok: exerciceOuvert || exerciceCloture
           ? true
           : Math.abs(r2(n.resultat_exercice - n.resultat_bilan)) < 0.01,
         detail: exerciceOuvert
           ? "Exercice ouvert : résultat calculé " + fr2(n.resultat_exercice)
             + ", pas encore affecté aux comptes 120 ou 129"
-          : "Calculé " + fr2(n.resultat_exercice)
-            + " · au bilan " + fr2(n.resultat_bilan),
+          : exerciceCloture
+            ? "Exercice clôturé — résultat de " + fr2(n.resultat_bilan) + " logé au bilan"
+            : "Calculé " + fr2(n.resultat_exercice)
+              + " · au bilan " + fr2(n.resultat_bilan),
       },
       {
         nom: "Tous les comptes sont ventilés",
