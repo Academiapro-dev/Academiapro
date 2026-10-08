@@ -298,7 +298,7 @@ export async function POST(req: NextRequest) {
       if (error) {
         return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
       }
-      return NextResponse.json({ ok: true, document: data, message: TYPES[type].nom + " créé." });
+      return NextResponse.json({ ok: true, document: data, message: TYPES[type].nom + (type === "facture" ? " créée." : " créé.") });
     }
 
     // ---------- MODIFIER L EN-TETE ----------
