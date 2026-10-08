@@ -26,7 +26,20 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { message, contexte, historique = [], fichier, fichiers } = body;
 
-    const systemPrompt = `Tu es Mr Qualiopi, expert en certification Qualiopi pour les organismes de formation professionnelle en France.
+    // 🆕 09/10 — LE ROLE ENVOYE PAR L ECRAN EST ENFIN LU.
+    // Ce programme sert plusieurs conseillers : Mr Juridique, Mr Comptable
+    // (le conseiller), les agents, le blog, Mr Qualiopi. Chaque ecran envoie
+    // son role dans `agent.prompt`… et ce programme ne le lisait pas : il
+    // imposait toujours le role de Mr Qualiopi ci-dessous. Constate par
+    // Jacques le 09/10 : une question de droit posee a Mr Juridique recevait
+    // la reponse de Mr Qualiopi, « pas qualifie pour le juridique ».
+    // Desormais : le role envoye par l ecran s il y en a un ; Mr Qualiopi
+    // seulement quand aucun role n est envoye (son propre ecran).
+    const roleEnvoye = body && body.agent && typeof body.agent.prompt === "string"
+      ? String(body.agent.prompt).trim().slice(0, 12000)
+      : "";
+
+    const roleQualiopi = `Tu es Mr Qualiopi, expert en certification Qualiopi pour les organismes de formation professionnelle en France.
 
 EXPERTISE :
 - Certification Qualiopi : 7 criteres, 32 indicateurs obligatoires
@@ -39,6 +52,17 @@ EXPERTISE :
 - Indicateurs de satisfaction : enquetes, taux completion, taux insertion
 
 Tu aides les organismes de formation a obtenir et maintenir la certification Qualiopi. Tu donnes des conseils precis et operationnels uniquement sur la formation professionnelle en France.`;
+    const systemPrompt = roleEnvoye || roleQualiopi;
+
+    // 🆕 09/10 — LE MODELE, SELON LE CONSEILLER (decision de Jacques) :
+    // le droit et la comptabilite demandent le raisonnement le plus sur →
+    // Opus 5.5 ; le blog, les autres agents et Mr Qualiopi → Sonnet 5.5.
+    // Le conseiller se reconnait a son role (texte sans accents).
+    const rolePlat = systemPrompt.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const conseilPointu = roleEnvoye !== ""
+      && (rolePlat.indexOf("juridique") >= 0 || rolePlat.indexOf("juriste") >= 0
+        || rolePlat.indexOf("comptable") >= 0);
+    const modele = conseilPointu ? "claude-opus-5-5" : "claude-sonnet-5-5";
 
     const messages: any[] = [];
 
@@ -88,7 +112,7 @@ Tu aides les organismes de formation a obtenir et maintenir la certification Qua
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-sonnet-4-6",
+        model: modele,
         max_tokens: 8000,
         system: [{ type: "text", text: systemPrompt,
           cache_control: { type: "ephemeral" } }],
