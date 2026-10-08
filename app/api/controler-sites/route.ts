@@ -60,8 +60,23 @@ export const maxDuration = 300;
 // (text) et site_controle_le (timestamptz).
 // ═══════════════════════════════════════════════════════════════════════
 
+// 🆕 09/10 — TOUTES LES BASES. Jacques : « il faut tout repasser et ne rien
+// negliger », « c est tellement evident de l etendre a toutes les
+// campagnes ». Le controle ne connaissait que les cabinets : une adresse
+// devinee pour un avocat, un organisme ou une agence partait en campagne
+// sans second regard.
+// ⚠️ LES MEMES BASES, DANS LE MEME ORDRE, QUE trouver-sites ET lire-sites.
+// ⚠️ TOUTE BASE AJOUTEE ICI S AJOUTE AUSSI DANS `BASES_CONTROLEES` DE
+// lire-sites ET DANS `CONTROLE` DE LA VEILLE.
 const TABLES: any = {
   cabinets: { table: "prospects_cabinets", metier: "comptable" },
+  avocats: { table: "prospects_avocats", metier: "avocat" },
+  organismes: { table: "prospects_organismes", metier: "formation" },
+  immobilier: { table: "prospects_immobilier", metier: "immobilier" },
+  gros: { table: "prospects_gros", metier: "formation" },
+  qualiopi: { table: "prospects_qualiopi", metier: "formation" },
+  interim: { table: "prospects_interim", metier: "interim" },
+  ecommerce: { table: "prospects_ecommerce", metier: "ecommerce" },
 };
 
 // LE METIER, AU SENS STRICT (texte sans accents ni ponctuation).
@@ -72,6 +87,19 @@ const PREUVES_METIER: any = {
     "commissaire aux comptes", "commissaires aux comptes", "commissariat aux comptes",
     "gestion agree", "association de gestion", "centre de gestion", "organisme de gestion",
     "organisme mixte de gestion", "cabinet comptable", "comptabilite"],
+  // 🆕 09/10 — les autres metiers. Les mots sont ceux de trouver-sites,
+  // ecrits a plat (sans accent ni tiret) : ils se cherchent comme des
+  // morceaux de texte (« immobili » couvre « immobilier » et « immobiliere »).
+  // ⚠️ NON MESURES contre un corrige (seuls les cabinets l ont ete). La
+  // surete vient d abord de l identite et du lieu, qui ne dependent pas du
+  // metier.
+  avocat: ["avocat", "barreau"],
+  formation: ["formation", "formateur", "formatrice", "qualiopi", "stagiaire", "apprentissage", "alternance",
+    "coaching", "bilan de competences", "enseignement", "pedagogi", "e learning", "auto ecole", "ecole de conduite"],
+  immobilier: ["immobili", "agence immo", "syndic", "gestion locative", "biens a vendre", "biens a louer",
+    "estimation de votre bien", "mandat de vente"],
+  interim: ["interim", "travail temporaire", "recrutement", "offres d emploi", "offre d emploi"],
+  ecommerce: ["panier", "boutique", "livraison", "commande", "e commerce", "vente en ligne", "acheter", "shop"],
 };
 
 const EN_ATTENTE = "a_controler";
@@ -104,6 +132,29 @@ const GENERIQUES = [
   "office", "partners", "partenaires", "and", "law", "firm", "the", "fiduciaire",
   "fiscal", "fiscale", "juridique", "juridiques", "societe",
 ];
+// 🆕 09/10 — LES MOTS DE CHAQUE METIER, QUI NE DISTINGUENT PAS UNE SOCIETE
+// D UNE AUTRE (les memes que dans trouver-sites). Sans eux, « DUPONT
+// FORMATION » serait reconnu sur n importe quel site dont le nom porte
+// « formation ». Ils s ajoutent a GENERIQUES pour le metier concerne.
+const GENERIQUES_METIER: any = {
+  formation: ["formation", "formations", "formateur", "institut", "centre", "ecole", "academy", "academie",
+    "consulting", "consultant", "consultants", "association", "ass", "asso", "organisme", "pour", "service",
+    "services", "developpement", "competences", "apprentissage", "professionnelle", "professionnel",
+    "school", "business", "training", "coaching"],
+  immobilier: ["immobilier", "immobiliere", "immobilieres", "immo", "agence", "agences", "transaction",
+    "transactions", "patrimoine", "invest", "investissement", "investissements", "properties", "property",
+    "home", "habitat", "location", "locations", "vente", "ventes", "syndic", "real", "estate", "imm",
+    "developpement", "asset", "management", "expert"],
+  interim: ["interim", "interimaire", "travail", "temporaire", "emploi", "rh", "recrutement", "agence",
+    "ressources", "humaines", "medical", "consulting", "services", "service", "solutions"],
+  ecommerce: ["shop", "boutique", "store", "www", "com", "fr", "net", "ltd", "co", "limited", "company",
+    "trading", "technology", "youxian", "gongsi", "online", "vente", "ventes", "ligne", "distribution",
+    "diffusion", "import", "export", "commerce", "ecommerce", "web"],
+};
+function generiquesDe(metier: string): string[] {
+  const plus = GENERIQUES_METIER[metier];
+  return plus ? GENERIQUES.concat(plus) : GENERIQUES;
+}
 const PETITS = ["et", "de", "du", "des", "la", "le", "les", "en", "l", "d", "a", "au", "aux"];
 
 const sansCache = function (entree: any, options?: any) {
@@ -495,7 +546,8 @@ function lieuCertain(brut: string, t: string, l: any, reg: any): string | null {
 }
 
 // L IDENTITE. Rend { preuve, forte } ou null.
-function identite(t: string, l: any, reg: any, domaine: string): { preuve: string; forte: boolean } | null {
+function identite(t: string, l: any, reg: any, domaine: string, metier: string): { preuve: string; forte: boolean } | null {
+  const generiques = generiquesDe(metier);
   const tt = " " + t + " ";
   const site = nomDuSite(domaine);
 
@@ -535,7 +587,7 @@ function identite(t: string, l: any, reg: any, domaine: string): { preuve: strin
   }
   //    Le nom de la societe sans ses mots generiques.
   const coeur = raison.filter(function (m) {
-    return GENERIQUES.indexOf(m) < 0 && m.length >= 4 && !/^[0-9]+$/.test(m);
+    return generiques.indexOf(m) < 0 && m.length >= 4 && !/^[0-9]+$/.test(m);
   });
   for (const m of coeur) {
     if (site.indexOf(m) >= 0 && contientMot(t, m)) return { preuve: "nom de la société dans le nom du site", forte: m.length >= 5 };
@@ -579,7 +631,7 @@ function juger(texte: string, l: any, reg: any, metier: string, domaine: string)
   const metierOk = (PREUVES_METIER[metier] || []).some(function (p: string) { return t.indexOf(p) >= 0; });
   if (!metierOk) return { prouve: false, motif: "le métier n'est pas écrit sur le site" };
 
-  const qui = identite(t, l, reg, domaine);
+  const qui = identite(t, l, reg, domaine, metier);
   if (!qui) return { prouve: false, motif: "ni le nom de la société, ni son enseigne, ni son dirigeant" };
 
   const lieu = lieuCertain(texte, t, l, reg);
