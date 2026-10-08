@@ -166,7 +166,7 @@ export default function TeledecPage() {
         {/* Ce qui reclame une action, avant la liste. */}
         {(rejetees > 0 || enAttente > 0) && !chargement && (
           <p style={{ color: rejetees > 0 ? "#e8836a" : "rgba(255,255,255,0.6)", fontSize: "15px", margin: "0 0 20px", lineHeight: "1.7" }}>
-            {rejetees > 0 ? rejetees + " déclaration(s) rejetée(s) à corriger. " : ""}
+            {rejetees > 0 ? rejetees + (rejetees > 1 ? " déclarations rejetées à corriger. " : " déclaration rejetée à corriger. ") : ""}
             {enAttente > 0 ? enAttente + " en attente de réponse." : ""}
           </p>
         )}
