@@ -85,7 +85,7 @@ export default function PageChiffres() {
         <p style={{ color: OR, fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
           COMPTABILITÉ
         </p>
-        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Tableau de bord</h1>
+        <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Les chiffres</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", margin: "0 0 22px" }}>
           Ce qui entre, ce qui sort, ce qui reste
         </p>
