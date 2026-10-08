@@ -191,6 +191,21 @@ export async function GET(req: NextRequest) {
     let baseCollectee = 0;
     let baseDeductible = 0;
 
+    // 🆕 08/10 — L ECRITURE DE LIQUIDATION DE LA PERIODE SE LIT A PART.
+    // Elle solde la collectee et la deductible : une fois passee, le calcul
+    // relisait donc zero partout, et l ecran affichait « 0,00 € — credit de
+    // TVA a reporter » a la place de la TVA qu on venait de liquider. Et le
+    // controle lisait TOUT le mouvement du compte 445510 sur la periode, y
+    // compris le PAIEMENT de la TVA du mois precedent (« le compte 445510
+    // porte -820,00 € »). Desormais : la declaration se calcule sans
+    // l ecriture de liquidation de la periode, et le controle regarde ce que
+    // CETTE ecriture a porte au 445510. Son numero est celui que fabrique le
+    // bouton « Passer l ecriture de liquidation » (OD + annee + mois + -TVA).
+    const numeroLiquidation = "OD" + fin.replace(/-/g, "").slice(0, 6) + "-TVA";
+    const calcul: any = {};
+    let liquidationTrouvee = false;
+    let portePar445510 = 0;
+
     for (const l of lignes || []) {
       const num = String(l.compte_num || "");
       const debit = Number(l.debit) || 0;
@@ -198,9 +213,20 @@ export async function GET(req: NextRequest) {
 
       if (num.startsWith("4457") || num.startsWith("4456") || num.startsWith("4455")
         || num.startsWith("4452") || num.startsWith("4453")) {
+        // Le detail affiche garde TOUTES les lignes de la periode.
         if (!soldes[num]) soldes[num] = { lib: l.compte_lib, debit: 0, credit: 0 };
         soldes[num].debit = r2(soldes[num].debit + debit);
         soldes[num].credit = r2(soldes[num].credit + credit);
+
+        // Le calcul, lui, laisse de cote l ecriture de liquidation.
+        if (String(l.ecriture_num || "") === numeroLiquidation) {
+          liquidationTrouvee = true;
+          if (num === A_DECAISSER) portePar445510 = r2(portePar445510 + credit - debit);
+        } else {
+          if (!calcul[num]) calcul[num] = { debit: 0, credit: 0 };
+          calcul[num].debit = r2(calcul[num].debit + debit);
+          calcul[num].credit = r2(calcul[num].credit + credit);
+        }
       }
 
       // Bases hors taxes : produits pour la collectee, charges et
@@ -212,7 +238,7 @@ export async function GET(req: NextRequest) {
     }
 
     function solde(num: string, sens: string): number {
-      const s = soldes[num];
+      const s = calcul[num];
       if (!s) return 0;
       return sens === "credit" ? r2(s.credit - s.debit) : r2(s.debit - s.credit);
     }
@@ -233,7 +259,7 @@ export async function GET(req: NextRequest) {
     // CONTROLE : le solde calcule doit se retrouver au compte 445510 apres
     // l ecriture de liquidation. Un ecart signale une liquidation oubliee
     // ou une ecriture passee au mauvais compte.
-    const soldeCompteADecaisser = solde(A_DECAISSER, "credit");
+    const soldeCompteADecaisser = portePar445510;
     const ecartLiquidation = r2(soldeCompteADecaisser - aDecaisser);
 
     const detail = Object.keys(soldes).sort().map(function (num) {
@@ -274,7 +300,8 @@ export async function GET(req: NextRequest) {
       controle: {
         solde_compte_445510: soldeCompteADecaisser,
         ecart_liquidation: ecartLiquidation,
-        liquidation_passee: Math.abs(ecartLiquidation) < 0.01 && aDecaisser > 0,
+        liquidation_passee: liquidationTrouvee && Math.abs(ecartLiquidation) < 0.01 && aDecaisser > 0,
+        liquidation_trouvee: liquidationTrouvee,
         nb_lignes_lues: (lignes || []).length,
       },
       detail_comptes: detail,
