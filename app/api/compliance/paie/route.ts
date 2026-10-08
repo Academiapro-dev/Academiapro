@@ -33,6 +33,23 @@ function eurosFr(n: number): string {
 }
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
+// 🆕 08/10 — LE NOM D UN COMPTE SE LIT AU PLAN, comme le fait la saisie : le
+// plan propre au dossier d abord, le plan commun ensuite. Les ecritures que le
+// logiciel passe lui-meme portaient des noms ecrits en dur, sans accents
+// (« TVA collectee », « Remunerations du personnel ») : le meme compte
+// portait alors deux noms selon que l ecriture etait saisie ou automatique.
+// Le nom donne en second ne sert que si le compte manque au plan.
+async function nomsDuPlan(societeId: string): Promise<any> {
+  const { data: communs } = await supabase
+    .from("compta_comptes").select("numero, libelle").is("societe_id", null).limit(3000);
+  const { data: propres } = await supabase
+    .from("compta_comptes").select("numero, libelle").eq("societe_id", societeId).limit(3000);
+  const plan: any = {};
+  for (const c of communs || []) plan[c.numero] = c.libelle;
+  for (const c of propres || []) plan[c.numero] = c.libelle;
+  return plan;
+}
+
 function nombre(v: any): number {
   const n = Number(String(v || "0").replace(",", ".").replace(/\s/g, ""));
   return isNaN(n) ? 0 : r2(n);
@@ -156,6 +173,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const plan = await nomsDuPlan(String(b.societe_id));
+
     const commun = {
       societe_id: b.societe_id,
       journal_code: "OD",
@@ -164,7 +183,8 @@ export async function POST(req: NextRequest) {
       ecriture_date: date,
       piece_ref: String(b.reference || "PAIE-" + mois).slice(0, 60),
       piece_date: date,
-      ecriture_lib: "Salaires " + mois
+      // 🆕 08/10 — le mois tel qu il se lit : « Salaires septembre 2026 ».
+      ecriture_lib: "Salaires " + moisLisible
         + (b.effectif ? " - " + b.effectif + (Number(b.effectif) > 1 ? " salariés" : " salarié") : ""),
       devise: "EUR",
       valid_date: new Date().toISOString().slice(0, 10),
@@ -172,20 +192,20 @@ export async function POST(req: NextRequest) {
     };
 
     const lignes: any[] = [
-      { ...commun, compte_num: "641000", compte_lib: "Remunerations du personnel", debit: brut, credit: 0 },
+      { ...commun, compte_num: "641000", compte_lib: plan["641000"] || "Rémunérations du personnel", debit: brut, credit: 0 },
     ];
 
     if (patronales > 0) {
       lignes.push({
         ...commun, compte_num: "645000",
-        compte_lib: "Charges de securite sociale et de prevoyance",
+        compte_lib: plan["645000"] || "Charges de sécurité sociale et de prévoyance",
         debit: patronales, credit: 0,
       });
     }
 
     lignes.push({
       ...commun, compte_num: "421000",
-      compte_lib: "Personnel - remunerations dues",
+      compte_lib: plan["421000"] || "Personnel - rémunérations dues",
       debit: 0, credit: net,
     });
 
@@ -193,14 +213,14 @@ export async function POST(req: NextRequest) {
     const organismes = r2(salariales + patronales);
     if (organismes > 0) {
       lignes.push({
-        ...commun, compte_num: "431000", compte_lib: "Securite sociale",
+        ...commun, compte_num: "431000", compte_lib: plan["431000"] || "Sécurité sociale",
         debit: 0, credit: organismes,
       });
     }
 
     if (impot > 0) {
       lignes.push({
-        ...commun, compte_num: "442000", compte_lib: "Etat - prelevement a la source",
+        ...commun, compte_num: "442000", compte_lib: plan["442000"] || "État - prélèvement à la source",
         debit: 0, credit: impot,
       });
     }
@@ -232,7 +252,8 @@ export async function POST(req: NextRequest) {
       brut: brut,
       net: net,
       cout_total: r2(brut + patronales),
-      message: "Paie de " + moisLisible + " passée sous le numéro " + numero + " : "
+      // « Paie d’avril », « Paie d’août », « Paie d’octobre » : l élision.
+      message: (/^[aeiouyéèêh]/i.test(moisLisible) ? "Paie d’" : "Paie de ") + moisLisible + " passée sous le numéro " + numero + " : "
         + eurosFr(brut) + " de brut, " + eurosFr(net) + " de net, "
         + eurosFr(r2(brut + patronales)) + " de coût total.",
     });
