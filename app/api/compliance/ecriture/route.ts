@@ -354,20 +354,27 @@ export async function POST(req: NextRequest) {
     const annee = date.slice(0, 4);
     const prefixe = journal + annee + "-";
 
+    // 🆕 08/10 — LE RANG SE CHERCHE PARMI LES NUMEROS A CHIFFRES SEULEMENT.
+    // On lisait le DERNIER numero du journal dans l ordre alphabetique. Or le
+    // journal OD porte aussi des numeros a lettres, que le logiciel fabrique
+    // lui-meme (OD2026-PAIE09, OD2026-P001, OD2026-DOTATION, OD2026-CP001,
+    // OD2026-CLOTURE) et qui se rangent APRES les chiffres : des qu un seul
+    // existait, toute operation diverse saisie a la main repartait a
+    // « OD2026-0001 » — le MEME numero a chaque fois, donc plusieurs
+    // ecritures confondues sous un seul numero.
     const { data: dernieres } = await supabase
       .from("compta_ecritures")
       .select("ecriture_num")
       .eq("societe_id", societeId)
       .like("ecriture_num", prefixe + "%")
-      .order("ecriture_num", { ascending: false })
-      .limit(1);
+      .limit(50000);
 
     let rang = 1;
-    const derniere = (dernieres || [])[0];
-    if (derniere && derniere.ecriture_num) {
-      const suffixe = String(derniere.ecriture_num).split("-").pop() || "0";
+    for (const d of dernieres || []) {
+      const suffixe = String(d.ecriture_num || "").slice(prefixe.length);
+      if (!/^\d+$/.test(suffixe)) continue;
       const n = parseInt(suffixe, 10);
-      if (!isNaN(n)) rang = n + 1;
+      if (!isNaN(n) && n + 1 > rang) rang = n + 1;
     }
 
     const numero = prefixe + String(rang).padStart(4, "0");
