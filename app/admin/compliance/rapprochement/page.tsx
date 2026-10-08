@@ -270,8 +270,8 @@ export default function PageRapprochement() {
                       />
                       <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", margin: "0 0 8px" }}>
                         {q
-                          ? proposes.length + " compte(s) sur " + comptes.length
-                          : comptes.length + " compte(s) — tapez un chiffre pour n'avoir qu'une classe"}
+                          ? proposes.length + (proposes.length > 1 ? " comptes sur " : " compte sur ") + comptes.length
+                          : comptes.length + (comptes.length > 1 ? " comptes" : " compte") + " — tapez un chiffre pour n'avoir qu'une classe"}
                       </p>
 
                       <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
