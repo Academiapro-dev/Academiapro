@@ -210,12 +210,31 @@ const REJETS = [
   "@googlemail.com.", "@2x.", "@3x.",
   "prestataire", "webmaster@", "postmaster@", "noreply", "no-reply",
   "ne-pas-repondre", "donotreply", "mailer-daemon",
+  // 🆕 08/10 — CE QUE LE CONTROLE DES BASES A TROUVE LE 08/10, dans cinq
+  // bases (cabinets, avocats, organismes, immobilier, grands organismes),
+  // chaque adresse lue une a une :
+  //   · les adresses de modele d un site : « nom@domaine.fr »,
+  //     « vous@exemple.fr », « john.doe@exemple.com », « votre@societe.com »
+  //     (societe.com : voir plus bas, le domaine exact) ;
+  //   · la plateforme qui heberge le site (« info@jimdo.fr ») ;
+  //   · les mediateurs que chaque profession doit citer sur son site :
+  //     « litiges@cm2c.net » (experts-comptables), « mediateur@… »,
+  //     « mediateur-conso@… » (avocats), « mediation@… » ;
+  //   · l adresse « cnil@ » d un portail.
+  // Aucune n est celle du prospect. « @domain. » ne couvrait pas
+  // « @domaine. », ni « @example. » la forme francaise « @exemple. ».
+  "@domaine.", "@exemple.", "@votresite", "@jimdo.",
+  "@cm2c.", "mediateur@", "mediateur-conso@", "mediation@", "litiges@",
+  "cnil@", "nepasrepondre",
 ];
 
 // ⚠️ UNE ADRESSE QUI FINIT PAR UNE EXTENSION D IMAGE N EN EST PAS UNE.
 // Le cas arrive souvent : `logo@2x.png` ressemble a une adresse pour une
 // expression reguliere, et n en est pas une.
-const EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js"];
+// 🆕 08/10 — et les noms de pages ou d images plus recents : le 08/10, la
+// base portait « …@3x-211x300.avif » et « …@52.html ».
+const EXTENSIONS = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".css", ".js",
+  ".avif", ".html", ".htm", ".php", ".pdf", ".ico"];
 
 // 🚨🆕 01/10 (soir) — AUCUNE LECTURE GARDEE EN CACHE. Les journaux de Vercel
 // montraient « Using cache » sur la lecture de la base : chaque passage
@@ -283,6 +302,18 @@ function adressesDe(html: string): string[] {
     // les leurs.
     if (/\.onmicrosoft\.com$/.test(apres) || /(^|\.)gov(\.[a-z]{2})?$/.test(apres)
       || /\.gouv\.fr$/.test(apres)) return;
+    // 🆕 08/10 — LES ADRESSES TECHNIQUES DE SUIVI D ERREURS (Sentry), quel
+    // que soit l hebergeur. « @sentry. » et « @wixpress. » ne les voyaient
+    // pas : le nom vient APRES un sous-domaine. Trouvees le 08/10 dans quatre
+    // bases, dont trois fiches deja contactees :
+    //     605a7b…@sentry-next.wixpress.com   (dans le code de tout site Wix)
+    //     073160…@sentry-hosting.infomaniak.com
+    //     81d5db…@o4508173038977024.ingest.us.sentry.io
+    if (/(^|[.-])sentry([.-]|$)/.test(apres) || /(^|\.)wixpress\.com$/.test(apres)) return;
+    // 🆕 08/10 — L ANNUAIRE societe.com : son adresse d exemple (« nom@… »,
+    // « votre@… ») se lisait sur les sites qui le citent. Le domaine exact
+    // seulement, pour ne rien ecarter d autre.
+    if (apres === "societe.com") return;
     // 🚨🆕 05/10 — L ADRESSE EST VERIFIEE EN ENTIER, CARACTERE PAR CARACTERE.
     // Le 05/10, deux envois de la campagne des cabinets ont ete refuses :
     //     contact@cabinet&#045;lamperti.com     contact@melois.co&#109
