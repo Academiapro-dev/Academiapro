@@ -314,7 +314,10 @@ export default function PageSaisie() {
                     {/* 🆕 08/10 — LE TIERS. Deux cases facultatives, montrees
                         seulement sur un compte de fournisseur, de client ou
                         d honoraires : c est ce que lit la DAS2 pour nommer
-                        un beneficiaire. Vides, rien ne change. */}
+                        un beneficiaire. Vides, rien ne change.
+                        🆕 08/10 — l exemple en gris commence par « ex. : » :
+                        sans cela, il ressemblait a une case deja remplie
+                        (essai du 08/10, le tiers n a pas ete saisi). */}
                     {/^(401|411|622|6231|6516)/.test(String(l.compte || "")) && (
                       <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                         <div style={{ flex: "1 1 140px" }}>
@@ -322,7 +325,7 @@ export default function PageSaisie() {
                           <input
                             value={l.aux_num || ""}
                             onChange={(e) => poser(i, "aux_num", e.target.value)}
-                            placeholder="FMARTIN"
+                            placeholder="ex. : FMARTIN"
                             style={CHAMP}
                           />
                         </div>
@@ -331,7 +334,7 @@ export default function PageSaisie() {
                           <input
                             value={l.aux_lib || ""}
                             onChange={(e) => poser(i, "aux_lib", e.target.value)}
-                            placeholder="Cabinet Martin"
+                            placeholder="ex. : Cabinet Martin"
                             style={CHAMP}
                           />
                         </div>
