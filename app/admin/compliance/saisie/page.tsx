@@ -210,7 +210,7 @@ export default function PageSaisie() {
         </a>
 
         <p style={{ color: "#c8a96e", fontSize: "12px", letterSpacing: "3px", margin: "22px 0 8px" }}>
-          COMPTABILITE
+          COMPTABILITÉ
         </p>
         <h1 style={{ color: "#fff", fontSize: "29px", margin: "0 0 6px" }}>Saisie des écritures</h1>
         <p style={{ color: "rgba(255,255,255,0.45)", fontSize: "14px", marginTop: 0 }}>
