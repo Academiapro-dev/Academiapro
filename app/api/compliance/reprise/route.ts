@@ -262,6 +262,11 @@ export async function POST(req: NextRequest) {
     const iDebit = col("debit");
     const iCredit = col("credit");
     const iLettrage = col("ecriturelet");
+    // 🆕 08/10 — LA DATE DU LETTRAGE (colonne DateLet). La lettre etait
+    // reprise, pas sa date : un dossier repris deja lettre sortait ensuite du
+    // controle du fichier des ecritures avec la reserve « Lettrages sans date
+    // de lettrage ». Absente ou vide, rien ne change.
+    const iDateLet = col("datelet");
     // 🆕 08/10 — LE TIERS (code et nom du compte auxiliaire). Ces deux
     // colonnes du FEC etaient ignorees : un dossier repris perdait ses
     // fournisseurs et ses clients, et sa DAS2 sortait sans beneficiaire.
@@ -346,6 +351,9 @@ export async function POST(req: NextRequest) {
         debit: d,
         credit: cr,
         lettrage: iLettrage >= 0 ? propre(c[iLettrage], 20) : null,
+        date_lettrage: iLettrage >= 0 && iDateLet >= 0 && propre(c[iLettrage], 20)
+          ? dateFec(c[iDateLet])
+          : null,
         devise: "EUR",
         valid_date: new Date().toISOString().slice(0, 10),
         saisi_par: email,
