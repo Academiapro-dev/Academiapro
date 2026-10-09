@@ -75,6 +75,13 @@ export default function MaSociete() {
   const [contactEnCours, setContactEnCours] = useState(false);
   const [contactMsg, setContactMsg] = useState<string | null>(null);
 
+  // 🆕 09/10 — LE CABINET FRANCAIS. Un cabinet inscrit par Mr Comptable a un
+  // compte mais pas de fiche ici, et le formulaire ci-dessous (Etats
+  // americains, agent enregistre) n est pas fait pour lui. La route dit
+  // « cabinet: true » : la page montre alors un formulaire francais,
+  // prerempli avec ce que l inscription sait deja.
+  const [cabinet, setCabinet] = useState(false);
+
   async function charger() {
     setChargement(true);
     try {
@@ -82,6 +89,13 @@ export default function MaSociete() {
       const d = await r.json();
       if (d.success) {
         setSociete(d.societe);
+        setCabinet(d.cabinet === true);
+        if (d.cabinet === true && d.organisme) {
+          setLabel(function (v) { return v || d.organisme.raison_sociale || ""; });
+          setLegalName(function (v) { return v || d.organisme.raison_sociale || ""; });
+          setWyFilingId(function (v) { return v || d.organisme.siren || ""; });
+          setEmailContact(function (v) { return v || d.organisme.email_contact || ""; });
+        }
         if (d.societe) {
           setEmailContact(d.societe.email_contact || "");
           setTelephoneContact(d.societe.telephone_contact || "");
@@ -101,7 +115,7 @@ export default function MaSociete() {
   }, []);
 
   async function enregistrer() {
-    if (!formationState) {
+    if (!cabinet && !formationState) {
       setMsg("Erreur : choisissez l'État ou pays de constitution.");
       return;
     }
@@ -115,7 +129,7 @@ export default function MaSociete() {
         body: JSON.stringify({
           label: label.trim(),
           legal_name: legalName.trim(),
-          formation_state: formationState,
+          formation_state: cabinet ? "FR" : formationState,
           formation_date: formationDate || null,
           wy_filing_id: wyFilingId.trim() || null,
           registered_agent_name: registeredAgent.trim() || null,
@@ -130,7 +144,9 @@ export default function MaSociete() {
       const d = await r.json();
       if (d.success) {
         let m = "Société enregistrée : " + d.legal_name + ".";
-        if (d.echeances?.generees) {
+        if (d.cabinet === true) {
+          m = "Cabinet enregistré : " + d.legal_name + ". Vos documents à signer porteront ce nom et cette adresse.";
+        } else if (d.echeances?.generees) {
           m += " Vos échéances ont été générées.";
         } else {
           m += " ATTENTION : les échéances n'ont pas pu être générées (" +
@@ -163,17 +179,21 @@ export default function MaSociete() {
           entite_id: societe ? societe.id : undefined,
           email_contact: emailContact.trim(),
           telephone_contact: telephoneContact.trim(),
-          relance_auto: relanceAuto,
+          relance_auto: francais ? false : relanceAuto,
         }),
       });
       const d = await r.json();
-      if (d.success) setContactMsg("Contact enregistré." + (relanceAuto ? " Les relances sont armées." : " Les relances sont désarmées."));
+      if (d.success) setContactMsg("Contact enregistré." + (francais ? "" : (relanceAuto ? " Les relances sont armées." : " Les relances sont désarmées.")));
       else setContactMsg("Erreur : " + (d.error || "inconnue"));
     } catch (e) {
       setContactMsg("Erreur : " + String(e));
     }
     setContactEnCours(false);
   }
+
+  // Une fiche francaise se reconnait a son pays de constitution.
+  const francais = !!societe && String(societe.formation_state || "").toUpperCase() === "FR";
+  const titre = francais || (cabinet && !societe) ? "Mon cabinet" : "Ma société";
 
   return (
     <div
@@ -187,12 +207,52 @@ export default function MaSociete() {
     >
       <div style={{ maxWidth: 800, margin: "0 auto", padding: 32 }}>
         <h1 style={{ color: "#0a3d2e", borderBottom: "3px solid #0a3d2e", paddingBottom: 10 }}>
-          Ma société
+          {titre}
         </h1>
 
         {chargement && <p>Chargement...</p>}
 
-        {!chargement && societe && (
+        {!chargement && societe && francais && (
+          <>
+            <div style={{ background: "#f0f5f2", borderLeft: "4px solid #0a3d2e", padding: 16, marginBottom: 24 }}>
+              <strong>{societe.legal_name}</strong><br />
+              Nom du cabinet : {societe.label}<br />
+              SIREN : {societe.wy_filing_id || "-"}<br />
+              Adresse du siège : {societe.principal_office_address || "-"}
+            </div>
+            <p>
+              Votre cabinet est enregistré. Les documents que vous faites signer
+              (lettres de mission, lettres de départ) portent ce nom et cette
+              adresse. Pour les modifier, contactez le support.
+            </p>
+
+            <div style={{ border: "2px solid #0a3d2e", borderRadius: 10, padding: 18, margin: "24px 0" }}>
+              <h2 style={{ color: "#0a3d2e", fontSize: 18, marginTop: 0 }}>Contact du cabinet</h2>
+              <span style={STYLE_LIBELLE}>Adresse électronique de contact</span>
+              <input value={emailContact} onChange={(e) => setEmailContact(e.target.value)} placeholder="vous@exemple.fr" style={STYLE_CHAMP} />
+              <span style={STYLE_LIBELLE}>Téléphone (facultatif)</span>
+              <input value={telephoneContact} onChange={(e) => setTelephoneContact(e.target.value)} placeholder="06 12 34 56 78" style={STYLE_CHAMP} />
+              <button
+                onClick={enregistrerContact}
+                disabled={contactEnCours}
+                style={{ background: "#0a3d2e", color: "#ffffff", border: "none", padding: "12px 20px", borderRadius: 6, cursor: "pointer", fontSize: 15, fontWeight: 600 }}
+              >
+                {contactEnCours ? "Enregistrement..." : "Enregistrer le contact"}
+              </button>
+              {contactMsg && (
+                <p style={{ marginTop: 12, color: contactMsg.indexOf("Erreur") === 0 ? "#c62828" : "#0a3d2e" }}>{contactMsg}</p>
+              )}
+            </div>
+
+            <p style={{ marginTop: 24 }}>
+              <a href="/admin/compliance/tableau-de-bord" style={{ color: "#0a3d2e" }}>
+                Aller au tableau de bord
+              </a>
+            </p>
+          </>
+        )}
+
+        {!chargement && societe && !francais && (
           <>
             <div
               style={{
@@ -271,7 +331,46 @@ export default function MaSociete() {
           </>
         )}
 
-        {!chargement && !societe && (
+        {!chargement && !societe && cabinet && (
+          <>
+            <div style={{ background: "#f0f5f2", borderLeft: "4px solid #0a3d2e", padding: 16, marginBottom: 24 }}>
+              Renseignez votre cabinet. Les documents que vous faites signer
+              (lettres de mission, lettres de départ) porteront ce nom et
+              cette adresse.
+            </div>
+
+            <span style={STYLE_LIBELLE}>Nom du cabinet (obligatoire)</span>
+            <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="ex. : Cabinet Martin" style={STYLE_CHAMP} />
+
+            <span style={STYLE_LIBELLE}>Dénomination légale exacte (obligatoire)</span>
+            <input value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="ex. : CABINET MARTIN SARL" style={STYLE_CHAMP} />
+            <p style={{ marginTop: -12, marginBottom: 16, fontSize: 13, color: "#666" }}>
+              Exactement comme sur votre extrait Kbis, majuscules comprises.
+            </p>
+
+            <span style={STYLE_LIBELLE}>Numéro SIREN (9 chiffres)</span>
+            <input value={wyFilingId} onChange={(e) => setWyFilingId(e.target.value)} inputMode="numeric" placeholder="ex. : 123 456 789" style={STYLE_CHAMP} />
+
+            <span style={STYLE_LIBELLE}>Adresse du siège (obligatoire)</span>
+            <input value={principalOffice} onChange={(e) => setPrincipalOffice(e.target.value)} placeholder="ex. : 12 rue de la République, 69002 Lyon" style={STYLE_CHAMP} />
+
+            <span style={STYLE_LIBELLE}>Adresse électronique de contact</span>
+            <input value={emailContact} onChange={(e) => setEmailContact(e.target.value)} placeholder="vous@exemple.fr" style={STYLE_CHAMP} />
+
+            <span style={STYLE_LIBELLE}>Téléphone (facultatif)</span>
+            <input value={telephoneContact} onChange={(e) => setTelephoneContact(e.target.value)} placeholder="06 12 34 56 78" style={STYLE_CHAMP} />
+
+            <button
+              onClick={enregistrer}
+              disabled={enCours}
+              style={{ background: "#0a3d2e", color: "#ffffff", border: "none", padding: "14px 22px", borderRadius: 6, cursor: "pointer", fontSize: 16, fontWeight: 600 }}
+            >
+              {enCours ? "Enregistrement..." : "Enregistrer mon cabinet"}
+            </button>
+          </>
+        )}
+
+        {!chargement && !societe && !cabinet && (
           <>
             <div
               style={{
