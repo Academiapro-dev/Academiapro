@@ -91,7 +91,7 @@ export const FORMES: Record<string, Forme> = {
 // Les etapes du dossier. Celles du lot A s arretent aux statuts signes ; les
 // suivantes sont annoncees dans la lettre de depart et s ouvriront ensuite.
 export const ETAPES = [
-  { code: "lettre", nom: "Lettre de départ", detail: "Vos engagements, les étapes et la procuration, signés avant tout", lot: "A" },
+  { code: "lettre", nom: "Lettre de départ", detail: "Vos déclarations, la procuration et les conditions générales, signées avant tout", lot: "A" },
   { code: "societe", nom: "La société", detail: "Forme, nom, objet, siège, durée, exercice", lot: "A" },
   { code: "capital", nom: "Le capital", detail: "Montant, valeur d'un titre, libération", lot: "A" },
   { code: "associes", nom: "Les associés", detail: "Identité et apport de chacun", lot: "A" },
@@ -575,56 +575,54 @@ export function signatairesDe(r: Reponses): { nom: string; email: string }[] {
 // pas devant un consommateur, et ce n est pas ce que la lettre cherche. Elle
 // dit qui fait quoi.
 // ══════════════════════════════════════════════════════════════════════════
+// 🆕 09/10 (16h35) — LA LETTRE EST COURTE, LE DETAIL EST DANS LES CONDITIONS.
+// Demande de Jacques apres l avoir lue a l ecran : « noter ces points sur les
+// CGV pour garder la protection, et les enlever de la lettre pour que ce soit
+// plus vendable ». La lettre ne garde que ce qui DOIT etre signe par le
+// client lui-meme : ses quatre declarations (une clause noyee dans des
+// conditions cochees pese peu devant un particulier ; une declaration courte
+// et signee pese beaucoup plus), la procuration, et l acceptation des
+// conditions generales. Les etapes, les frais, les delais, l arret du
+// parcours et les donnees sont dans les conditions (table textes_legaux,
+// cle « cgv_creation_societe », page /comptable/conditions-creation-societe).
+// ⚠️ Si le texte des conditions change, changer aussi `version` ci-dessous :
+// la lettre signee nomme la version que le client a acceptee.
+export const CONDITIONS_CREATION = {
+  version: "9 octobre 2026",
+  adresse: "https://mrcomptable.fr/comptable/conditions-creation-societe",
+};
+
+// 🆕 09/10 — LA PROCURATION VA A LA SOCIETE, ET NOMME UNE PERSONNE.
+// A la societe : le pouvoir ne tombe pas si la personne change, et c est la
+// societe qui repond du travail. Une personne nommee quand meme : au guichet
+// unique, celui qui depose ouvre son compte « en son nom personnel » (lu sur
+// le site de l INPI le 09/10). Sans societe connue, la personne seule.
 export function lettreDepart(dossier: any, prestataire: any): { titre: string; libelle: string; corps: string } {
   const client = t(dossier.client_nom);
   const projet = t(dossier.nom_projet);
-  const mandataire = t(dossier.mandataire_nom) || t(prestataire && (prestataire.legal_name || prestataire.label));
   const nomPrestataire = t(prestataire && (prestataire.legal_name || prestataire.label));
   const adressePrestataire = t(prestataire && prestataire.principal_office_address);
+  const personne = t(dossier.mandataire_nom);
+  const memeNom = personne.toLowerCase() === nomPrestataire.toLowerCase();
+  const mandataire = nomPrestataire
+    ? "la société " + nomPrestataire + ", représentée par toute personne qu'elle désigne" + (personne && !memeNom ? ", et notamment par " + personne : "") + ","
+    : personne;
   const corps = [
     "Je soussigné(e), " + client + " (" + t(dossier.client_email) + "), porte le projet de création de la société « " + projet + " ». Je m'adresse à " + nomPrestataire + (adressePrestataire ? ", " + adressePrestataire : "") + ", ci-après « le prestataire », qui met à ma disposition l'outil « Création de société ».",
     "",
-    "1. Ce que fait l'outil",
-    "L'outil assemble des statuts à partir de modèles dont les clauses sont écrites d'avance et des réponses que je donne à un questionnaire. Il reprend mes réponses telles quelles, sans les interpréter ni les compléter. Il prépare ensuite les formalités de constitution et les transmet en ligne aux organismes compétents, après mes validations.",
-    "",
-    "2. Ce que l'outil ne fait pas",
-    "L'outil ne me donne aucun avis sur ma situation. Il ne me recommande ni une forme de société, ni une clause, ni un régime fiscal ou social. Les explications qu'il affiche sont générales : elles sont les mêmes pour tous. Le prestataire n'agit ici ni comme avocat ni comme expert-comptable. Je sais que je peux consulter un professionnel du droit ou du chiffre à tout moment ; si un tel professionnel m'accompagne, ses avis relèvent de sa propre mission.",
-    "",
-    "3. Mes engagements",
-    "– Je fournis des informations exactes et complètes, et je réponds de leur sincérité.",
+    "1. Ce que je déclare",
     "– Je fais moi-même chacun de mes choix, dans les listes qui me sont proposées.",
-    "– Je relis les statuts avant de les signer. J'en suis l'auteur, avec mes associés : ils expriment notre volonté.",
-    "– Chaque associé signe les statuts lui-même, avec sa propre adresse de courriel.",
+    "– L'outil assemble mes statuts à partir de modèles et de mes réponses, sans les interpréter ; il ne me donne pas de conseil sur ma situation.",
+    "– Je relis mes statuts avant de les signer : j'en suis l'auteur, avec mes associés.",
+    "– Je valide chaque étape par le bouton « Je valide ». Chaque validation est enregistrée avec sa date et m'engage au même titre que ma signature.",
     "",
-    "4. Les étapes, et ce que je valide à chacune",
-    "Étape 1 — La société. Je valide la forme, le nom, l'objet, le siège, la durée et l'exercice.",
-    "Étape 2 — Le capital. Je valide le montant du capital, la valeur d'un titre et la part versée à la constitution.",
-    "Étape 3 — Les associés. Je valide l'identité et l'apport de chaque associé.",
-    "Étape 4 — La direction. Je valide le nom du ou des dirigeants, la durée de leurs fonctions et le principe de leur rémunération.",
-    "Étape 5 — Les clauses. Je valide les choix que la loi laisse aux associés.",
-    "Étape 6 — Les statuts. Je relis les statuts assemblés et je les signe électroniquement, ainsi que mes associés. Le récapitulatif de mes réponses et de mes validations est reproduit à leur suite.",
-    "Étape 7 — Le dépôt du capital. Je verse moi-même les fonds à la banque de mon choix et je transmets l'attestation de dépôt qu'elle me remet, lorsque la loi la prévoit. Le prestataire ne reçoit et ne détient aucun fonds.",
-    "Étape 8 — L'annonce légale. Je valide le texte de l'avis de constitution avant sa publication.",
-    "Étape 9 — L'envoi. Je valide le dossier complet avant son dépôt au guichet unique des formalités d'entreprises.",
-    "Étape 10 — L'immatriculation. Dès que la société est immatriculée, son dossier comptable est ouvert avec les informations déjà saisies.",
-    "Aux étapes 1 à 5, 8 et 9, je valide par le bouton « Je valide ». Chaque validation est enregistrée avec sa date et l'adresse du compte qui l'a faite. Je reconnais qu'elle m'engage au même titre que ma signature. Une étape ne s'ouvre que lorsque la précédente est validée.",
-    "",
-    "5. Procuration",
+    "2. Procuration",
     "Je donne pouvoir à " + mandataire + " d'accomplir en mon nom, pour le compte de la société en formation, les formalités de sa constitution : établir, signer et déposer la demande d'immatriculation au guichet unique des formalités d'entreprises ; faire publier l'avis de constitution dans un support habilité à recevoir les annonces légales ; déposer les pièces ; répondre aux demandes de régularisation ; recevoir les récépissés et l'extrait d'immatriculation. Ce pouvoir ne s'exerce qu'après mes validations. Il prend fin à l'immatriculation de la société et, au plus tard, douze mois après la signature de cette lettre.",
     "",
-    "6. Frais",
-    "Les frais dus aux organismes (greffe, registres, annonce légale) sont à ma charge. Leur montant m'est indiqué avant l'envoi du dossier, et rien n'est déposé avant leur règlement. Le prix du service m'est communiqué séparément.",
+    "3. Conditions générales",
+    "J'ai lu et j'accepte les conditions générales du service « Création de société », dans leur version du " + CONDITIONS_CREATION.version + ", consultables à l'adresse " + CONDITIONS_CREATION.adresse + ". Elles décrivent les étapes, les frais, les délais, l'arrêt du parcours et le traitement de mes données.",
     "",
-    "7. Délais",
-    "Les délais dépendent de ma banque et des organismes. À titre indicatif, il faut compter d'une à trois semaines entre la signature des statuts et l'immatriculation. Aucun délai n'est garanti.",
-    "",
-    "8. Arrêt du parcours",
-    "Je peux arrêter le parcours à tout moment avant l'envoi du dossier. Si l'une de mes réponses sort du cadre de l'outil (activité réglementée, apport autre qu'en argent, associé qui n'est pas une personne physique majeure, conjoint qui demande à être associé), le parcours s'arrête et je suis invité(e) à consulter un professionnel.",
-    "",
-    "9. Données personnelles",
-    "Les informations que je saisis servent à établir les statuts et à accomplir les formalités. Elles sont conservées avec le dossier pendant la durée légale. Je dispose d'un droit d'accès et de rectification auprès du prestataire.",
-    "",
-    "La signature électronique de cette lettre vaut acceptation de l'ensemble de ses termes. Sans elle, rien ne commence.",
+    "La signature électronique de cette lettre vaut acceptation de ses termes. Sans elle, rien ne commence.",
   ].join("\n");
   return { titre: "Lettre de départ — création de la société « " + projet + " »", libelle: "Lettre de départ et procuration", corps: corps };
 }
