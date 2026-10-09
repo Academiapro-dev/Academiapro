@@ -83,6 +83,13 @@ const OUTILS = [
     { nom: "Prévisionnel de trésorerie", href: "/admin/compliance/tresorerie" },
     { nom: "Conformité internationale", href: "/admin/compliance" },
   ]},
+  // 🆕 09/10 : les deux textes que le cabinet et ses clients acceptent, a
+  // portee de main (demande de Jacques). Ce sont les pages publiques : le
+  // cabinet peut en donner l adresse a un client.
+  { titre: "Conditions générales", liens: [
+    { nom: "Conditions générales de vente", href: "/comptable/cgv" },
+    { nom: "Conditions — création de société", href: "/comptable/conditions-creation-societe" },
+  ]},
 ];
 
 export default function PageTableauDeBord() {
