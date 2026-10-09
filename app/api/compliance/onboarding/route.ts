@@ -128,6 +128,97 @@ function poserSession(reponse: NextResponse, email: string, tenantId: string, ro
   return reponse;
 }
 
+// ---------------------------------------------------------------------------
+// 🆕 09/10 — LA FICHE D UN CABINET FRANCAIS.
+//
+// Elle va dans la meme table que les societes suivies (compliance_tenants),
+// parce que c est la que la signature electronique lit le nom et l adresse
+// de celui qui fait signer. Mais ce n est PAS une LLC :
+//   - elle est rattachee a l organisme de la SESSION (tenant_id impose,
+//     jamais lu dans la demande) ;
+//   - formation_state vaut « FR » : c est a ce code que la page reconnait
+//     une fiche francaise ;
+//   - ⛔ AUCUNE echeance n est generee (les regles sont americaines), et les
+//     relances restent desarmees ;
+//   - ni compte ni rattachement a creer, ni session a reemettre : le
+//     cabinet est deja membre de son organisme.
+// L adresse du siege est obligatoire : les lettres que le cabinet fait
+// signer la portent.
+// ---------------------------------------------------------------------------
+async function creerFicheCabinet(tenantId: string, body: any) {
+  const label = String(body.label || "").trim().slice(0, 120);
+  const legalName = String(body.legal_name || "").trim().slice(0, 200);
+  const siege = String(body.principal_office_address || "").trim().slice(0, 300);
+  const siren = String(body.wy_filing_id || "").replace(/[^0-9]/g, "");
+  const email = String(body.email_contact || "").toLowerCase().trim();
+
+  if (label.length < 2) {
+    return NextResponse.json({ error: "Le nom du cabinet est obligatoire." }, { status: 400 });
+  }
+  if (legalName.length < 2) {
+    return NextResponse.json({ error: "La dénomination légale est obligatoire." }, { status: 400 });
+  }
+  if (siege.length < 8) {
+    return NextResponse.json({ error: "L'adresse du siège est obligatoire : les documents à signer la portent." }, { status: 400 });
+  }
+  if (siren && siren.length !== 9 && siren.length !== 14) {
+    return NextResponse.json({ error: "Le numéro SIREN compte 9 chiffres (ou 14 pour un SIRET)." }, { status: 400 });
+  }
+  if (email && (email.indexOf("@") < 1 || email.indexOf(".") < 3)) {
+    return NextResponse.json({ error: "Adresse électronique illisible." }, { status: 400 });
+  }
+
+  const ligne: Record<string, unknown> = {
+    tenant_id: tenantId,
+    label,
+    legal_name: legalName,
+    formation_state: "FR",
+    member_residence: "FR",
+    fr_tax_resident: true,
+    has_us_source_income: false,
+    entity_type: "CABINET",
+    principal_office_address: siege,
+    relance_auto: false,
+  };
+  if (siren) ligne.wy_filing_id = siren;
+  if (email) ligne.email_contact = email;
+  const telephone = String(body.telephone_contact || "").replace(/[^0-9+ .\-()]/g, "").trim().slice(0, 30);
+  if (telephone) ligne.telephone_contact = telephone;
+
+  let { data: societe, error: eIns } = await supabase
+    .from("compliance_tenants")
+    .insert(ligne)
+    .select()
+    .single();
+
+  // ⚠️ Si la base n admet qu une liste fermee de types (contrainte CHECK,
+  // code 23514), la fiche est enregistree sous le type par defaut : c est
+  // formation_state = « FR » qui la designe comme francaise, pas le type.
+  if (eIns && String((eIns as any).code || "") === "23514") {
+    ligne.entity_type = "LLC";
+    const second = await supabase.from("compliance_tenants").insert(ligne).select().single();
+    societe = second.data;
+    eIns = second.error;
+  }
+
+  if (eIns || !societe) {
+    return NextResponse.json(
+      { error: "Création de la fiche : " + (eIns ? eIns.message : "aucune ligne rendue") },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({
+    success: true,
+    cabinet: true,
+    tenant_id: societe.tenant_id,
+    label: societe.label,
+    legal_name: societe.legal_name,
+    echeances: { tente: false },
+    session_mise_a_jour: true,
+  });
+}
+
 // GET : l'utilisateur connecte a-t-il deja une societe ?
 export async function GET(req: NextRequest) {
   if (!origineLegitime(req)) {
@@ -188,7 +279,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Lecture de la société : " + error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ success: true, a_une_societe: !!data, societe: data });
+  // 🆕 09/10 — LE CABINET INSCRIT PAR MR COMPTABLE N A PAS DE FICHE ICI.
+  // Son compte porte deja un organisme (ne a l inscription, avec sa fiche
+  // dans organismes_formation), mais aucune ligne dans compliance_tenants.
+  // Or la signature electronique nomme et range chaque document par cette
+  // ligne : sans elle, ni lettre de mission ni lettre de depart ne partent.
+  // La page recoit donc « cabinet: true » et ce que l inscription sait deja,
+  // pour proposer le formulaire FRANCAIS, prerempli. Rien d autre ne change.
+  if (!data) {
+    const { data: fiche } = await supabase
+      .from("organismes_formation")
+      .select("raison_sociale, email_contact, siret")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    return NextResponse.json({
+      success: true,
+      a_une_societe: false,
+      societe: null,
+      cabinet: true,
+      organisme: {
+        raison_sociale: (fiche && fiche.raison_sociale) || "",
+        email_contact: (fiche && fiche.email_contact) || "",
+        siren: (fiche && fiche.siret) || "",
+      },
+    });
+  }
+
+  return NextResponse.json({ success: true, a_une_societe: true, societe: data });
 }
 
 // POST : creation de la societe du nouveau client
@@ -217,15 +334,42 @@ export async function POST(req: NextRequest) {
     return refusSession(u, "enregistrer une société");
   }
 
+  // 🚨 09/10 — LE CUL-DE-SAC DU CABINET.
+  // « Un compte qui porte un organisme a deja sa societe » : vrai pour le
+  // client d une LLC (son organisme NAIT ici, avec sa societe), FAUX pour un
+  // cabinet inscrit par Mr Comptable (son organisme nait a l inscription,
+  // SANS ligne dans compliance_tenants). Mesure du 09/10, Cabinet Essai
+  // Deux : la page affichait le formulaire, et l enregistrement repondait
+  // « Une société est déjà rattachée à ce compte ». Aucun document ne
+  // pouvait donc partir a la signature dans un cabinet neuf.
+  // ✅ Le refus ne tombe plus que si une fiche EXISTE vraiment. Sinon la
+  // fiche est creee DANS l organisme de la session (modeCabinet).
+  // ⛔ Pour le client d une LLC, rien ne change : il n a pas d organisme.
+  let modeCabinet = false;
   if (tenantExistant) {
-    return NextResponse.json(
-      { error: "Une société est déjà rattachée à ce compte." },
-      { status: 409 }
-    );
+    const { data: deja, error: eDeja } = await supabase
+      .from("compliance_tenants")
+      .select("id")
+      .eq("tenant_id", tenantExistant)
+      .limit(1);
+    if (eDeja) {
+      return NextResponse.json({ error: "Lecture de la société : " + eDeja.message }, { status: 500 });
+    }
+    if (deja && deja.length > 0) {
+      return NextResponse.json(
+        { error: "Une société est déjà rattachée à ce compte." },
+        { status: 409 }
+      );
+    }
+    modeCabinet = true;
   }
 
   try {
     const body = await req.json();
+
+    if (modeCabinet) {
+      return await creerFicheCabinet(String(tenantExistant), body);
+    }
 
     const label = String(body.label || "").trim();
     const legalName = String(body.legal_name || "").trim();
