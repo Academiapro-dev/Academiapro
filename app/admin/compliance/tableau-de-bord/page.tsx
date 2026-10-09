@@ -74,6 +74,8 @@ const OUTILS = [
     { nom: "Mes collaborateurs", href: "/admin/compliance/collaborateurs" },
     // 🆕 09/09 : deux portes de gestion interne du cabinet.
     { nom: "Lettres de mission", href: "/admin/compliance/lettres-mission" },
+    // 🆕 09/10 : la creation d une societe francaise (EURL, SARL, SASU, SAS, SCI).
+    { nom: "Création de société", href: "/admin/compliance/creation-societe" },
     { nom: "Temps passés", href: "/admin/compliance/temps" },
     // 🆕 08/10 : trois ecrans qui n avaient aucune porte dans les menus.
     { nom: "Devis et factures", href: "/admin/compliance/facturation" },
