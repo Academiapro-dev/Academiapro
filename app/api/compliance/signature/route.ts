@@ -56,6 +56,22 @@ export const maxDuration = 60;
 // ni qualifiee. Elle est opposable ENTRE LES PARTIES ; elle ne vaut pas
 // verification d identite. L ecran le dit, et cette route le repete dans sa
 // reponse : mieux vaut le dire avant qu on ne le decouvre.
+//
+// 🆕 10/10 — PLUSIEURS SIGNATAIRES SUR UN MEME DOCUMENT (lot B du module
+// « Creation de societe » : les statuts se signent par tous les associes).
+// document-a-signer range alors la liste dans donnees.signataires. Ici :
+//   - CHAQUE signataire designe signe, avec SON code, envoye a SON adresse ;
+//   - chaque signature est une ligne a part, avec son sceau et son maillon de
+//     chaine, exactement comme avant (la base n admet qu une signature par
+//     document ET par adresse) ;
+//   - le document signe montre TOUTES les signatures, chacune dans son cadre,
+//     et le certificat nomme chacun — et dit qui n a pas encore signe.
+// ⛔ LE VERROU NE BOUGE PAS : seule une adresse INSCRITE SUR LE DOCUMENT
+// signe, et le code ne part qu a cette adresse. Le gestionnaire lit, il ne
+// signe pas.
+// ⛔ Un document sans donnees.signataires suit le chemin d avant, a
+// l identique : le sceau, le chainage et le texte du consentement ne sont
+// pas touches.
 // ---------------------------------------------------------------------------
 
 const ADMINS = ["contact@academiapro.fr"];
@@ -127,9 +143,49 @@ async function documentDe(reference: string) {
 // produit. Mais il ne doit EN AUCUN CAS pouvoir le signer a la place de son
 // client — la preuve porterait alors le nom de celui qui a clique, et non
 // celui qui s engage.
+// 🆕 10/10 — CEUX QUI SIGNENT CE DOCUMENT. La liste de donnees.signataires
+// quand le document en porte une ; sinon son seul signataire_email.
+function signatairesDuDocument(doc: any): { email: string; nom: string }[] {
+  const donnees = doc && doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const liste: { email: string; nom: string }[] = [];
+  if (Array.isArray(donnees.signataires)) {
+    for (const x of donnees.signataires) {
+      const email = String((x && x.email) || "").toLowerCase().trim();
+      if (email && !liste.some(function (y) { return y.email === email; })) liste.push({ email, nom: String((x && x.nom) || "").trim() });
+    }
+  }
+  if (liste.length > 0) return liste;
+  const seul = String((doc && doc.signataire_email) || "").toLowerCase().trim();
+  return seul ? [{ email: seul, nom: String(donnees.signataire_nom || "").trim() }] : [];
+}
+
+// L adresse de la session, si elle est l une de celles du document.
+function signataireDeSession(doc: any, session: any): { email: string; nom: string } | null {
+  const moi = String((session && session.email) || "").toLowerCase().trim();
+  if (!moi) return null;
+  return signatairesDuDocument(doc).find(function (x) { return x.email === moi; }) || null;
+}
+
+function nomsDesSignataires(doc: any): string {
+  return signatairesDuDocument(doc).map(function (x) { return x.email; }).join(", ");
+}
+
+// 🆕 10/10 — OU EN SONT LES SIGNATURES : qui a signe, quand, qui reste.
+async function etatDesSignatures(doc: any): Promise<{ signataires: { email: string; nom: string; signe_le: string | null }[]; reste: number }> {
+  const attendus = signatairesDuDocument(doc);
+  const { data } = await supabase
+    .from("compliance_signatures")
+    .select("signataire_email, signe_le")
+    .eq("document_reference", doc.reference)
+    .eq("annulee", false);
+  const faites: Record<string, string> = {};
+  for (const x of data || []) faites[String(x.signataire_email || "").toLowerCase()] = x.signe_le;
+  const liste = attendus.map(function (a) { return { email: a.email, nom: a.nom, signe_le: faites[a.email] || null }; });
+  return { signataires: liste, reste: liste.filter(function (x) { return !x.signe_le; }).length };
+}
+
 function peutLire(doc: any, session: any) {
-  const estLeSignataire =
-    String(doc.signataire_email || "").toLowerCase() === String(session.email || "").toLowerCase();
+  const estLeSignataire = !!signataireDeSession(doc, session);
   const estLeGestionnaire = session.tenantId === doc.tenant_id;
   const estAdmin = ADMINS.indexOf(session.email) >= 0;
   return estLeSignataire || estLeGestionnaire || estAdmin;
@@ -138,8 +194,7 @@ function peutLire(doc: any, session: any) {
 // 🚨 SEUL LE SIGNATAIRE DESIGNE SIGNE. Sans exception, sans passe-droit
 // administrateur. C est le verrou qui donne sa valeur a toute la chaine.
 function peutSigner(doc: any, session: any) {
-  return String(doc.signataire_email || "").toLowerCase()
-    === String(session.email || "").toLowerCase();
+  return !!signataireDeSession(doc, session);
 }
 
 function typeSignable(doc: any): boolean {
@@ -236,31 +291,64 @@ function dateHeureParis(v: unknown): string {
   } catch { return String(v); }
 }
 
-async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<Uint8Array> {
+// 🆕 10/10 — `sigs` : TOUTES les signatures du document, de la plus ancienne
+// a la plus recente. Pour un document a un signataire, la liste n en compte
+// qu une et la page rendue est celle d avant, a l identique.
+async function documentSigne(doc: any, sigs: any[], original: Uint8Array): Promise<Uint8Array> {
   const pdf = await PDFDocument.load(original, { ignoreEncryption: true });
   const nbPagesDocument = pdf.getPageCount();
   const police = await pdf.embedFont(StandardFonts.Helvetica);
   const gras = await pdf.embedFont(StandardFonts.HelveticaBold);
 
-  // ---- 🆕 23/09 (soir) — LE TRACE, REPORTE LA OU IL SE POSE ----
   const donneesDoc = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
-  const traceBrut = String(sig.trace_signature || "");
-  const mTrace = traceBrut.match(/^data:image\/png;base64,(.+)$/);
-  let imageTrace: any = null;
-  if (mTrace) { try { imageTrace = await pdf.embedPng(Buffer.from(mTrace[1], "base64")); } catch { imageTrace = null; } }
-  const reports: string[] = [];
-  function poser(page: any, x: number, y: number, l: number, h: number) {
-    if (!imageTrace) return;
-    const e = Math.min(l / imageTrace.width, h / imageTrace.height, 1);
-    page.drawImage(imageTrace, { x: x, y: y, width: imageTrace.width * e, height: imageTrace.height * e });
+  const attendus = signatairesDuDocument(doc);
+  const plusieurs = attendus.length > 1;
+  // La signature qui sert au report sur les pieces jointes et, pour un
+  // document a un signataire, a tout le certificat : la plus recente.
+  const sig = sigs[sigs.length - 1];
+
+  // ---- 🆕 23/09 (soir) — LE TRACE, REPORTE LA OU IL SE POSE ----
+  async function imageDe(s: any): Promise<any> {
+    const m = String((s && s.trace_signature) || "").match(/^data:image\/png;base64,(.+)$/);
+    if (!m) return null;
+    try { return await pdf.embedPng(Buffer.from(m[1], "base64")); } catch { return null; }
   }
-  // a. le cadre « Signature du titulaire » du document lui-meme
-  const zone = donneesDoc.zone_signature;
-  if (zone && typeof zone.page === "number" && zone.page >= 0 && zone.page < nbPagesDocument) {
-    const p = pdf.getPage(zone.page);
-    if (imageTrace) poser(p, zone.x + 8, zone.y + 16, zone.largeur - 16, zone.hauteur - 24);
-    p.drawText(pourPdfCertificat("Signé électroniquement le " + dateHeureParis(sig.signe_le).replace(" (heure de Paris)", "")), { x: zone.x + 8, y: zone.y + 5, size: 7.5, font: police, color: rgb(0.35, 0.35, 0.35) });
-    reports.push("le cadre « Signature du titulaire »");
+  const images: any[] = [];
+  for (const s of sigs) images.push(await imageDe(s));
+  const imageTrace: any = images[images.length - 1];
+  const reports: string[] = [];
+  function poserImage(page: any, image: any, x: number, y: number, l: number, h: number) {
+    if (!image) return;
+    const e = Math.min(l / image.width, h / image.height, 1);
+    page.drawImage(image, { x: x, y: y, width: image.width * e, height: image.height * e });
+  }
+  function poser(page: any, x: number, y: number, l: number, h: number) { poserImage(page, imageTrace, x, y, l, h); }
+  function zoneValable(z: any): boolean {
+    return !!z && typeof z.page === "number" && z.page >= 0 && z.page < nbPagesDocument
+      && typeof z.x === "number" && typeof z.y === "number" && typeof z.largeur === "number" && typeof z.hauteur === "number";
+  }
+  function remplirCadre(z: any, s: any, image: any) {
+    const p = pdf.getPage(z.page);
+    if (image) poserImage(p, image, z.x + 8, z.y + 16, z.largeur - 16, z.hauteur - 24);
+    p.drawText(pourPdfCertificat("Signé électroniquement le " + dateHeureParis(s.signe_le).replace(" (heure de Paris)", "")), { x: z.x + 8, y: z.y + 5, size: 7.5, font: police, color: rgb(0.35, 0.35, 0.35) });
+  }
+  if (!plusieurs) {
+    // a. le cadre « Signature du titulaire » du document lui-meme
+    const zone = donneesDoc.zone_signature;
+    if (zoneValable(zone)) {
+      remplirCadre(zone, sig, imageTrace);
+      reports.push("le cadre « Signature du titulaire »");
+    }
+  } else {
+    // a bis. 🆕 10/10 — un cadre par signataire : chacun dans le sien.
+    const zones: any[] = Array.isArray(donneesDoc.zones_signature) ? donneesDoc.zones_signature : [];
+    let poses = 0;
+    for (let i = 0; i < sigs.length; i++) {
+      const email = String(sigs[i].signataire_email || "").toLowerCase();
+      const z = zones.find(function (x: any) { return x && String(x.email || "").toLowerCase() === email; });
+      if (zoneValable(z)) { remplirCadre(z, sigs[i], images[i]); poses++; }
+    }
+    if (poses > 0) reports.push(poses > 1 ? "le cadre de chaque signataire" : "le cadre du signataire");
   }
   // b. les formulaires joints, sur leur propre ligne de signature
   const annexes: any[] = Array.isArray(donneesDoc.annexes) ? donneesDoc.annexes : [];
@@ -303,8 +391,13 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
   }
   const LARGEUR = 595.28, HAUTEUR = 841.89, MARGE = 56, UTILE = LARGEUR - 2 * MARGE;
   const OR = rgb(0.784, 0.663, 0.431), NUIT = rgb(0.10, 0.10, 0.18), GRIS = rgb(0.40, 0.40, 0.40), VERT = rgb(0.0, 0.50, 0.25), ROUGE = rgb(0.78, 0.16, 0.16);
-  const page = pdf.addPage([LARGEUR, HAUTEUR]);
+  let page = pdf.addPage([LARGEUR, HAUTEUR]);
   let y = HAUTEUR - MARGE;
+  // 🆕 10/10 — avec plusieurs signataires, le certificat peut depasser une
+  // page : il continue sur la suivante plutot que d ecrire hors de la feuille.
+  function place(hauteur: number) {
+    if (y - hauteur < MARGE) { page = pdf.addPage([LARGEUR, HAUTEUR]); y = HAUTEUR - MARGE; }
+  }
 
   function lignes(texte: string, fonte: any, taille: number, largeur: number): string[] {
     const mots = pourPdfCertificat(texte).split(/\s+/).filter(function (m) { return m.length > 0; });
@@ -329,14 +422,28 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
   }
   function ecrire(texte: string, fonte: any, taille: number, couleur: any, interligne?: number) {
     for (const l of lignes(texte, fonte, taille, UTILE)) {
+      if (plusieurs) place(taille);
       page.drawText(l, { x: MARGE, y: y, size: taille, font: fonte, color: couleur });
       y = y - taille * (interligne || 1.5);
     }
   }
   function rubrique(libelle: string, valeur: string) {
+    if (plusieurs) place(40);
     ecrire(libelle.toUpperCase(), gras, 8.5, OR, 1.5);
     ecrire(valeur || "—", police, 11, NUIT, 1.45);
     y = y - 6;
+  }
+  function trace(image: any, largeurMax: number, hauteurMax: number) {
+    try {
+      const echelle = Math.min(largeurMax / image.width, hauteurMax / image.height, 1);
+      const w = image.width * echelle, h = image.height * echelle;
+      if (plusieurs) place(h + 30);
+      page.drawRectangle({ x: MARGE, y: y - h - 8, width: w + 16, height: h + 16, color: rgb(0.99, 0.98, 0.96), borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5 });
+      page.drawImage(image, { x: MARGE + 8, y: y - h, width: w, height: h });
+      y = y - h - 26;
+    } catch {
+      ecrire("(tracé enregistré, illisible pour l'affichage)", police, 10, GRIS);
+    }
   }
 
   const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
@@ -349,40 +456,73 @@ async function documentSigne(doc: any, sig: any, original: Uint8Array): Promise<
 
   rubrique("Document signé", (doc.title || libelle) + " (" + (nbPagesDocument === 1 ? "1 page" : nbPagesDocument + " pages") + ", reproduites avant ce certificat)");
   rubrique("Référence", String(doc.reference || ""));
-  const qui = [sig.signataire_nom, sig.signataire_qualite].filter(function (x: any) { return !!x; }).join(", ");
-  rubrique("Signataire", (qui ? qui + " — " : "") + String(sig.signataire_email || ""));
-  rubrique("Signé le", dateHeureParis(sig.signe_le));
-  rubrique("Code de vérification", sig.code_verifie_le ? "envoyé à l'adresse du signataire et vérifié le " + dateHeureParis(sig.code_verifie_le) : "—");
-  rubrique("Empreinte SHA-256 du document signé", String(sig.empreinte_sha256 || ""));
 
   const empreinteArchive = crypto.createHash("sha256").update(original).digest("hex");
-  const conforme = empreinteArchive === String(sig.empreinte_sha256 || "") && empreinteArchive === String(doc.pdf_sha256 || doc.file_hash || "");
-  ecrire("CONTRÔLE À L'OUVERTURE", gras, 8.5, OR, 1.5);
-  ecrire(conforme
-    ? "Conforme : le fichier archivé est identique, à l'octet près, à celui qui a été signé."
-    : "NON CONFORME : le fichier archivé ne correspond plus à l'empreinte signée. Prévenez le support.",
-    gras, 10.5, conforme ? VERT : ROUGE, 1.45);
-  if (reports.length > 0) {
-    ecrire("Pour la lecture, le tracé de signature est reporté sur " + reports.join(" et sur ") + ", là où il est apposé à la transmission. L'empreinte ci-dessus est celle du fichier signé, avant ce report.", police, 9.5, GRIS, 1.45);
-  }
-  y = y - 10;
-
-  ecrire("TRACÉ DE SIGNATURE", gras, 8.5, OR, 1.5);
-  if (imageTrace) {
-    try {
-      const image = imageTrace;
-      const echelle = Math.min(260 / image.width, 110 / image.height, 1);
-      const w = image.width * echelle, h = image.height * echelle;
-      page.drawRectangle({ x: MARGE, y: y - h - 8, width: w + 16, height: h + 16, color: rgb(0.99, 0.98, 0.96), borderColor: rgb(0.85, 0.85, 0.85), borderWidth: 0.5 });
-      page.drawImage(image, { x: MARGE + 8, y: y - h, width: w, height: h });
-      y = y - h - 26;
-    } catch {
-      ecrire("(tracé enregistré, illisible pour l'affichage)", police, 10, GRIS);
+  const conforme = empreinteArchive === String(doc.pdf_sha256 || doc.file_hash || "")
+    && sigs.every(function (s: any) { return empreinteArchive === String(s.empreinte_sha256 || ""); });
+  function controle() {
+    ecrire("CONTRÔLE À L'OUVERTURE", gras, 8.5, OR, 1.5);
+    ecrire(conforme
+      ? "Conforme : le fichier archivé est identique, à l'octet près, à celui qui a été signé."
+      : "NON CONFORME : le fichier archivé ne correspond plus à l'empreinte signée. Prévenez le support.",
+      gras, 10.5, conforme ? VERT : ROUGE, 1.45);
+    if (reports.length > 0) {
+      ecrire("Pour la lecture, le tracé de signature est reporté sur " + reports.join(" et sur ") + ", là où il est apposé à la transmission. L'empreinte ci-dessus est celle du fichier signé, avant ce report.", police, 9.5, GRIS, 1.45);
     }
-  } else {
-    ecrire("Aucun tracé : la signature a été donnée par le code de vérification seul.", police, 10, GRIS);
+    y = y - 10;
   }
-  y = y - 8;
+  function quiEst(s: any): string {
+    const qui = [s.signataire_nom, s.signataire_qualite].filter(function (x: any) { return !!x; }).join(", ");
+    return (qui ? qui + " — " : "") + String(s.signataire_email || "");
+  }
+  function codeDe(s: any): string {
+    return s.code_verifie_le ? "envoyé à l'adresse du signataire et vérifié le " + dateHeureParis(s.code_verifie_le) : "—";
+  }
+
+  if (!plusieurs) {
+    rubrique("Signataire", quiEst(sig));
+    rubrique("Signé le", dateHeureParis(sig.signe_le));
+    rubrique("Code de vérification", codeDe(sig));
+    rubrique("Empreinte SHA-256 du document signé", String(sig.empreinte_sha256 || ""));
+    controle();
+
+    ecrire("TRACÉ DE SIGNATURE", gras, 8.5, OR, 1.5);
+    if (imageTrace) trace(imageTrace, 260, 110);
+    else ecrire("Aucun tracé : la signature a été donnée par le code de vérification seul.", police, 10, GRIS);
+    y = y - 8;
+  } else {
+    // 🆕 10/10 — PLUSIEURS SIGNATAIRES : l empreinte et le controle d abord
+    // (ils valent pour tous), puis une rubrique par signature, puis ceux
+    // qui n ont pas encore signe.
+    rubrique("Empreinte SHA-256 du document signé", empreinteArchive);
+    controle();
+    const signes: Record<string, boolean> = {};
+    for (const s of sigs) signes[String(s.signataire_email || "").toLowerCase()] = true;
+    const manquants = attendus.filter(function (a) { return !signes[a.email]; });
+    rubrique("Signatures", manquants.length === 0
+      ? "Les " + attendus.length + " signataires ont signé."
+      : sigs.length + " sur " + attendus.length + " : le document n'est pas encore signé par tous.");
+    for (let i = 0; i < sigs.length; i++) {
+      const s = sigs[i];
+      place(150);
+      page.drawLine({ start: { x: MARGE, y: y + 6 }, end: { x: LARGEUR - MARGE, y: y + 6 }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+      y = y - 8;
+      rubrique("Signataire " + (i + 1), quiEst(s));
+      rubrique("Signé le", dateHeureParis(s.signe_le));
+      rubrique("Code de vérification", codeDe(s));
+      if (images[i]) trace(images[i], 200, 70);
+      else { ecrire("Aucun tracé : la signature a été donnée par le code de vérification seul.", police, 10, GRIS); y = y - 8; }
+    }
+    if (manquants.length > 0) {
+      place(60);
+      page.drawLine({ start: { x: MARGE, y: y + 6 }, end: { x: LARGEUR - MARGE, y: y + 6 }, thickness: 0.5, color: rgb(0.85, 0.85, 0.85) });
+      y = y - 8;
+      ecrire("RESTE À SIGNER", gras, 8.5, OR, 1.5);
+      for (const m of manquants) ecrire((m.nom ? m.nom + " — " : "") + m.email, gras, 11, ROUGE, 1.45);
+      y = y - 8;
+    }
+    place(70);
+  }
 
   ecrire("Signature électronique simple au sens du règlement européen eIDAS. Elle n'est ni avancée ni qualifiée : elle est opposable entre les parties, elle ne vaut pas vérification d'identité.", police, 9, GRIS, 1.5);
   y = y - 6;
@@ -422,15 +562,22 @@ export async function GET(req: NextRequest) {
       if (!peutLire(doc, session)) {
         return NextResponse.json({ ok: false, erreur: "Ce document ne vous concerne pas." }, { status: 403 });
       }
-      const { data: sig } = await supabase
+      // 🆕 10/10 — TOUTES les signatures du document, dans l ordre ou elles
+      // ont ete posees. Un document a un signataire n en a qu une.
+      const { data: toutes } = await supabase
         .from("compliance_signatures")
         .select("*")
         .eq("document_reference", reference)
         .eq("annulee", false)
-        .order("signe_le", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (!sig) {
+        .order("signe_le", { ascending: true })
+        .limit(50);
+      const attendusVue = signatairesDuDocument(doc).map(function (x) { return x.email; });
+      // Sur un document a plusieurs signataires, seules comptent les
+      // signatures des adresses inscrites sur le document.
+      const sigs = (toutes || []).filter(function (x: any) {
+        return attendusVue.length < 2 || attendusVue.indexOf(String(x.signataire_email || "").toLowerCase()) >= 0;
+      });
+      if (sigs.length === 0) {
         return NextResponse.json({ ok: false, erreur: "Ce document n'est pas encore signé." }, { status: 404 });
       }
       const chemin = doc.pdf_chemin || doc.storage_path || "";
@@ -439,7 +586,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ok: false, erreur: "Le document archivé est introuvable." }, { status: 404 });
       }
       const original = new Uint8Array(await fichier.arrayBuffer());
-      const octets = await documentSigne(doc, sig, original);
+      const octets = await documentSigne(doc, sigs, original);
       return new NextResponse(Buffer.from(octets), {
         status: 200,
         headers: {
@@ -496,17 +643,27 @@ export async function GET(req: NextRequest) {
         .limit(1)
         .maybeSingle();
 
+      // 🆕 10/10 — plusieurs signataires : ou en est chacun. Pour un document
+      // a un signataire, rien de plus n est rendu.
+      const attendusDoc = signatairesDuDocument(doc);
+      const etat = attendusDoc.length > 1 ? await etatDesSignatures(doc) : null;
+      const moi = signataireDeSession(doc, session);
+
       return NextResponse.json({
         ok: true,
         deja_signe: !!dejaSigne,
         signe_le: dejaSigne ? dejaSigne.signe_le : null,
+        signataires: etat ? etat.signataires : null,
+        reste_a_signer: etat ? etat.reste : null,
+        votre_nom: moi && moi.nom ? moi.nom : null,
+        conditions_url: donnees.conditions_url || null,
         reference: doc.reference,
         type: doc.doc_type,
         libelle: donnees.libelle || null,
         titre: doc.title || donnees.titre || null,
         empreinte: doc.pdf_sha256 || doc.file_hash || null,
         lien_lecture: lien || null,
-        signataire: doc.signataire_email,
+        signataire: attendusDoc.length > 1 ? nomsDesSignataires(doc) : doc.signataire_email,
         signable: typeSignable(doc),
         vous_pouvez_signer: peutSigner(doc, session) && typeSignable(doc),
         // ⚠️ DIT AVANT LA SIGNATURE, PAS APRES.
@@ -628,13 +785,31 @@ export async function GET(req: NextRequest) {
 // 🚨 LE CODE PART A L ADRESSE INSCRITE SUR LE DOCUMENT, jamais a celle de
 // la session. Autrement, le gestionnaire recevrait les codes de ses propres
 // clients — et pourrait signer a leur place.
-async function envoyerCode(req: NextRequest, doc: any) {
+//
+// 🆕 10/10 — avec plusieurs signataires, `destinataireVoulu` est celle des
+// adresses DU DOCUMENT qui est connectee (signataireDeSession) : le code ne
+// part donc toujours qu a une adresse inscrite sur le document, et chacun ne
+// recoit que le sien. Sans elle, c est le signataire_email, comme avant.
+//
+// 🆕 10/10 — LES CODES SE RANGENT SUR UNE LECTURE FRAICHE du document : deux
+// associes qui signent au meme moment ne s effacent plus leur code l un a
+// l autre (le document relu au debut de la requete pouvait dater).
+async function rangerCodes(docId: string, changer: (codes: any) => void): Promise<string | null> {
+  const { data: frais } = await supabase.from("compliance_documents").select("donnees").eq("id", docId).maybeSingle();
+  const donnees = frais && frais.donnees && typeof frais.donnees === "object" ? frais.donnees : {};
+  const codes = donnees.codes_signature && typeof donnees.codes_signature === "object" ? { ...donnees.codes_signature } : {};
+  changer(codes);
+  const { error } = await supabase.from("compliance_documents").update({ donnees: { ...donnees, codes_signature: codes } }).eq("id", docId);
+  return error ? error.message : null;
+}
+
+async function envoyerCode(req: NextRequest, doc: any, destinataireVoulu?: string) {
   const cle = process.env.RESEND_API_KEY || "";
   if (!cle) {
     return NextResponse.json({ ok: false, erreur: "RESEND_API_KEY absente" }, { status: 500 });
   }
 
-  const destinataire = String(doc.signataire_email || "").toLowerCase().trim();
+  const destinataire = String(destinataireVoulu || doc.signataire_email || "").toLowerCase().trim();
   if (!destinataire) {
     return NextResponse.json(
       { ok: false, erreur: "Ce document ne porte aucune adresse de signataire." },
@@ -645,25 +820,17 @@ async function envoyerCode(req: NextRequest, doc: any) {
   const code = String(Math.floor(100000 + Math.random() * 900000));
   const expire = new Date(Date.now() + VALIDITE_CODE_MIN * 60000).toISOString();
 
-  const donnees = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
-  const codes = donnees.codes_signature && typeof donnees.codes_signature === "object"
-    ? donnees.codes_signature
-    : {};
+  const erreurCode = await rangerCodes(doc.id, function (codes) {
+    codes[destinataire] = {
+      empreinte: empreinteTexte(code + "|" + destinataire),
+      envoye_le: new Date().toISOString(),
+      expire_le: expire,
+      tentatives: 0,
+    };
+  });
 
-  codes[destinataire] = {
-    empreinte: empreinteTexte(code + "|" + destinataire),
-    envoye_le: new Date().toISOString(),
-    expire_le: expire,
-    tentatives: 0,
-  };
-
-  const { error } = await supabase
-    .from("compliance_documents")
-    .update({ donnees: { ...donnees, codes_signature: codes } })
-    .eq("id", doc.id);
-
-  if (error) {
-    return NextResponse.json({ ok: false, erreur: error.message }, { status: 500 });
+  if (erreurCode) {
+    return NextResponse.json({ ok: false, erreur: erreurCode }, { status: 500 });
   }
 
   // ⚠️ LA MARQUE VIENT DE L HOTE APPELANT — 03/09. Mr. Comptable et
@@ -761,21 +928,27 @@ export async function POST(req: NextRequest) {
 
     // 🚨 LE SECOND VERROU : LA PERSONNE. Le gestionnaire lit, il ne signe
     // pas a la place de son client.
-    if (!peutSigner(doc, session)) {
+    const moi = signataireDeSession(doc, session);
+    if (!moi) {
+      const plusieursDesignes = signatairesDuDocument(doc).length > 1;
       return NextResponse.json(
         {
           ok: false,
-          erreur: "Seul le signataire désigné peut signer ce document. Il est établi"
-            + " au nom de " + doc.signataire_email
-            + " : connectez-vous avec ce compte pour le signer.",
-          signataire: doc.signataire_email,
+          erreur: plusieursDesignes
+            ? "Seuls les signataires désignés peuvent signer ce document. Il est établi"
+              + " au nom de " + nomsDesSignataires(doc)
+              + " : connectez-vous avec l'une de ces adresses pour le signer."
+            : "Seul le signataire désigné peut signer ce document. Il est établi"
+              + " au nom de " + doc.signataire_email
+              + " : connectez-vous avec ce compte pour le signer.",
+          signataire: plusieursDesignes ? nomsDesSignataires(doc) : doc.signataire_email,
         },
         { status: 403 }
       );
     }
 
     if (b.action === "code") {
-      return await envoyerCode(req, doc);
+      return await envoyerCode(req, doc, moi.email);
     }
 
     if (b.accepte !== true) {
@@ -785,7 +958,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const signataire = String(doc.signataire_email || "").toLowerCase().trim();
+    // 🆕 10/10 — celui qui signe : l adresse du document qui est connectee.
+    // Pour un document a un signataire, c est son signataire_email, comme avant.
+    const signataire = moi.email;
 
     const { data: deja } = await supabase
       .from("compliance_signatures")
@@ -833,11 +1008,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (empreinteTexte(codeSaisi + "|" + signataire) !== attendu.empreinte) {
-      codes[signataire] = { ...attendu, tentatives: tentatives + 1 };
-      await supabase
-        .from("compliance_documents")
-        .update({ donnees: { ...donnees, codes_signature: codes } })
-        .eq("id", doc.id);
+      await rangerCodes(doc.id, function (c) { c[signataire] = { ...attendu, tentatives: tentatives + 1 }; });
 
       return NextResponse.json(
         {
@@ -944,14 +1115,16 @@ export async function POST(req: NextRequest) {
     }
 
     // ⚠️ LE CODE EST CONSOMME : il ne doit plus jamais resservir.
-    delete codes[signataire];
-    await supabase
-      .from("compliance_documents")
-      .update({ donnees: { ...donnees, codes_signature: codes } })
-      .eq("id", doc.id);
+    await rangerCodes(doc.id, function (c) { delete c[signataire]; });
+
+    // 🆕 10/10 — plusieurs signataires : dire a celui qui vient de signer qui
+    // reste. Pour un document a un signataire, rien de plus n est rendu.
+    const etatApres = signatairesDuDocument(doc).length > 1 ? await etatDesSignatures(doc) : null;
 
     return NextResponse.json({
       ok: true,
+      signataires: etatApres ? etatApres.signataires : null,
+      reste_a_signer: etatApres ? etatApres.reste : null,
       signature: (data || [])[0] || null,
       empreinte: empreinte,
       archive: chemin,
