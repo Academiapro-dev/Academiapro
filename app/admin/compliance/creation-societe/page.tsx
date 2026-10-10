@@ -15,6 +15,12 @@ import { useState, useEffect } from "react";
 // ⛔ AUCUNE LISTE N EST REMPLIE D AVANCE : chaque choix est celui du client.
 // ⚠️ A NE PAS CONFONDRE avec /admin/compliance/creation (la LLC americaine
 // de MysterLLC).
+//
+// 🆕 LOT B (10/10) — PLUSIEURS SIGNATAIRES. Les statuts d une societe a
+// plusieurs associes partent a tous : le bouton le dit, et l etape des
+// statuts montre qui a signe et qui reste. Le premier associe est PROPOSE
+// avec le nom et l adresse du client du dossier (une identite deja saisie,
+// pas un choix) : tout reste modifiable.
 // ══════════════════════════════════════════════════════════════════════════
 
 // 10/10/2026 — Sous « Forme de la société », l aide enchaine les cinq
@@ -181,9 +187,11 @@ export default function PageCreationSociete() {
       poser(d2);
       setApercu(null);
       const em = d1.email || {};
-      const qui = apercu.document_a_signer.signataire_email;
-      if (em.envoye === true) dire((quoi === "lettre" ? "Lettre de départ" : "Statuts") + " envoyés à " + qui + " pour signature (" + d1.reference + ").", "");
-      else dire("", "ATTENTION : le document " + d1.reference + " est créé, mais le courriel n'est pas parti (" + (em.raison || "cause inconnue") + "). Donnez ce lien au signataire : " + (d1.lien || ""));
+      // 10/10 — plusieurs signataires : les nommer tous.
+      const plusieurs: any[] = apercu.document_a_signer.signataires || [];
+      const qui = plusieurs.length > 1 ? plusieurs.map(function (s: any) { return s.email; }).join(", ") : apercu.document_a_signer.signataire_email;
+      if (em.envoye === true) dire(quoi === "lettre" ? "Lettre de départ envoyée à " + qui + " pour signature (" + d1.reference + ")." : "Statuts envoyés à " + qui + " pour signature (" + d1.reference + ")." + (plusieurs.length > 1 ? " Chacun signe de son côté." : ""), "");
+      else dire("", "ATTENTION : le document " + d1.reference + " est créé, mais le courriel n'est pas parti (" + (em.raison || "cause inconnue") + "). Donnez ce lien " + (plusieurs.length > 1 ? "aux signataires" : "au signataire") + " : " + (d1.lien || ""));
     } catch (e: any) { dire("", "Erreur : " + String(e)); }
     setOccupe("");
   }
@@ -201,6 +209,18 @@ export default function PageCreationSociete() {
     const min = !f ? 1 : section === "direction" ? 1 : f.associes_min;
     const liste: any[] = Array.isArray(l) ? l.slice() : [];
     while (liste.length < min) liste.push({});
+    // 10/10 — LE PREMIER ASSOCIE EST PROPOSE AVEC LE CLIENT DU DOSSIER : son
+    // nom et son adresse sont connus depuis l ouverture, on ne les redemande
+    // pas. Seulement tant que la ligne est vierge ; tout reste modifiable, et
+    // un champ vide a la main n est pas rempli de nouveau.
+    if (section === "associes" && d && liste.length > 0 && Object.keys(liste[0] || {}).length === 0) {
+      const mots = t(d.dossier.client_nom).split(/\s+/).filter(function (m: string) { return m.length > 0; });
+      const propose: any = {};
+      if (mots.length > 1) { propose.prenom = mots[0]; propose.nom = mots.slice(1).join(" "); }
+      else if (mots.length === 1) propose.nom = mots[0];
+      if (t(d.dossier.client_email)) propose.email = t(d.dossier.client_email);
+      liste[0] = propose;
+    }
     return liste;
   }
   function maxLignes(section: string): number { const f = forme(); return !f ? 1 : section === "direction" ? f.dirigeants_max : f.associes_max; }
@@ -306,6 +326,12 @@ export default function PageCreationSociete() {
     if (x.statut === "abandonne") return "Ce dossier est arrêté. Rien n'a été déposé.";
     if (x.hors_cadre) return x.hors_cadre;
     if (d.etape === "lettre") return x.lettre_reference ? "La lettre de départ attend la signature de " + x.client_email + ". Rien ne commence avant." : "Préparez la lettre de départ et envoyez-la à signer à " + x.client_email + ".";
+    if (d.etape === "statuts" && x.statuts_reference && d.statuts_signatures) {
+      const reste = d.statuts_signatures.filter(function (s: any) { return !s.signe_le; });
+      return reste.length === 1
+        ? "Les statuts attendent la signature de " + (reste[0].nom || reste[0].email) + "."
+        : "Les statuts attendent " + reste.length + " signatures : " + reste.map(function (s: any) { return s.nom || s.email; }).join(", ") + ".";
+    }
     if (d.etape === "statuts") return x.statuts_reference ? "Les statuts attendent leur signature." : "Les cinq étapes sont validées : préparez les statuts, relisez-les, puis envoyez-les à signer.";
     if (d.etape === "depot_capital") return "Les statuts sont signés. Les étapes suivantes (dépôt du capital, annonce légale, envoi au guichet unique) s'ouvriront ici.";
     const e = (d.etapes || []).find(function (y: any) { return y.code === d.etape; });
@@ -340,15 +366,27 @@ export default function PageCreationSociete() {
 
   function carteStatuts() {
     const x = d.dossier;
-    if (x.statuts_signes_le) return <p style={{ color: VERT, fontSize: "15px", margin: 0 }}>✓ Signés le {dateHeure(x.statuts_signes_le)} · {x.statuts_reference}</p>;
+    if (x.statuts_signes_le) return <p style={{ color: VERT, fontSize: "15px", margin: 0 }}>✓ Signés le {dateHeure(x.statuts_signes_le)}{d.statuts_signatures ? " par les " + d.statuts_signatures.length + " associés" : ""} · {x.statuts_reference}</p>;
     if (d.etape !== "statuts") return <p style={{ ...AIDE, margin: 0 }}>Cette étape s&apos;ouvre quand les cinq étapes du questionnaire sont validées.</p>;
     return (
       <div>
         {x.statuts_reference && (
           <div style={{ marginBottom: "14px" }}>
             <p style={{ color: ORANGE, fontSize: "15px", margin: "0 0 10px" }}>Envoyés le {dateHeure(x.statuts_envoyes_le)} · {x.statuts_reference} · en attente de signature</p>
+            {/* 10/10 — plusieurs signataires : qui a signe, qui reste. */}
+            {d.statuts_signatures && (
+              <div style={{ margin: "0 0 14px" }}>
+                {d.statuts_signatures.map(function (s: any, i: number) {
+                  return (
+                    <p key={i} style={{ color: s.signe_le ? VERT : ORANGE, fontSize: "15px", lineHeight: "1.55", margin: "0 0 4px", wordBreak: "break-word" }}>
+                      {s.signe_le ? "✓ " : "… "}{s.nom ? s.nom + " — " : ""}{s.email}{s.signe_le ? " : a signé le " + dateHeure(s.signe_le) : " : n'a pas encore signé"}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <button onClick={() => ouvrirDossier(x.id)} disabled={occupe !== ""} style={BOUTON}>Vérifier la signature</button>
+              <button onClick={() => ouvrirDossier(x.id)} disabled={occupe !== ""} style={BOUTON}>{d.statuts_signatures ? "Vérifier les signatures" : "Vérifier la signature"}</button>
               <a href={"/compliance/signature/" + encodeURIComponent(x.statuts_reference)} style={{ ...SECOND, textDecoration: "none", display: "inline-block" }}>Ouvrir le document à signer</a>
               <button onClick={() => { if (window.confirm("Rouvrir le questionnaire ? Le document déjà envoyé ne devra plus être signé : après correction, les statuts seront renvoyés.")) agir("rouvrir", { action: "rouvrir", id: x.id }); }} disabled={occupe !== ""} style={SECOND}>
                 {occupe === "rouvrir" ? "…" : "Rouvrir le questionnaire"}
@@ -382,12 +420,12 @@ export default function PageCreationSociete() {
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "center" }}>
           {doc && (
             <button onClick={() => envoyerASigner(apercu.quoi)} disabled={occupe !== ""} style={BOUTON}>
-              {occupe === "envoyer" ? "…" : "Envoyer à signer à " + doc.signataire_email}
+              {occupe === "envoyer" ? "…" : doc.signataires && doc.signataires.length > 1 ? "Envoyer à signer aux " + doc.signataires.length + " associés" : "Envoyer à signer à " + doc.signataire_email}
             </button>
           )}
           <button onClick={() => setApercu(null)} disabled={occupe !== ""} style={SECOND}>Fermer</button>
         </div>
-        {doc && <p style={AIDE}>Le signataire reçoit un lien, lit le document en entier et signe avec un code reçu par courriel.</p>}
+        {doc && <p style={AIDE}>{doc.signataires && doc.signataires.length > 1 ? "Chaque associé reçoit son lien, lit le document en entier et signe avec son propre code reçu par courriel. Les statuts sont signés quand tous ont signé." : "Le signataire reçoit un lien, lit le document en entier et signe avec un code reçu par courriel."}</p>}
       </div>
     );
   }
