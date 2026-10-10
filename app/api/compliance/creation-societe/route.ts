@@ -6,7 +6,7 @@ import { origineLegitime } from "../../../../lib/origine";
 import { lecture } from "../../../../lib/droits";
 import {
   ETAPES, ORDRE_SECTIONS, questionnaire, sectionDe, formeDe, nettoyer, controler, horsCadre,
-  canonique, lettreDepart, statuts, recapitulatif,
+  canonique, lettreDepart, statuts, recapitulatif, CONDITIONS_CREATION,
 } from "../../../../lib/statuts-modeles";
 
 export const runtime = "nodejs";
@@ -47,10 +47,18 @@ export const maxDuration = 60;
 //               valider | statuts_preparer | statuts_lier | rouvrir |
 //               abandonner
 //
-// ⚠️ LOT A : les statuts partent a UN signataire (EURL, SASU). Des que la
-// societe compte plusieurs associes, ils se relisent ici mais leur envoi a
-// la signature de chacun attend le lot B (plusieurs signataires sur un meme
-// document) : la route le dit, elle ne fait pas signer un seul pour tous.
+// 🆕 LOT B (10/10) — PLUSIEURS SIGNATAIRES. Les statuts d une societe a
+// plusieurs associes (SARL, SAS, SCI) partent a TOUS les associes, sur un
+// seul document : chacun recoit son lien et signe avec son propre code (la
+// chaine de signature le permet depuis le 10/10).
+//   6. LES STATUTS NE SONT « SIGNES » QUE LORSQUE TOUS ONT SIGNE. La liste
+//      des signataires se lit sur le DOCUMENT envoye (compliance_documents),
+//      jamais sur les reponses : c est lui que chacun a sous les yeux.
+//   7. Tant qu il manque une signature, le dossier reste a l etape des
+//      statuts et dit qui a signe et qui reste.
+// Une EURL ou une SASU suit le chemin du lot A, a un signataire.
+// 🆕 10/10 — la lettre de depart passe aussi l adresse des conditions
+// generales : l ecran de signature en fait un bouton.
 // ══════════════════════════════════════════════════════════════════════════
 
 const supabase = createClient(
@@ -116,6 +124,47 @@ async function signatureDe(reference: string): Promise<string | null> {
   return s.signe_le || s.created_at || new Date().toISOString();
 }
 
+// 🆕 10/10 — OU EN SONT LES SIGNATURES DES STATUTS. Les signataires attendus
+// sont ceux du document envoye ; `complet` quand chacun a signe, et `le` est
+// alors la date de la DERNIERE signature (c est elle qui acheve les statuts).
+async function signaturesDesStatuts(tenantId: string, reference: string): Promise<{ signataires: { email: string; nom: string; signe_le: string | null }[]; complet: boolean; le: string | null } | null> {
+  const { data: doc } = await supabase
+    .from("compliance_documents")
+    .select("reference, signataire_email, donnees")
+    .eq("reference", reference)
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
+  if (!doc) return null;
+  const donnees: any = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+  const attendus: { email: string; nom: string }[] = [];
+  if (Array.isArray(donnees.signataires)) {
+    for (const x of donnees.signataires) {
+      const email = String((x && x.email) || "").toLowerCase().trim();
+      if (email && !attendus.some(function (y) { return y.email === email; })) attendus.push({ email, nom: String((x && x.nom) || "").trim() });
+    }
+  }
+  if (attendus.length === 0) {
+    const seul = String(doc.signataire_email || "").toLowerCase().trim();
+    if (seul) attendus.push({ email: seul, nom: String(donnees.signataire_nom || "").trim() });
+  }
+  if (attendus.length === 0) return null;
+  const { data: lignes } = await supabase
+    .from("compliance_signatures")
+    .select("*")
+    .eq("document_reference", reference)
+    .eq("annulee", false);
+  const faites: Record<string, string> = {};
+  for (const l of (lignes || []) as any[]) {
+    const email = String(l.signataire_email || "").toLowerCase().trim();
+    if (email) faites[email] = l.signe_le || l.created_at || new Date().toISOString();
+  }
+  const signataires = attendus.map(function (a) { return { email: a.email, nom: a.nom, signe_le: faites[a.email] || null }; });
+  const complet = signataires.every(function (x) { return !!x.signe_le; });
+  let le: string | null = null;
+  if (complet) for (const x of signataires) if (!le || String(x.signe_le) > le) le = String(x.signe_le);
+  return { signataires, complet, le };
+}
+
 // Une etape est validee si sa validation porte l empreinte des reponses
 // d aujourd hui. Une reponse changee depuis ne compte plus.
 function valide(d: any, section: string): boolean {
@@ -139,8 +188,12 @@ async function constater(d: any): Promise<any> {
     if (le) { maj.lettre_signee_le = le; await journal(d, "signature", "lettre_signee", null, { reference: d.lettre_reference, le }); }
   }
   if (d.statuts_reference && !d.statuts_signes_le) {
-    const le = await signatureDe(d.statuts_reference);
-    if (le) { maj.statuts_signes_le = le; await journal(d, "signature", "statuts_signes", null, { reference: d.statuts_reference, le }); }
+    // 🆕 10/10 — TOUS les signataires du document, pas le premier venu.
+    const etat = await signaturesDesStatuts(d.tenant_id, d.statuts_reference);
+    if (etat && etat.complet && etat.le) {
+      maj.statuts_signes_le = etat.le;
+      await journal(d, "signature", "statuts_signes", null, { reference: d.statuts_reference, le: etat.le, signataires: etat.signataires });
+    }
   }
   if (Object.keys(maj).length === 0) return d;
   maj.maj_le = new Date().toISOString();
@@ -159,6 +212,13 @@ async function vue(d: any) {
     .limit(60);
   const validations: any = {};
   for (const s of ORDRE_SECTIONS) validations[s] = valide(d, s) ? { le: d.validations[s].le, par: d.validations[s].par } : null;
+  // 🆕 10/10 — qui a signe les statuts, qui reste (document a plusieurs
+  // signataires seulement).
+  let statutsSignatures: any = null;
+  if (d.statuts_reference) {
+    const etat = await signaturesDesStatuts(d.tenant_id, d.statuts_reference);
+    if (etat && etat.signataires.length > 1) statutsSignatures = etat.signataires;
+  }
   return {
     dossier: {
       id: d.id, nom_projet: d.nom_projet, forme: d.forme, client_nom: d.client_nom, client_email: d.client_email,
@@ -170,6 +230,7 @@ async function vue(d: any) {
     etape: courante,
     etapes: ETAPES.map(function (e, i) { return { ...e, etat: i < rang ? "faite" : i === rang ? "en_cours" : "a_venir" }; }),
     validations,
+    statuts_signatures: statutsSignatures,
     journal: lignes || [],
   };
 }
@@ -259,14 +320,14 @@ export async function POST(req: NextRequest) {
       const l = lettreDepart(d, cabinet);
       return NextResponse.json({
         ok: true, corps: l.corps, titre: l.titre,
-        document_a_signer: { doc_type: "mandat", libelle: l.libelle, titre: l.titre, corps: l.corps, signataire_email: d.client_email, signataire_nom: d.client_nom, entite_id: cabinet.id },
+        document_a_signer: { doc_type: "mandat", libelle: l.libelle, titre: l.titre, corps: l.corps, signataire_email: d.client_email, signataire_nom: d.client_nom, entite_id: cabinet.id, conditions_url: CONDITIONS_CREATION.adresse },
       });
     }
 
     if (action === "lettre_lier" || action === "statuts_lier") {
       const reference = texte(b.reference, 60);
       if (!reference) return refus("Référence du document manquante.", 400);
-      const { data: doc } = await supabase.from("compliance_documents").select("reference, signataire_email").eq("reference", reference).eq("tenant_id", tenantId).maybeSingle();
+      const { data: doc } = await supabase.from("compliance_documents").select("reference, signataire_email, donnees").eq("reference", reference).eq("tenant_id", tenantId).maybeSingle();
       if (!doc) return refus("Ce document n'appartient pas à votre organisme.", 404);
       const maintenant = new Date().toISOString();
       if (action === "lettre_lier") {
@@ -278,7 +339,8 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, ...(await vue(maj)) });
       }
       if (etapeCourante(d) !== "statuts") return refus("Les statuts ne sont pas l'étape en cours.", 409);
-      const e = await journal(d, session.email, "statuts_envoyes", null, { reference, signataire: doc.signataire_email, empreintes: ORDRE_SECTIONS.map(function (s) { return [s, empreinte((d.reponses || {})[s])]; }) });
+      const dn: any = doc.donnees && typeof doc.donnees === "object" ? doc.donnees : {};
+      const e = await journal(d, session.email, "statuts_envoyes", null, { reference, signataire: doc.signataire_email, signataires: Array.isArray(dn.signataires) ? dn.signataires : null, empreintes: ORDRE_SECTIONS.map(function (s) { return [s, empreinte((d.reponses || {})[s])]; }) });
       if (e) return refus("Le journal n'a pas pu être écrit : " + e, 500);
       const { data: maj, error } = await supabase.from("compta_creations").update({ statuts_reference: reference, statuts_envoyes_le: maintenant, maj_le: maintenant }).eq("id", d.id).select("*").maybeSingle();
       if (error || !maj) return refus(error ? error.message : "Enregistrement impossible.", 500);
@@ -387,10 +449,25 @@ export async function POST(req: NextRequest) {
       const st = statuts(d.reponses, d.mandataire_nom || "");
       const corps = st.corps + "\n\n" + recapitulatif(d.reponses, d.validations || {});
       const plusieurs = st.signataires.length > 1;
+      // Dernier filet : une adresse, une personne. L etape « Les associes »
+      // le controle deja ; ici, majuscules et minuscules confondues.
+      const vues: Record<string, boolean> = {};
+      for (const x of st.signataires) {
+        const email = String(x.email || "").toLowerCase().trim();
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return refus("L'adresse de courriel de " + (x.nom || "l'un des associés") + " n'a pas la forme d'une adresse : corrigez l'étape « Les associés ».", 409);
+        if (vues[email]) return refus("Deux associés portent la même adresse de courriel (" + email + ") : chacun signe avec la sienne. Corrigez l'étape « Les associés ».", 409);
+        vues[email] = true;
+      }
       return NextResponse.json({
         ok: true, titre: st.titre, corps, signataires: st.signataires, plusieurs,
-        avis: plusieurs ? "Ces statuts se signent par chacun des " + st.signataires.length + " associés. L'envoi à plusieurs signataires arrive avec le lot suivant : aujourd'hui, ils se relisent ici mais ne partent pas encore à la signature." : null,
-        document_a_signer: plusieurs ? null : { doc_type: "convention", libelle: st.libelle, titre: st.titre, corps, signataire_email: st.signataires[0].email, signataire_nom: st.signataires[0].nom, entite_id: cabinet.id },
+        avis: plusieurs ? "Ces statuts se signent par chacun des " + st.signataires.length + " associés. Chacun reçoit son propre lien et signe avec son propre code ; les statuts sont signés quand tous ont signé." : null,
+        document_a_signer: {
+          doc_type: "convention", libelle: st.libelle, titre: st.titre, corps,
+          signataire_email: st.signataires[0].email, signataire_nom: st.signataires[0].nom, entite_id: cabinet.id,
+          // 🆕 10/10 — la liste entiere, que document-a-signer range sur le
+          // document : c est elle que la signature fait respecter.
+          ...(plusieurs ? { signataires: st.signataires } : {}),
+        },
       });
     }
 
