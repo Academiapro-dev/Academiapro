@@ -66,6 +66,23 @@ export const dynamic = "force-dynamic";
 // « convention » et s affichait « Convention de prestation ». L appelant
 // peut desormais passer `libelle`, qui remplace celui du type dans le
 // document et reste range dans donnees.libelle.
+//
+// 🆕 10/10 — PLUSIEURS SIGNATAIRES SUR UN MEME DOCUMENT (lot B du module
+// « Creation de societe »). Les statuts d une SARL, d une SAS ou d une SCI se
+// signent par TOUS les associes. L appelant peut passer `signataires` :
+// [{ email, nom }]. Alors :
+//   - chacun recoit SON courriel et signera avec SON code (route signature) ;
+//   - le document porte un cadre de signature PAR signataire, a son nom ;
+//   - la liste est rangee dans donnees.signataires, et la position de chaque
+//     cadre dans donnees.zones_signature ; signataire_email garde le premier.
+// ⛔ SANS `signataires` (ou avec un seul), RIEN NE CHANGE : un signataire, un
+// cadre « Signature du titulaire », un courriel — le chemin eprouve depuis
+// le 01/09 pour MysterLLC, les lettres de mission et la lettre de depart.
+//
+// 🆕 10/10 — LES CONDITIONS GENERALES. L appelant peut passer
+// `conditions_url` : la page de signature affiche alors un bouton « Lire les
+// conditions generales » au-dessus de la case de consentement. ⛔ Seule une
+// adresse https de l un de nos sites est gardee ; toute autre est ignoree.
 // ---------------------------------------------------------------------------
 
 const supabase = createClient(
@@ -124,6 +141,42 @@ function signatureDeclaree(v: any, pages: number): any {
   return sortie;
 }
 
+// 🆕 10/10 — PLUSIEURS SIGNATAIRES : la borne, et le tamis.
+const SIGNATAIRES_MAX = 20;
+type Signataire = { email: string; nom: string };
+
+// Rend la liste propre, ou un message de refus. Une adresse en double est
+// refusee : chacun signe avec la sienne, c est ce qui distingue les preuves.
+function signatairesDemandes(v: any): { liste: Signataire[]; refus: string | null } {
+  if (!Array.isArray(v) || v.length === 0) return { liste: [], refus: null };
+  if (v.length > SIGNATAIRES_MAX) return { liste: [], refus: "Trop de signataires (" + SIGNATAIRES_MAX + " au plus). Rien n'a été envoyé." };
+  const liste: Signataire[] = [];
+  const vus: Record<string, boolean> = {};
+  for (const x of v) {
+    const email = String((x && x.email) || "").toLowerCase().trim();
+    const nom = String((x && x.nom) || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { liste: [], refus: "L'adresse d'un signataire n'a pas la forme d'une adresse" + (nom ? " (" + nom + ")" : "") + ". Rien n'a été envoyé." };
+    if (vus[email]) return { liste: [], refus: "Deux signataires portent la même adresse (" + email + ") : chacun signe avec la sienne. Rien n'a été envoyé." };
+    vus[email] = true;
+    liste.push({ email, nom });
+  }
+  return { liste, refus: null };
+}
+
+// 🆕 10/10 — L ADRESSE DES CONDITIONS GENERALES : https, et chez nous.
+const SITES_CONDITIONS = ["mrcomptable.fr", "mysterllc.com", "academiapro.fr"];
+function conditionsDemandees(v: any): string | null {
+  const brut = String(v || "").trim();
+  if (!brut || brut.length > 300) return null;
+  try {
+    const u = new URL(brut);
+    if (u.protocol !== "https:") return null;
+    const hote = u.hostname.toLowerCase();
+    for (const s of SITES_CONDITIONS) if (hote === s || hote.endsWith("." + s)) return u.toString();
+    return null;
+  } catch { return null; }
+}
+
 function echappe(t: string): string {
   return String(t || "")
     .replace(/&/g, "&amp;")
@@ -152,9 +205,9 @@ function pourPdf(t: string): string {
   return String(t || "").replace(/[^\x09\x0A\x0D\x20-\x7E\u00A0-\u00FF\u0152\u0153\u0160\u0161\u0178\u017D\u017E\u2013\u2014\u2018\u2019\u201C\u201D\u2026\u20AC]/g, "?");
 }
 
-type ZoneSignature = { page: number; x: number; y: number; largeur: number; hauteur: number };
+type ZoneSignature = { page: number; x: number; y: number; largeur: number; hauteur: number; email?: string };
 
-async function documentPDF(titre: string, corps: string, societe: string, libelle: string, marque: MarqueCompliance, pieces: { titre: string; pages: number }[], zone: { valeur: ZoneSignature | null }): Promise<Uint8Array> {
+async function documentPDF(titre: string, corps: string, societe: string, libelle: string, marque: MarqueCompliance, pieces: { titre: string; pages: number }[], zone: { valeur: ZoneSignature | null; toutes: ZoneSignature[] }, signataires: Signataire[]): Promise<Uint8Array> {
   const date = new Date().toLocaleDateString("fr-FR", { year: "numeric", month: "long", day: "numeric" });
 
   const pdf = await PDFDocument.create();
@@ -244,7 +297,7 @@ async function documentPDF(titre: string, corps: string, societe: string, libell
   // ---- 🆕 23/09 — Le cadre « Signature du titulaire » ----
   // Il reste VIDE dans le fichier archive ; sa position est rendue a
   // l appelant pour que le document signe y reporte le trace.
-  {
+  if (signataires.length < 2) {
     const HAUTEUR_CADRE = 70, LARGEUR_CADRE = 240;
     if (y < MARGE + HAUTEUR_CADRE + 40) nouvellePage();
     y = y - 4;
@@ -253,6 +306,33 @@ async function documentPDF(titre: string, corps: string, societe: string, libell
     page.drawRectangle({ x: MARGE, y: bas, width: LARGEUR_CADRE, height: HAUTEUR_CADRE, borderColor: rgb(0.80, 0.80, 0.80), borderWidth: 0.75 });
     zone.valeur = { page: pdf.getPageCount() - 1, x: MARGE, y: bas, largeur: LARGEUR_CADRE, hauteur: HAUTEUR_CADRE };
     y = bas - 16;
+  } else {
+    // ---- 🆕 10/10 — Un cadre PAR signataire, a son nom, deux par rangee ----
+    // Meme regle que le cadre unique : ils restent VIDES dans le fichier
+    // archive ; leurs positions sont rendues a l appelant, avec l adresse de
+    // celui qui y signera.
+    const HAUTEUR_CADRE = 70, ECART = 19, LARGEUR_CADRE = (LARGEUR_TEXTE - ECART) / 2;
+    y = y - 4;
+    if (y < MARGE + HAUTEUR_CADRE + 60) nouvellePage();
+    ecrire("SIGNATURES", gras, 9, OR, 1.6);
+    const nomCadre = function (nom: string): string {
+      let n = pourPdf(nom || "");
+      while (n.length > 1 && police.widthOfTextAtSize(n, 9) > LARGEUR_CADRE) n = n.slice(0, -1);
+      return n;
+    };
+    for (let i = 0; i < signataires.length; i += 2) {
+      if (y < MARGE + HAUTEUR_CADRE + 24) nouvellePage();
+      const haut = y;
+      const bas = haut - 14 - HAUTEUR_CADRE;
+      for (let j = i; j < Math.min(i + 2, signataires.length); j++) {
+        const gauche = MARGE + (j - i) * (LARGEUR_CADRE + ECART);
+        page.drawText(nomCadre(signataires[j].nom || signataires[j].email), { x: gauche, y: haut, size: 9, font: police, color: NUIT });
+        page.drawRectangle({ x: gauche, y: bas, width: LARGEUR_CADRE, height: HAUTEUR_CADRE, borderColor: rgb(0.80, 0.80, 0.80), borderWidth: 0.75 });
+        zone.toutes.push({ page: pdf.getPageCount() - 1, x: gauche, y: bas, largeur: LARGEUR_CADRE, hauteur: HAUTEUR_CADRE, email: signataires[j].email });
+      }
+      y = bas - 18;
+    }
+    zone.valeur = zone.toutes[0] ? { page: zone.toutes[0].page, x: zone.toutes[0].x, y: zone.toutes[0].y, largeur: zone.toutes[0].largeur, hauteur: zone.toutes[0].hauteur } : null;
   }
 
   // ---- Mention eIDAS ----
@@ -319,8 +399,23 @@ export async function POST(req: NextRequest) {
     const type = String(b.doc_type || "").trim();
     const titre = String(b.titre || "").trim();
     const corps = String(b.corps || "").trim();
-    const emailSignataire = String(b.signataire_email || "").toLowerCase().trim();
     const entiteDemandee = String(b.entite_id || "").trim();
+
+    // 🆕 10/10 — PLUSIEURS SIGNATAIRES. La liste, quand elle est passee, fait
+    // foi ; le premier devient le signataire_email du document. Une liste
+    // d un seul nom suit le chemin d avant, a un signataire.
+    const demandes = signatairesDemandes(b.signataires);
+    if (demandes.refus) {
+      return NextResponse.json({ error: demandes.refus }, { status: 400 });
+    }
+    const signataires: Signataire[] = demandes.liste.length >= 2 ? demandes.liste : [];
+    const emailSignataire = demandes.liste.length >= 1
+      ? demandes.liste[0].email
+      : String(b.signataire_email || "").toLowerCase().trim();
+    const nomSignataire = demandes.liste.length === 1 && demandes.liste[0].nom
+      ? demandes.liste[0].nom
+      : String(b.signataire_nom || "").trim();
+    const conditionsUrl = conditionsDemandees(b.conditions_url);
 
     // 🚨 LE PREMIER VERROU : LE TYPE.
     if (TYPES_SIGNABLES.indexOf(type) < 0) {
@@ -423,9 +518,9 @@ export async function POST(req: NextRequest) {
       + "-" + suffixe;
 
     let pdfOctets: Uint8Array;
-    const zone: { valeur: ZoneSignature | null } = { valeur: null };
+    const zone: { valeur: ZoneSignature | null; toutes: ZoneSignature[] } = { valeur: null, toutes: [] };
     try {
-      const attestation = await documentPDF(titre, corps, societe, libelle, marque, annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }), zone);
+      const attestation = await documentPDF(titre, corps, societe, libelle, marque, annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }), zone, signataires);
       pdfOctets = await joindreAnnexes(attestation, annexes);
     } catch (e: unknown) {
       console.error("[document-a-signer] assemblage :", e instanceof Error ? e.message : String(e));
@@ -465,11 +560,14 @@ export async function POST(req: NextRequest) {
       size_bytes: octets.length,
       mime_type: "application/pdf",
       donnees: {
-        signataire_nom: String(b.signataire_nom || "").trim() || null,
+        signataire_nom: nomSignataire || null,
         prepare_par: session ? session.email : null,
         libelle,
         annexes: annexes.map(function (a) { return { chemin: a.chemin, titre: a.titre, pages: a.pages, sha256: a.sha256, signature: a.signature }; }),
         zone_signature: zone.valeur,
+        // 🆕 10/10 — rien de plus pour un document a un signataire.
+        ...(signataires.length >= 2 ? { signataires: signataires, zones_signature: zone.toutes } : {}),
+        ...(conditionsUrl ? { conditions_url: conditionsUrl } : {}),
       },
     });
 
@@ -493,12 +591,20 @@ export async function POST(req: NextRequest) {
     const cle = process.env.RESEND_API_KEY || "";
     const expediteur = marque.expediteur;
 
-    const email: Record<string, unknown> = { destinataire: emailSignataire };
+    // 🆕 10/10 — UN COURRIEL PAR SIGNATAIRE. `email` garde la forme d avant
+    // (c est ce que lisent les ecrans) : pour plusieurs signataires, il dit
+    // « envoye » seulement si TOUS les courriels sont partis, et `envois`
+    // donne le detail, adresse par adresse.
+    const destinataires: Signataire[] = signataires.length >= 2 ? signataires : [{ email: emailSignataire, nom: nomSignataire }];
 
-    if (!cle) {
-      email.envoye = false;
-      email.raison = "RESEND_API_KEY absente";
-    } else {
+    const envoyerA = async function (dest: Signataire): Promise<Record<string, unknown>> {
+      const e: Record<string, unknown> = { destinataire: dest.email };
+      if (!cle) {
+        e.envoye = false;
+        e.raison = "RESEND_API_KEY absente";
+        return e;
+      }
+      const autres = destinataires.filter(function (x) { return x.email !== dest.email; });
       const corpsHtml =
         '<div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#1a1a1a;line-height:1.75">' +
         '<p style="color:#a07840;font-size:13px;letter-spacing:2px;margin:0 0 6px">DOCUMENT À SIGNER</p>' +
@@ -507,6 +613,10 @@ export async function POST(req: NextRequest) {
         echappe(societe) + "</strong>.</p>" +
         "<p>Vous pourrez le lire entièrement avant de signer. Un code de " +
         "vérification à six chiffres vous sera envoyé au moment de la signature.</p>" +
+        (autres.length > 0
+          ? "<p>Ce document se signe par " + destinataires.length + " personnes. Chacune reçoit ce message et signe de son côté, avec son propre code : "
+            + destinataires.map(function (x) { return echappe(x.nom || x.email); }).join(", ") + ".</p>"
+          : "") +
         (annexes.length > 0
           ? "<p>Il comprend, à sa suite, les pièces qu'il désigne : " + annexes.map(function (a) { return echappe(a.titre); }).join(", ") + ".</p>"
           : "") +
@@ -528,22 +638,36 @@ export async function POST(req: NextRequest) {
           },
           body: JSON.stringify({
             from: expediteur,
-            to: [emailSignataire],
+            to: [dest.email],
             subject: titre + " — document à signer",
             html: corpsHtml,
           }),
         });
-        email.statut_http = r.status;
-        email.envoye = r.ok;
+        e.statut_http = r.status;
+        e.envoye = r.ok;
         if (!r.ok) {
-          email.raison = "Resend a refuse l'envoi";
-          email.reponse = (await r.text()).slice(0, 400);
+          e.raison = "Resend a refuse l'envoi";
+          e.reponse = (await r.text()).slice(0, 400);
         }
-      } catch (e: unknown) {
-        email.envoye = false;
-        email.raison = "Appel a Resend impossible";
-        email.reponse = e instanceof Error ? e.message : String(e);
+      } catch (err: unknown) {
+        e.envoye = false;
+        e.raison = "Appel a Resend impossible";
+        e.reponse = err instanceof Error ? err.message : String(err);
       }
+      return e;
+    };
+
+    const envois: Record<string, unknown>[] = [];
+    for (const dest of destinataires) envois.push(await envoyerA(dest));
+
+    let email: Record<string, unknown> = envois[0];
+    if (envois.length > 1) {
+      const rates = envois.filter(function (e) { return e.envoye !== true; });
+      email = {
+        destinataire: destinataires.map(function (x) { return x.email; }).join(", "),
+        envoye: rates.length === 0,
+      };
+      if (rates.length > 0) email.raison = "non parti pour " + rates.map(function (e) { return String(e.destinataire); }).join(", ") + " — " + String(rates[0].raison || "cause inconnue");
     }
 
     return NextResponse.json({
@@ -556,6 +680,8 @@ export async function POST(req: NextRequest) {
       libelle: libelle,
       annexes: annexes.map(function (a) { return { titre: a.titre, pages: a.pages }; }),
       email: email,
+      // 🆕 10/10 — seulement pour un document a plusieurs signataires.
+      ...(signataires.length >= 2 ? { signataires: signataires, envois: envois } : {}),
     });
   } catch (e: unknown) {
     console.error("[document-a-signer] exception :",
