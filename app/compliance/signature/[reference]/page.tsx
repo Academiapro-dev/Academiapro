@@ -30,6 +30,16 @@ import { useState, useEffect, useRef } from "react";
 // ⚠️ LE CANVAS SE REDIMENSIONNE AVEC L ECRAN. Un canvas HTML a deux
 // tailles — celle de son attribut et celle de son style. Les confondre
 // decale le trace du doigt, defaut classique et tres visible sur iPad.
+//
+// 🆕 10/10 — PLUSIEURS SIGNATAIRES (lot B du module « Creation de societe »).
+// Quand le document se signe par plusieurs personnes, l ecran dit QUI a deja
+// signe et QUI reste, avant la signature comme apres. Chacun ne signe que
+// pour lui, avec son propre code. Un document a un signataire s affiche
+// comme avant.
+// 🆕 10/10 — et trois retouches demandees par Jacques : les exemples des
+// cases portent « ex. : » (sans lui, l exemple ressemblait a une case deja
+// remplie) ; le nom connu du signataire est propose, modifiable ; un bouton
+// « Lire les conditions generales » quand le document en cite.
 // ---------------------------------------------------------------------------
 
 const OR = "#c8a96e";
@@ -131,12 +141,16 @@ export default function PageSignature({ params }: any) {
       const d = await r.json();
       if (d.ok) {
         setDoc(d);
+        // 10/10 — le nom deja connu est propose ; il reste modifiable.
+        if (d.votre_nom) setNom(function (n: string) { return n ? n : String(d.votre_nom); });
         // 🆕 23/09 — deja signe : on montre l ecran « signe » et son bouton,
         // plutot qu un formulaire qui echouerait a la derniere etape.
         if (d.deja_signe) {
           setSigne({
             empreinte: d.empreinte,
             signe_le: d.signe_le,
+            signataires: d.signataires || null,
+            reste_a_signer: d.reste_a_signer,
             deja: true,
             avertissement: "Signature électronique simple au sens du règlement eIDAS. Elle n'est ni avancée ni qualifiée : elle est opposable entre les parties, elle ne vaut pas vérification d'identité.",
           });
@@ -300,6 +314,25 @@ export default function PageSignature({ params }: any) {
     boxSizing: "border-box",
   };
 
+  // 🆕 10/10 — QUI A SIGNE, QUI RESTE. Rendu seulement quand le document se
+  // signe par plusieurs personnes.
+  function listeSignataires(liste: any[]) {
+    return (
+      <div style={{ textAlign: "left", margin: "0 0 4px" }}>
+        {liste.map(function (x: any, i: number) {
+          return (
+            <p key={i} style={{ color: x.signe_le ? "#00e676" : "#e8a33d", fontSize: "14.5px", lineHeight: "1.6", margin: "0 0 6px", wordBreak: "break-word" }}>
+              {x.signe_le ? "✓ " : "… "}{x.nom ? x.nom + " — " : ""}{x.email}
+              {x.signe_le
+                ? " : a signé le " + new Date(x.signe_le).toLocaleString("fr-FR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                : " : n'a pas encore signé"}
+            </p>
+          );
+        })}
+      </div>
+    );
+  }
+
   // Le chemin de cette page, pour y revenir apres la connexion.
   const lienConnexion = "/connexion?retour="
     + encodeURIComponent("/compliance/signature/" + reference);
@@ -330,6 +363,17 @@ export default function PageSignature({ params }: any) {
                 « Certificat de signature » (trace, date, code verifie,
                 empreinte). Fabrique a la demande ; l original archive ne
                 change pas. */}
+            {/* 🆕 10/10 — plusieurs signataires : ou en est chacun. */}
+            {signe.signataires && signe.signataires.length > 1 && (
+              <div style={{ border: "1px solid rgba(255,255,255,0.15)", borderRadius: "10px", padding: "16px 18px", margin: "0 0 22px" }}>
+                <p style={{ color: "#fff", fontSize: "15px", lineHeight: "1.6", margin: "0 0 12px", textAlign: "left" }}>
+                  {signe.reste_a_signer > 0
+                    ? "Ce document se signe par " + signe.signataires.length + " personnes. Votre signature est enregistrée ; il sera complet quand chacune aura signé."
+                    : "Les " + signe.signataires.length + " signataires ont signé : le document est complet."}
+                </p>
+                {listeSignataires(signe.signataires)}
+              </div>
+            )}
             <a
               href={"/api/compliance/signature?vue=signe&reference=" + encodeURIComponent(reference)}
               target="_blank"
@@ -421,9 +465,13 @@ export default function PageSignature({ params }: any) {
         ) : !doc.vous_pouvez_signer ? (
           <div style={{ ...CARTE, border: "1px solid rgba(232,163,61,0.5)" }}>
             <p style={{ color: "#e8a33d", fontSize: "14.5px", lineHeight: "1.85", margin: "0 0 18px" }}>
-              Ce document est établi au nom de {doc.signataire}. Seule cette
-              personne peut le signer : connectez-vous avec ce compte.
+              {doc.signataires && doc.signataires.length > 1
+                ? "Ce document est établi au nom de " + doc.signataire + ". Seules ces personnes peuvent le signer : connectez-vous avec l'une de ces adresses."
+                : "Ce document est établi au nom de " + doc.signataire + ". Seule cette personne peut le signer : connectez-vous avec ce compte."}
             </p>
+            {doc.signataires && doc.signataires.length > 1 && (
+              <div style={{ margin: "0 0 18px" }}>{listeSignataires(doc.signataires)}</div>
+            )}
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <a href={lienConnexion} style={{ ...BOUTON, display: "inline-block", textDecoration: "none" }}>
                 Se connecter avec ce compte
@@ -454,6 +502,16 @@ export default function PageSignature({ params }: any) {
           </div>
         ) : (
           <>
+            {/* 🆕 10/10 — plusieurs signataires : le dire avant tout. */}
+            {doc.signataires && doc.signataires.length > 1 && (
+              <div style={CARTE}>
+                <p style={{ color: "#fff", fontSize: "15px", lineHeight: "1.7", margin: "0 0 12px" }}>
+                  Ce document se signe par {doc.signataires.length} personnes. Chacune signe de son côté, avec son propre code. Vous signez ici pour vous seul.
+                </p>
+                {listeSignataires(doc.signataires)}
+              </div>
+            )}
+
             {/* ---- 1. LIRE ---- */}
             <div style={CARTE}>
               <p style={{ color: OR, fontSize: "12px", letterSpacing: "2px", margin: "0 0 12px" }}>
@@ -557,7 +615,7 @@ export default function PageSignature({ params }: any) {
               <input
                 value={nom}
                 onChange={(e) => setNom(e.target.value)}
-                placeholder="Jean Dupont"
+                placeholder="ex. : Jean Dupont"
                 style={{ ...CHAMP, marginBottom: "14px" }}
               />
 
@@ -567,7 +625,7 @@ export default function PageSignature({ params }: any) {
               <input
                 value={qualite}
                 onChange={(e) => setQualite(e.target.value)}
-                placeholder="Gérant"
+                placeholder="ex. : Gérant"
                 style={CHAMP}
               />
             </div>
@@ -577,6 +635,22 @@ export default function PageSignature({ params }: any) {
               <p style={{ color: OR, fontSize: "12px", letterSpacing: "2px", margin: "0 0 14px" }}>
                 4. VÉRIFICATION ET SIGNATURE
               </p>
+
+              {/* 🆕 10/10 — LES CONDITIONS GENERALES que le document cite : un
+                  vrai bouton, au-dessus de la case. L adresse reste ecrite
+                  dans le document signe : c est elle qui fait preuve. */}
+              {doc.conditions_url && (
+                <p style={{ margin: "0 0 18px" }}>
+                  <a
+                    href={doc.conditions_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: "inline-block", padding: "11px 20px", borderRadius: "9px", border: "1px solid rgba(200,169,110,0.6)", color: OR, textDecoration: "none", fontSize: "14.5px", fontWeight: "bold", fontFamily: "Georgia,serif" }}
+                  >
+                    Lire les conditions générales
+                  </a>
+                </p>
+              )}
 
               <label style={{ display: "flex", gap: "12px", alignItems: "flex-start", cursor: "pointer", marginBottom: "18px" }}>
                 <input
