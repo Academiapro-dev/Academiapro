@@ -17,6 +17,28 @@ import { useState, useEffect } from "react";
 // de MysterLLC).
 // ══════════════════════════════════════════════════════════════════════════
 
+// 10/10/2026 — Sous « Forme de la société », l aide enchaine les cinq
+// explications (EURL, SARL, SASU, SAS, SCI) en un seul bloc. On la coupe a
+// chaque forme pour en afficher une par ligne. Toute autre aide reste telle
+// quelle, et si la coupe ne tombe pas juste on rend le texte entier.
+function lignesAide(qn: any): string[] {
+  const texte = String(qn.aide || "");
+  if (qn.code !== "forme" || !Array.isArray(qn.options)) return [texte];
+  const coupes: number[] = [];
+  qn.options.forEach(function (o: any) {
+    const i = texte.indexOf(String(o[0]) + " : ");
+    if (i === 0 || (i > 0 && texte.charAt(i - 1) === " ")) coupes.push(i);
+  });
+  coupes.sort(function (a, b) { return a - b; });
+  if (coupes.length < 2 || coupes[0] !== 0) return [texte];
+  const lignes: string[] = [];
+  for (let k = 0; k < coupes.length; k++) {
+    const morceau = texte.slice(coupes[k], k + 1 < coupes.length ? coupes[k + 1] : texte.length).trim();
+    if (morceau) lignes.push(morceau);
+  }
+  return lignes;
+}
+
 const CADRE: any = { minHeight: "100vh", background: "#050508", color: "#fff", fontFamily: "Georgia, serif", padding: "40px 20px" };
 const CARTE: any = { background: "rgba(255,255,255,0.03)", border: "1px solid rgba(200,169,110,0.25)", borderRadius: "12px", padding: "20px 24px", marginBottom: "16px" };
 const CHAMP: any = { width: "100%", padding: "11px 13px", borderRadius: "8px", border: "1px solid rgba(200,169,110,0.3)", background: "rgba(255,255,255,0.05)", color: "#fff", fontSize: "15px", fontFamily: "Georgia,serif", boxSizing: "border-box", minWidth: 0 };
@@ -223,7 +245,7 @@ export default function PageCreationSociete() {
       <div key={cle} style={{ flex: large ? "1 1 100%" : "1 1 220px", minWidth: 0, marginBottom: "14px" }}>
         <span style={LIBELLE}>{qn.libelle}</span>
         {saisieChamp}
-        {qn.aide && <p style={AIDE}>{qn.aide}</p>}
+        {qn.aide && lignesAide(qn).map(function (ligne, i) { return <p key={i} style={AIDE}>{ligne}</p>; })}
       </div>
     );
   }
@@ -296,7 +318,7 @@ export default function PageCreationSociete() {
     return (
       <div>
         <p style={{ ...AIDE, margin: "0 0 14px" }}>
-          Une seule lettre, signée avant tout : les engagements du client, les étapes qu&apos;il validera une à une, et la procuration donnée à {x.mandataire_nom} pour les formalités. Sans elle, rien ne commence.
+          Une seule lettre, signée avant tout : les engagements du client, les étapes qu&apos;il validera une à une, et la procuration donnée au cabinet, représenté notamment par {x.mandataire_nom}, pour les formalités. Sans elle, rien ne commence.
         </p>
         {x.lettre_reference && (
           <div style={{ marginBottom: "14px" }}>
@@ -350,7 +372,7 @@ export default function PageCreationSociete() {
       <div style={{ ...CARTE, border: "2px solid #c8a96e", marginTop: "18px", marginBottom: 0 }}>
         <h3 style={{ color: "#c8a96e", fontSize: "17px", margin: "0 0 4px" }}>Relisez avant d&apos;envoyer</h3>
         <p style={{ color: "#fff", fontSize: "15px", margin: "0 0 14px" }}>{apercu.titre}</p>
-        <pre style={{ whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.88)", fontSize: "14px", lineHeight: "1.7", fontFamily: "Georgia,serif", margin: "0 0 16px", maxHeight: "60vh", overflowY: "auto", background: "rgba(0,0,0,0.35)", borderRadius: "8px", padding: "16px 18px" }}>
+        <pre style={{ whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.88)", fontSize: "14px", lineHeight: "1.7", fontFamily: "Georgia,serif", margin: "0 0 16px", background: "rgba(0,0,0,0.35)", borderRadius: "8px", padding: "16px 18px" }}>
           {apercu.corps}
         </pre>
         {apercu.avis && <p style={{ color: ORANGE, fontSize: "15px", lineHeight: "1.6", margin: "0 0 14px" }}>{apercu.avis}</p>}
@@ -471,9 +493,9 @@ export default function PageCreationSociete() {
         {!chargement && !d && q && (
           <>
             {!cabinet && (
-              <div style={{ ...CARTE, border: "1px solid " + ORANGE }}>
-                <p style={{ color: ORANGE, fontSize: "15px", lineHeight: "1.55", margin: "0 0 10px" }}>La lettre de départ nomme votre société. Renseignez-la d&apos;abord dans « Ma société ».</p>
-                <a href="/admin/compliance/ma-societe" style={{ ...SECOND, textDecoration: "none", display: "inline-block" }}>Ouvrir « Ma société »</a>
+              <div style={{ ...CARTE, border: "1px solid " + ORANGE, marginTop: "18px" }}>
+                <p style={{ color: ORANGE, fontSize: "15px", lineHeight: "1.55", margin: "0 0 10px" }}>La lettre de départ nomme votre cabinet. Renseignez-le d&apos;abord dans « Mon cabinet ».</p>
+                <a href="/admin/compliance/ma-societe" style={{ ...SECOND, textDecoration: "none", display: "inline-block" }}>Ouvrir « Mon cabinet »</a>
               </div>
             )}
             <h2 style={{ color: "#c8a96e", fontSize: "18px", margin: "26px 0 12px" }}>Nouveau dossier</h2>
@@ -482,7 +504,7 @@ export default function PageCreationSociete() {
                 {champ({ libelle: "Nom du projet (le nom envisagé pour la société)", type: "texte", exemple: "ex. : Atelier Horizon" }, neuf.nom_projet, function (v) { setNeuf({ ...neuf, nom_projet: v }); }, "n1")}
                 {champ({ libelle: "Client : prénom et nom", type: "texte", exemple: "ex. : Claire Durand" }, neuf.client_nom, function (v) { setNeuf({ ...neuf, client_nom: v }); }, "n2")}
                 {champ({ libelle: "Client : adresse de courriel", type: "courriel", exemple: "ex. : claire.durand@exemple.fr", aide: "C'est à cette adresse que part la lettre de départ à signer." }, neuf.client_email, function (v) { setNeuf({ ...neuf, client_email: v }); }, "n3")}
-                {champ({ libelle: "Mandataire : prénom et nom", type: "texte", exemple: "ex. : Jacques Lalou", aide: "La personne qui déposera le dossier au guichet unique. La lettre de départ lui donne procuration." }, neuf.mandataire_nom, function (v) { setNeuf({ ...neuf, mandataire_nom: v }); }, "n4")}
+                {champ({ libelle: "Mandataire : prénom et nom", type: "texte", exemple: "ex. : Jacques Lalou", aide: "La personne qui déposera le dossier au guichet unique. La lettre de départ donne procuration au cabinet et nomme cette personne." }, neuf.mandataire_nom, function (v) { setNeuf({ ...neuf, mandataire_nom: v }); }, "n4")}
               </div>
               <button onClick={() => agir("ouvrir", { action: "ouvrir", ...neuf }, function (data) { setNeuf({ nom_projet: "", client_nom: "", client_email: "", mandataire_nom: "" }); if (data.dossier) window.history.replaceState(null, "", "?id=" + data.dossier.id); })} disabled={occupe !== "" || !nouveauPret} style={{ ...BOUTON, opacity: nouveauPret ? 1 : 0.5 }}>
                 {occupe === "ouvrir" ? "…" : "Ouvrir le dossier"}
