@@ -371,6 +371,14 @@ export default function NavBar() {
   // retombe sur son comportement public — jamais pire qu avant.
   const [connecte, setConnecte] = useState(false);
   const [admin, setAdmin] = useState(false);
+  // 10/10 — QUI EST CONNECTE, ET A-T-IL UN CABINET. Constate a l essai :
+  // rien ne disait quelle adresse etait connectee, et une cliente venue
+  // signer voyait le menu d un cabinet. L adresse s affiche desormais pres
+  // de « Se deconnecter » ; un compte sans organisme ne voit plus le menu.
+  // Tant que la session n a pas repondu, ou si elle ne dit rien, la barre
+  // reste celle d avant : jamais pire qu avant.
+  const [adresse, setAdresse] = useState("");
+  const [sansCabinet, setSansCabinet] = useState(false);
   const chemin = usePathname() || "";
 
   useEffect(() => {
@@ -383,6 +391,8 @@ export default function NavBar() {
       .then(function (d) {
         if (d && d.connecte) setConnecte(true);
         if (d && d.admin) setAdmin(true);
+        if (d && d.connecte && typeof d.email === "string") setAdresse(d.email);
+        if (d && d.connecte && d.cabinet === false) setSansCabinet(true);
       })
       .catch(function () {});
   }, []);
@@ -781,6 +791,32 @@ export default function NavBar() {
 
   // ---- Espace de travail comptable ---------------------------------------
   if (estComptable(chemin) || surMrComptable) {
+    const etiquetteAdresse = { color: "rgba(255,255,255,0.6)", fontSize: "13px", maxWidth: "260px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+    // 10/10 — UN COMPTE SANS CABINET NE VOIT PAS LE MENU DU CABINET. C est
+    // la personne qui n a de compte que pour signer (la cliente d un
+    // cabinet) : dossiers, saisie, TVA et « Mon cabinet » lui proposaient
+    // des ecrans qui ne sont pas les siens — « Mon cabinet » la menait au
+    // formulaire d une societe americaine. Elle voit le logo, son adresse
+    // et « Se deconnecter ». L administrateur garde toujours la barre.
+    if (connecte && sansCabinet && !admin) {
+      return (
+        <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
+          <div style={{ display: "block", flexShrink: 0, overflow: "hidden", lineHeight: 0 }}>
+            <img
+              src={LOGO_COMPTABLE}
+              alt="Mr. Comptable"
+              style={{ width: "400px", maxWidth: "40vw", height: "auto", display: "block", margin: "-4px", clipPath: "inset(4px)" }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: "12px", alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            {adresse && <span style={etiquetteAdresse}>{"Connect\u00e9 : " + adresse}</span>}
+            <a href="/api/auth/deconnexion" style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.2)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
+              {"Se d\u00e9connecter"}
+            </a>
+          </div>
+        </header>
+      );
+    }
     return (
       <header style={{ ...barre, padding: "0 30px", background: "#000" }}>
         <a
@@ -817,6 +853,7 @@ export default function NavBar() {
           <a href="/admin/compliance/ma-societe" style={{ color: "#c8a96e", border: "1px solid rgba(200,169,110,0.45)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", fontSize: "14px", whiteSpace: "nowrap" }}>
             Mon cabinet
           </a>
+          {connecte && adresse && <span style={etiquetteAdresse}>{adresse}</span>}
           {connecte && (
             <a href="/api/auth/deconnexion" style={{ color: "rgba(255,255,255,0.55)", border: "1px solid rgba(255,255,255,0.2)", padding: "8px 16px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", whiteSpace: "nowrap" }}>
               {"Se d\u00e9connecter"}
