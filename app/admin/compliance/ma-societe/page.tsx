@@ -210,6 +210,12 @@ export default function MaSociete() {
           {titre}
         </h1>
 
+        {msg && msg.indexOf("Cabinet enregistré") === 0 && (
+          <p style={{ margin: "0 0 18px", padding: "12px 16px", background: "#e8f3ee", border: "1px solid #0a3d2e", borderRadius: 6, color: "#0a3d2e", fontWeight: 600 }}>
+            {msg}
+          </p>
+        )}
+
         {chargement && <p>Chargement...</p>}
 
         {!chargement && societe && francais && (
@@ -510,7 +516,7 @@ export default function MaSociete() {
           </>
         )}
 
-        {msg && (
+        {msg && msg.indexOf("Cabinet enregistré") !== 0 && (
           <p style={{ marginTop: 16, color: msg.indexOf("Erreur") === 0 || msg.indexOf("ATTENTION") !== -1 ? "#c62828" : "#0a3d2e" }}>
             {msg}
           </p>
