@@ -338,6 +338,21 @@ export default function PageSignature({ params }: any) {
             >
               Voir le document signé
             </a>
+            {/* 10/10 — DIRE QUE C EST FINI. L ecran s arretait sur « C est
+                signe. » : le signataire ne savait pas s il lui restait
+                quelque chose a faire, et restait connecte sans le savoir.
+                La signature elle-meme n est pas touchee. */}
+            <p style={{ color: "#fff", fontSize: "15.5px", lineHeight: "1.7", margin: "0 0 14px" }}>
+              Vous avez terminé : vous pouvez fermer cette page.
+            </p>
+            <p style={{ margin: "0 0 22px" }}>
+              <a
+                href="/api/auth/deconnexion"
+                style={{ color: "rgba(255,255,255,0.75)", border: "1px solid rgba(255,255,255,0.3)", padding: "9px 18px", borderRadius: "8px", textDecoration: "none", fontSize: "14px", display: "inline-block" }}
+              >
+                Se déconnecter
+              </a>
+            </p>
             <p style={{ color: "rgba(255,255,255,0.35)", fontSize: "12px", lineHeight: "1.8", margin: 0, wordBreak: "break-all" }}>
               Empreinte du document signé<br />
               <span style={{ fontFamily: "monospace" }}>{signe.empreinte}</span>
